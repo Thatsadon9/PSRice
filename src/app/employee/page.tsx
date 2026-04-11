@@ -9,7 +9,7 @@ import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import { 
   MapPin, Clock, ClipboardList, CheckCircle2, 
-  ArrowRight, Calendar, Bell, Shield, LogOut, History
+  ArrowRight, Calendar, Bell, Shield, LogOut, History, Camera, ChevronRight, AlertCircle
 } from 'lucide-react';
 import { formatThaiDate, isDateToday } from '@/lib/dateUtils';
 import { TASK_STATUS_LABELS, PRIORITY_LABELS } from '@/lib/constants';
@@ -23,207 +23,141 @@ export default function EmployeeDashboard() {
   const taskStore = useTaskStore();
   const router = useRouter();
 
+  useEffect(() => {
+    attendanceStore.fetchRecords();
+    taskStore.fetchTasks();
+  }, [attendanceStore, taskStore]);
+
   if (!currentUser) return null;
 
   const todayAttendance = attendanceStore.getTodayRecordForUser(currentUser.id);
   const isCheckedIn = !!todayAttendance.checkIn;
   const isCheckedOut = !!todayAttendance.checkOut;
+  const status = attendanceStore.getTodayStatus(currentUser.id);
   
-  const todayTasks = taskStore.getTodayTasksByUser(currentUser.id);
-  const taskStats = taskStore.getTaskStats(currentUser.id);
-
-  const handleLogout = async () => {
-    await logout();
-    router.push('/login');
-  };
+  const myTasks = taskStore.getTasksByEmployee(currentUser.id);
+  const activeTasks = myTasks.filter(t => t.status === 'pending' || t.status === 'in_progress');
+  const completedTasksCount = myTasks.filter(t => t.status === 'completed').length;
 
   return (
-    <div className="px-4 py-4 space-y-6 animate-fade-in pb-20">
-      {/* Header Profile */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-full border-2 border-primary-100 p-0.5 bg-white">
-            <div className="w-full h-full rounded-full bg-primary-600 flex items-center justify-center text-white font-bold text-lg">
-              {currentUser.full_name.charAt(0)}
-            </div>
-          </div>
-          <div>
-            <h1 className="text-base font-bold text-slate-900 leading-tight">{currentUser.full_name}</h1>
-            <p className="text-xs text-slate-500 font-medium">{currentUser.role === 'employee' ? 'พนักงานทั่วไป' : 'ผู้เชี่ยวชาญ'}</p>
-          </div>
+    <div className="px-4 py-6 space-y-6 animate-fade-in pb-20">
+      {/* Header with improved aesthetics */}
+      <div className="flex justify-between items-start">
+        <div className="space-y-1">
+           <p className="text-xs font-bold text-primary-600 uppercase tracking-wider">ยินดีต้อนรับกลับมา</p>
+           <h1 className="text-2xl font-black text-slate-900 leading-tight">สวัสดี, {currentUser.full_name?.split(' ')[0]} 👋</h1>
+           <p className="text-sm text-slate-500 font-medium">{formatThaiDate(new Date().toISOString())}</p>
         </div>
-        <div className="flex gap-2">
-           <Link href="/employee/notifications" className="p-2 rounded-full bg-slate-100 text-slate-500 relative">
-              <Bell className="w-5 h-5" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 border-2 border-white rounded-full"></span>
-           </Link>
-           <button onClick={handleLogout} className="p-2 rounded-full bg-red-50 text-red-500">
-              <LogOut className="w-5 h-5" />
-           </button>
-        </div>
+        <Link href="/employee/notifications" className="relative p-2.5 bg-white rounded-2xl shadow-sm border border-slate-100 text-slate-400 hover:text-primary-600 transition-colors">
+          <Bell className="w-6 h-6" />
+          <span className="absolute top-2.5 right-2.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>
+        </Link>
       </div>
 
-      {/* Attendance Status Card - Interactive */}
-      <Card className="bg-gradient-to-br from-primary-600 to-primary-800 text-white border-none shadow-lg shadow-primary-200">
-        <div className="space-y-4">
-           <div className="flex justify-between items-start">
-              <div className="space-y-1">
-                 <p className="text-primary-100 text-[10px] font-bold uppercase tracking-widest">สถานะปัจจุบัน</p>
-                 <h2 className="text-xl font-bold flex items-center gap-2">
-                    {isCheckedOut ? 'เลิกงานแล้ว' : isCheckedIn ? 'กำลังปฏิบัติงาน' : 'ยังไม่ได้เข้างาน'}
-                    <div className={`w-2 h-2 rounded-full animate-pulse ${isCheckedIn && !isCheckedOut ? 'bg-emerald-400' : 'bg-slate-300'}`}></div>
-                 </h2>
-              </div>
-              <Badge variant="default" className="bg-white/10 border-white/20 text-white">
-                 {formatThaiDate(new Date().toISOString())}
-              </Badge>
-           </div>
+      {/* Attendance Card with premium design */}
+      <Card className="p-6 bg-slate-900 text-white border-none shadow-xl shadow-slate-200 relative overflow-hidden group">
+         {/* Decorative background elements */}
+         <div className="absolute top-0 right-0 w-32 h-32 bg-primary-500/10 rounded-full -mr-16 -mt-16 blur-2xl group-hover:bg-primary-500/20 transition-all duration-500"></div>
+         <div className="absolute bottom-0 left-0 w-24 h-24 bg-blue-500/10 rounded-full -ml-12 -mb-12 blur-2xl group-hover:bg-blue-500/20 transition-all duration-500"></div>
+         
+         <div className="relative z-10 space-y-6">
+            <div className="flex items-center justify-between">
+               <div className="flex items-center gap-3">
+                  <div className="p-2 bg-white/10 rounded-xl backdrop-blur-md">
+                     <Clock className="w-5 h-5 text-primary-300" />
+                  </div>
+                  <h2 className="font-bold text-lg">บันทึกเวลาวันนี้</h2>
+               </div>
+               <Badge variant={status === 'not_checked_in' ? 'default' : 'success'} className="bg-white/10 text-white border-none backdrop-blur-md px-3 py-1">
+                  {status === 'not_checked_in' ? 'ยังไม่มีบันทึก' : status === 'checked_in' ? 'เช็กอินแล้ว' : status === 'late' ? 'มาสาย' : 'เช็กเอาต์แล้ว'}
+               </Badge>
+            </div>
 
-           <div className="grid grid-cols-2 gap-3 pt-2">
-              <div className="bg-white/10 rounded-xl p-3 backdrop-blur-sm border border-white/10">
-                 <p className="text-[10px] text-primary-100 font-medium mb-1">เข้างาน</p>
-                 <p className="text-lg font-bold">{todayAttendance.checkIn ? new Date(todayAttendance.checkIn.created_at).toLocaleTimeString('th-TH').slice(0, 5) : '--:--'}</p>
-              </div>
-              <div className="bg-white/10 rounded-xl p-3 backdrop-blur-sm border border-white/10">
-                 <p className="text-[10px] text-primary-100 font-medium mb-1">ออกงาน</p>
-                 <p className="text-lg font-bold">{todayAttendance.checkOut ? new Date(todayAttendance.checkOut.created_at).toLocaleTimeString('th-TH').slice(0, 5) : '--:--'}</p>
-              </div>
-           </div>
+            <div className="grid grid-cols-2 gap-4">
+               <div className="bg-white/5 p-4 rounded-3xl border border-white/5 space-y-1">
+                  <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest text-center">เวลาเข้า</p>
+                  <p className="text-xl font-black text-center">{todayAttendance.checkIn ? new Date(todayAttendance.checkIn.created_at).toLocaleTimeString('th-TH').slice(0, 5) : '--:--'}</p>
+               </div>
+               <div className="bg-white/5 p-4 rounded-3xl border border-white/5 space-y-1">
+                  <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest text-center">เวลาออก</p>
+                  <p className="text-xl font-black text-center">{todayAttendance.checkOut ? new Date(todayAttendance.checkOut.created_at).toLocaleTimeString('th-TH').slice(0, 5) : '--:--'}</p>
+               </div>
+            </div>
 
-           {!isCheckedIn && (
-             <Link href="/employee/check-in" className="block w-full">
-                <Button fullWidth variant="outline" className="bg-white text-primary-700 hover:bg-primary-50">
-                  <MapPin className="w-4 h-4" /> เริ่มบันทึกเวลา
-                </Button>
-             </Link>
-           )}
-           {isCheckedIn && !isCheckedOut && (
-             <Link href="/employee/check-in" className="block w-full">
-                <Button fullWidth variant="outline" className="bg-white/20 border-white/40 hover:bg-white/30 text-white">
-                  เลิกงาน / เช็กเอาต์
-                </Button>
-             </Link>
-           )}
-        </div>
+            {status !== 'checked_out' && (
+               <Link href="/employee/check-in">
+                  <Button fullWidth className="bg-primary-500 hover:bg-primary-600 text-white border-none h-14 rounded-2xl shadow-lg shadow-primary-500/20 text-sm font-bold gap-2">
+                     <Camera className="w-5 h-5" />
+                     {status === 'not_checked_in' ? 'เช็กอินเข้าทำงาน' : 'เช็กเอาต์ออกงาน'}
+                  </Button>
+               </Link>
+            )}
+         </div>
       </Card>
 
-      {/* Task Summary */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between px-1">
-          <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-            <ClipboardList className="w-4 h-4 text-primary-600" /> งานประจำวัน
-          </h2>
-          <Link href="/employee/tasks" className="text-xs font-bold text-primary-600">
-            ดูทั้งหมด ({taskStats.pending + taskStats.inProgress})
-          </Link>
-        </div>
+      {/* Stats Section */}
+      <div className="grid grid-cols-2 gap-4">
+         <Card className="p-4 bg-white border-slate-100 shadow-sm flex items-center gap-4">
+            <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl">
+               <ClipboardList className="w-5 h-5" />
+            </div>
+            <div>
+               <p className="text-[10px] font-black text-slate-400 uppercase">งานรอดำเนินการ</p>
+               <p className="text-xl font-black text-slate-900">{activeTasks.length}</p>
+            </div>
+         </Card>
+         <Card className="p-4 bg-white border-slate-100 shadow-sm flex items-center gap-4">
+            <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl">
+               <CheckCircle2 className="w-5 h-5" />
+            </div>
+            <div>
+               <p className="text-[10px] font-black text-slate-400 uppercase">สำเร็จแล้ว</p>
+               <p className="text-xl font-black text-slate-900">{completedTasksCount}</p>
+            </div>
+         </Card>
+      </div>
 
-        {/* Task Stats Row */}
-        <div className="grid grid-cols-3 gap-2">
-           <div className="bg-emerald-50 rounded-xl p-2.5 border border-emerald-100">
-              <p className="text-lg font-bold text-emerald-700">{taskStats.approved}</p>
-              <p className="text-[9px] text-emerald-600 font-bold uppercase">สำเร็จ</p>
-           </div>
-           <div className="bg-blue-50 rounded-xl p-2.5 border border-blue-100">
-              <p className="text-lg font-bold text-blue-700">{taskStats.inProgress + taskStats.submitted}</p>
-              <p className="text-[9px] text-blue-600 font-bold uppercase">กำลังทำ</p>
-           </div>
-           <div className="bg-red-50 rounded-xl p-2.5 border border-red-100">
-              <p className="text-lg font-bold text-red-700">{taskStats.overdue}</p>
-              <p className="text-[9px] text-red-600 font-bold uppercase">ล่าช้า</p>
-           </div>
-        </div>
+      {/* Task Section */}
+      <div className="space-y-4">
+         <div className="flex items-center justify-between px-1">
+            <h2 className="text-lg font-black text-slate-900">งานที่คุณได้รับมอบหมาย</h2>
+            <Link href="/employee/tasks" className="text-xs font-bold text-primary-600 bg-primary-50 px-3 py-1.5 rounded-full">ดูรายการทั้งหมด</Link>
+         </div>
 
-        {/* Task list */}
-        <div className="space-y-2">
-          {todayTasks.length === 0 ? (
-            <Card>
-              <div className="text-center py-4">
-                <CheckCircle2 className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-                <p className="text-sm text-slate-500">ไม่มีงานสำหรับวันนี้</p>
+         <div className="space-y-3">
+            {activeTasks.length === 0 ? (
+              <div className="text-center py-10 bg-slate-50 rounded-[2rem] border-2 border-dashed border-slate-200">
+                <div className="p-4 bg-white rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-3 shadow-sm">
+                  <CheckCircle2 className="w-8 h-8 text-emerald-500" />
+                </div>
+                <p className="text-sm font-bold text-slate-500">ไม่มีงานค้างในขณะนี้!</p>
+                <p className="text-xs text-slate-400 mt-1">คุณจัดการงานวันนี้เสร็จหมดแล้ว</p>
               </div>
-            </Card>
-          ) : (
-            todayTasks.slice(0, 5).map(task => {
-              const template = (task && task.template_id) ? taskStore.getTemplateById(task.template_id) : null;
-              const statusBadgeVariant = (() => {
-                switch (task.status) {
-                  case 'approved': return 'success';
-                  case 'submitted': return 'warning';
-                  case 'rejected': case 'overdue': return 'danger';
-                  case 'in_progress': return 'info';
-                  default: return 'default';
-                }
-              })() as 'success' | 'warning' | 'danger' | 'info' | 'default';
-
-              const priorityVariant = (() => {
-                const priority = task.priority || template?.priority;
-                switch (priority) {
-                  case 'critical': return 'danger';
-                  case 'high': return 'warning';
-                  case 'medium': return 'info';
-                  default: return 'slate';
-                }
-              })() as 'danger' | 'warning' | 'info' | 'slate';
-
-              return (
-                <Link key={task.id} href={`/employee/tasks/${task.id}`}>
-                  <Card interactive className="p-3">
-                    <div className="flex justify-between items-start">
-                       <div className="flex-1 min-w-0 pr-2">
-                          <p className="text-sm font-bold text-slate-900 truncate">{task.title || template?.title || 'งาน'}</p>
-                          <div className="flex items-center gap-2 mt-1">
-                             <Badge variant={statusBadgeVariant} size="sm" dot>{TASK_STATUS_LABELS[task.status]}</Badge>
-                             {(task.priority || template?.priority) && (
-                               <Badge variant={priorityVariant} size="sm">{PRIORITY_LABELS[(task.priority || template?.priority || 'medium') as Priority]}</Badge>
-                             )}
+            ) : (
+              activeTasks.slice(0, 3).map(task => {
+                const tmpl = task.template_id ? taskStore.getTemplateById(task.template_id) : null;
+                return (
+                  <Link key={task.id} href={`/employee/tasks/${task.id}`}>
+                    <Card interactive className="p-4 border-slate-100 card-hover">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="space-y-1 group">
+                          <p className="text-sm font-bold text-slate-900 group-hover:text-primary-600 transition-colors uppercase tracking-tight">{task.title || tmpl?.title}</p>
+                          <div className="flex items-center gap-3 text-[10px] font-bold text-slate-400">
+                            <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {tmpl?.category || 'General'}</span>
+                            <span className="flex items-center gap-1"><AlertCircle className="w-3 h-3" /> ด่วน</span>
                           </div>
-                       </div>
-                       <div className="flex flex-col items-end gap-1 shrink-0">
-                          <div className={`p-1.5 rounded-lg ${task.status === 'approved' ? 'bg-emerald-50 text-emerald-500' : 'bg-slate-50 text-slate-400'}`}>
-                             <ArrowRight className="w-4 h-4" />
-                          </div>
-                          <span className="text-[10px] text-slate-400 font-medium">ส่งใน {new Date(task.due_date).toLocaleTimeString('th-TH').slice(0, 5)} น.</span>
-                       </div>
-                    </div>
-                  </Card>
-                </Link>
-              );
-            })
-          )}
-        </div>
+                        </div>
+                        <div className="p-2 bg-slate-50 rounded-xl group-hover:bg-primary-50 transition-colors">
+                          <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-primary-500" />
+                        </div>
+                      </div>
+                    </Card>
+                  </Link>
+                );
+              })
+            )}
+         </div>
       </div>
-
-      {/* Quick Actions Grid */}
-      <div className="grid grid-cols-2 bg-white rounded-3xl p-1 shadow-sm border border-slate-100">
-         <Link href="/employee/history" className="flex flex-col items-center justify-center p-5 border-r border-slate-50">
-            <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl mb-3">
-               <History className="w-6 h-6" />
-            </div>
-            <span className="text-xs font-bold text-slate-700">ประวัติงาน</span>
-         </Link>
-         <Link href="/employee/settings" className="flex flex-col items-center justify-center p-5">
-            <div className="p-3 bg-amber-50 text-amber-600 rounded-2xl mb-3">
-               <Bell className="w-6 h-6" />
-            </div>
-            <span className="text-xs font-bold text-slate-700">ตั้งค่าแอป</span>
-         </Link>
-      </div>
-
-      <div className="grid grid-cols-1 pt-2">
-         <Link href="/employee/profile">
-            <Card interactive className="flex items-center gap-4 p-4 border-slate-100">
-               <div className="p-3 bg-slate-50 text-slate-600 rounded-2xl">
-                  <Shield className="w-6 h-6" />
-               </div>
-               <div>
-                  <span className="text-sm font-bold text-slate-700 block">โปรไฟล์ของคุณ</span>
-                  <span className="text-[10px] text-slate-400 font-medium">จัดการข้อมูลส่วนตัวและความปลอดภัย</span>
-               </div>
-            </Card>
-         </Link>
-      </div>
-
     </div>
   );
 }

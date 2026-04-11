@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { useTaskStore } from '@/store/taskStore';
 import { useAttendanceStore } from '@/store/attendanceStore';
@@ -12,7 +13,7 @@ import {
   CheckCircle2, AlertTriangle, TrendingUp, ArrowRight,
   MapPin, Plus
 } from 'lucide-react';
-import { formatThaiDate, formatThaiDateTime } from '@/lib/dateUtils';
+import { formatThaiDate } from '@/lib/dateUtils';
 import Link from 'next/link';
 
 export default function ManagerDashboard() {
@@ -21,13 +22,19 @@ export default function ManagerDashboard() {
   const attendanceStore = useAttendanceStore();
   const employeeStore = useEmployeeStore();
 
+  useEffect(() => {
+    attendanceStore.fetchRecords();
+    taskStore.fetchTasks();
+    employeeStore.fetchUsers();
+  }, [attendanceStore, taskStore, employeeStore]);
+
   if (!currentUser) return null;
 
   const stats = [
     { label: 'พนักงานทั้งหมด', value: employeeStore.users.length, icon: <Users className="w-5 h-5" />, color: 'bg-blue-500' },
     { label: 'เช็กอินแล้ววันนี้', value: attendanceStore.getAllTodayRecords().length, icon: <MapPin className="w-5 h-5" />, color: 'bg-emerald-500' },
     { label: 'งานรอยืนยัน', value: taskStore.getPendingSubmissions().length, icon: <ClipboardList className="w-5 h-5" />, color: 'bg-amber-500' },
-    { label: 'งานล่าช้า', value: taskStore.getTaskStats().overdue, icon: <AlertTriangle className="w-5 h-5" />, color: 'bg-red-500' },
+    { label: 'งานล่าช้า', value: taskStore.getTaskStats ? taskStore.getTaskStats().overdue : 0, icon: <AlertTriangle className="w-5 h-5" />, color: 'bg-red-500' },
   ];
 
   const recentAttendance = attendanceStore.records.slice(0, 5);
@@ -80,18 +87,18 @@ export default function ManagerDashboard() {
                       return (
                          <Card key={record.id} padding="md" className="flex items-center gap-4">
                             <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600 border border-slate-200 shadow-sm shrink-0">
-                               {emp?.full_name.charAt(0)}
+                               {emp?.full_name?.charAt(0) || 'U'}
                             </div>
                             <div className="flex-1 min-w-0">
                                <div className="flex justify-between items-start">
-                                  <p className="text-sm font-bold text-slate-900 truncate">{emp?.full_name}</p>
+                                  <p className="text-sm font-bold text-slate-900 truncate">{emp?.full_name || 'ไม่ทราบชื่อ'}</p>
                                   <Badge variant={record.status === 'checked_in' || record.status === 'checked_out' ? 'success' : 'warning'} size="sm">
                                      {record.type === 'check_in' ? 'เช็กอิน' : 'เช็กเอาต์'}
                                   </Badge>
-                               </div>
+                                </div>
                                <div className="flex items-center gap-3 mt-1 text-[10px] text-slate-500 font-medium tracking-wide">
                                   <span className="flex items-center gap-1"><Clock className="w-3 h-3 opacity-70" /> {new Date(record.created_at).toLocaleTimeString('th-TH')}</span>
-                                  <span className="flex items-center gap-1"><MapPin className="w-3 h-3 opacity-70" /> {record.status === 'out_of_area' ? 'นอกพื้นที่' : 'ภายในพื้นที่'}</span>
+                                  <span className="flex items-center gap-1"><MapPin className="w-3 h-3 opacity-70" /> {record.verified_in_geofence ? 'ภายในพื้นที่' : 'นอกพื้นที่'}</span>
                                </div>
                             </div>
                          </Card>

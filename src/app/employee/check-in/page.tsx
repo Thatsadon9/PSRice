@@ -157,8 +157,7 @@ export default function CheckInPage() {
     const now = new Date().toISOString();
     const isLate = !isCheckOut && new Date().getHours() >= 8 && new Date().getMinutes() > 45;
 
-    const record: AttendanceRecord = {
-      id: `att-${Date.now()}`,
+    const record: Omit<AttendanceRecord, 'id' | 'created_at' | 'server_timestamp'> = {
       user_id: currentUser.id,
       branch_id: branch.id,
       type: isCheckOut ? 'check_out' : 'check_in',
@@ -168,18 +167,22 @@ export default function CheckInPage() {
       gps_accuracy: gpsCoords.accuracy,
       verified_in_geofence: true,
       device_info: getDeviceInfo(),
-      created_at: now,
-      server_timestamp: now,
       status: isCheckOut ? 'checked_out' : (isLate ? 'late' : 'checked_in'),
       notes: isLate ? `เข้างานสาย` : '',
     };
 
-    await attendanceStore.addRecord(record);
-    setResultStatus('success');
-    setResultMessage(isCheckOut ? 'เช็กเอาต์สำเร็จ' : (isLate ? 'เช็กอินสำเร็จ (สาย)' : 'เช็กอินสำเร็จ'));
+    const result = await attendanceStore.addRecord(record);
+    if (result.success) {
+      setResultStatus('success');
+      setResultMessage(isCheckOut ? 'เช็กเอาต์สำเร็จ' : (isLate ? 'เช็กอินสำเร็จ (สาย)' : 'เช็กอินสำเร็จ'));
+    } else {
+      setResultStatus('error');
+      setResultMessage(result.error || 'ไม่สามารถบันทึกข้อมูลได้ กรุณาลองใหม่อีกครั้ง');
+    }
     setStep('result');
     setSubmitting(false);
   };
+
 
   // Reset for retry
   const reset = () => {
