@@ -53,7 +53,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     });
 
     // 3. Listen for auth changes (logout from other tabs, etc.)
-    supabase.auth.onAuthStateChange(async (event, session) => {
+    supabase.auth.onAuthStateChange(async (event: any, session: any) => {
       if (event === 'SIGNED_OUT') {
         set({ currentUser: null, isAuthenticated: false, isLoading: false });
       } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {

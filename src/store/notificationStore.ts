@@ -114,7 +114,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
           table: 'notifications',
           filter: `user_id=eq.${userId}`,
         },
-        (payload) => {
+        (payload: any) => {
           const newNotif = payload.new as Notification;
           set(state => ({ notifications: [newNotif, ...state.notifications] }));
         }

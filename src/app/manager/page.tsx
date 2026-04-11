@@ -24,11 +24,12 @@ export default function ManagerDashboard() {
 
   useEffect(() => {
     attendanceStore.fetchRecords();
-    taskStore.fetchTasks();
+    taskStore.fetchInitialData();
     employeeStore.fetchUsers();
-  }, [attendanceStore, taskStore, employeeStore]);
+  }, []);
 
   if (!currentUser) return null;
+
 
   const stats = [
     { label: 'พนักงานทั้งหมด', value: employeeStore.users.length, icon: <Users className="w-5 h-5" />, color: 'bg-blue-500' },

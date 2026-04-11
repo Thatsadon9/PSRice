@@ -25,8 +25,8 @@ export default function EmployeeDashboard() {
 
   useEffect(() => {
     attendanceStore.fetchRecords();
-    taskStore.fetchTasks();
-  }, [attendanceStore, taskStore]);
+    taskStore.fetchInitialData();
+  }, []);
 
   if (!currentUser) return null;
 
@@ -35,9 +35,9 @@ export default function EmployeeDashboard() {
   const isCheckedOut = !!todayAttendance.checkOut;
   const status = attendanceStore.getTodayStatus(currentUser.id);
   
-  const myTasks = taskStore.getTasksByEmployee(currentUser.id);
+  const myTasks = taskStore.getTasksByUser(currentUser.id);
   const activeTasks = myTasks.filter(t => t.status === 'pending' || t.status === 'in_progress');
-  const completedTasksCount = myTasks.filter(t => t.status === 'completed').length;
+  const completedTasksCount = myTasks.filter(t => t.status === 'approved').length;
 
   return (
     <div className="px-4 py-6 space-y-6 animate-fade-in pb-20">
@@ -143,7 +143,7 @@ export default function EmployeeDashboard() {
                         <div className="space-y-1 group">
                           <p className="text-sm font-bold text-slate-900 group-hover:text-primary-600 transition-colors uppercase tracking-tight">{task.title || tmpl?.title}</p>
                           <div className="flex items-center gap-3 text-[10px] font-bold text-slate-400">
-                            <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {tmpl?.category || 'General'}</span>
+                            <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {tmpl?.priority || 'ทั่วไป'}</span>
                             <span className="flex items-center gap-1"><AlertCircle className="w-3 h-3" /> ด่วน</span>
                           </div>
                         </div>
