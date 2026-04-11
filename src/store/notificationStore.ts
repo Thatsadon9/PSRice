@@ -6,6 +6,7 @@
 import { create } from 'zustand';
 import type { Notification } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
+import type { RealtimePostgresInsertPayload } from '@supabase/supabase-js';
 
 interface NotificationState {
   notifications: Notification[];
@@ -114,7 +115,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
           table: 'notifications',
           filter: `user_id=eq.${userId}`,
         },
-        (payload: any) => {
+        (payload: RealtimePostgresInsertPayload<Notification>) => {
           const newNotif = payload.new as Notification;
           set(state => ({ notifications: [newNotif, ...state.notifications] }));
         }

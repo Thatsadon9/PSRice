@@ -75,8 +75,8 @@ export const useEmployeeStore = create<EmployeeState>((set, get) => ({
       if (error) throw error;
       set(state => ({ users: [...state.users, data as User], isLoading: false }));
       return true;
-    } catch (err: any) {
-      console.error('Add user error:', err.message);
+    } catch (err) {
+      console.error('Add user error:', err instanceof Error ? err.message : err);
       set({ isLoading: false });
       return false;
     }

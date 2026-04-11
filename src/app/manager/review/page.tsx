@@ -109,9 +109,13 @@ export default function ManagerReviewPage() {
                            <h3 className="font-bold text-slate-900 mb-2">{task?.title || tmpl?.title || 'งาน'}</h3>
                            
                            <div className="flex items-center gap-2 mb-4">
-                              <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold">
-                                 {emp?.full_name.charAt(0)}
-                              </div>
+                              {emp?.avatar_url ? (
+                                 <img src={emp.avatar_url} alt="" className="w-6 h-6 rounded-full object-cover border border-slate-100 shrink-0" />
+                              ) : (
+                                 <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold shrink-0">
+                                    {emp?.full_name.charAt(0)}
+                                 </div>
+                              )}
                               <span className="text-xs text-slate-600 font-medium">{emp?.full_name}</span>
                            </div>
 

@@ -44,9 +44,9 @@ export const useAttendanceStore = create<AttendanceState>()(
             
           if (error) throw error;
           set({ records: data as AttendanceRecord[], isLoading: false });
-        } catch (err: any) {
+        } catch (err) {
           console.error('Failed to fetch attendance:', err);
-          set({ isLoading: false, error: err.message });
+          set({ isLoading: false, error: err instanceof Error ? err.message : 'Unknown error' });
         }
       },
 
@@ -82,10 +82,11 @@ export const useAttendanceStore = create<AttendanceState>()(
             isLoading: false 
           }));
           return { success: true };
-        } catch (err: any) {
+        } catch (err) {
           console.error('Add attendance error:', err);
-          set({ isLoading: false, error: err.message });
-          return { success: false, error: err.message };
+          const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+          set({ isLoading: false, error: errorMessage });
+          return { success: false, error: errorMessage };
         }
       },
 

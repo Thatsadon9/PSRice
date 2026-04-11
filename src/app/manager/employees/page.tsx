@@ -133,9 +133,13 @@ export default function EmployeeManagementPage() {
                   <tr key={emp.id} className={`hover:bg-slate-50 transition-colors group ${!canManage ? 'opacity-60' : ''}`}>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-bold text-xs shrink-0">
-                          {emp.full_name.charAt(0)}
-                        </div>
+                        {emp.avatar_url ? (
+                          <img src={emp.avatar_url} alt="" className="w-9 h-9 rounded-full object-cover border border-slate-100 shrink-0" />
+                        ) : (
+                          <div className="w-9 h-9 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-bold text-xs shrink-0">
+                            {emp.full_name.charAt(0)}
+                          </div>
+                        )}
                         <div>
                           <p className="text-sm font-semibold text-slate-900">{emp.full_name}</p>
                           <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5"><Mail className="w-3 h-3" /> {emp.email}</p>

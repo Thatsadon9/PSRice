@@ -51,8 +51,9 @@ export async function POST(request: Request) {
       user: authData.user 
     }, { status: 200 });
 
-  } catch (err: any) {
-    console.error('API Error:', err);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : 'เกิดข้อผิดพลาดภายในระบบ';
+    console.error('Create user error:', err);
+    return NextResponse.json({ error: errorMsg }, { status: 500 });
   }
 }

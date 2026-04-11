@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useTaskStore } from '@/store/taskStore';
 import { useEmployeeStore } from '@/store/employeeStore';
 import { useBranchStore } from '@/store/branchStore';
+import { supabase } from '@/lib/supabase';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
@@ -77,15 +78,28 @@ export default function AssignmentsPage() {
       ? [formData.target_id]
       : employeeStore.getUsersByBranch(formData.target_id).filter(u => u.role === 'employee').map(u => u.id);
 
-    // Run all task creations and wait for them
-    const pTasks = targets.map(userId => {
+    // Run all task creations and notifications
+    const pTasks = targets.map(async (userId) => {
       const newTask = {
         ...baseTaskData,
         assigned_to: userId,
         due_date: formData.due_date,
         status: 'pending' as const,
       };
-      return taskStore.addTask(newTask);
+      
+      const success = await taskStore.addTask(newTask);
+      
+      // If task creation is successful, trigger a real-time notification
+      if (success) {
+        await supabase.from('notifications').insert({
+          user_id: userId,
+          title: 'งานใหม่รอดำเนินการ',
+          message: `ผู้จัดการมอบหมายงาน "${newTask.title}" ให้คุณ (กำหนดส่ง: ${formatThaiDate(newTask.due_date)})`,
+          type: 'task',
+          link: '/employee/tasks'
+        });
+      }
+      return success;
     });
 
     await Promise.all(pTasks);
@@ -160,9 +174,18 @@ export default function AssignmentsPage() {
                        return (
                           <tr key={task.id} className="hover:bg-slate-50 transition-colors">
                              <td className="px-5 py-3">
-                                <div className="flex flex-col">
-                                   <span className="text-sm font-semibold text-slate-900 line-clamp-1">{tmpl?.title}</span>
-                                   <span className="text-xs text-slate-500">{emp?.full_name}</span>
+                                <div className="flex items-center gap-3">
+                                   {emp?.avatar_url ? (
+                                     <img src={emp.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover border border-slate-100 shrink-0" />
+                                   ) : (
+                                     <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center shrink-0">
+                                       <User className="w-4 h-4 text-primary-600" />
+                                     </div>
+                                   )}
+                                   <div className="flex flex-col">
+                                      <span className="text-sm font-semibold text-slate-900 line-clamp-1">{task.title || tmpl?.title}</span>
+                                      <span className="text-[10px] font-bold text-slate-500 tracking-wider uppercase">{emp?.full_name}</span>
+                                   </div>
                                 </div>
                              </td>
                              <td className="px-5 py-3">

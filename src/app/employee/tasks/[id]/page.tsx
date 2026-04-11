@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, use } from 'react';
+import { useState, use, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
 import { useTaskStore } from '@/store/taskStore';
@@ -78,12 +78,27 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
     }
   };
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const handleImageCapture = () => {
-    // Simulate image capture
-    const placeholder = `data:image/svg+xml,${encodeURIComponent(
-      '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" fill="#e2e8f0"><rect width="400" height="300"/><text x="200" y="150" text-anchor="middle" fill="#94a3b8" font-size="14">Proof Image</text></svg>'
-    )}`;
-    setProofImages(prev => [...prev, placeholder]);
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      if (event.target?.result) {
+        setProofImages(prev => [...prev, event.target!.result as string]);
+      }
+    };
+    reader.readAsDataURL(file);
+    // Reset input so the same file can be selected again if needed
+    e.target.value = '';
   };
 
   const handleSubmit = async () => {
@@ -259,6 +274,14 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                     ))}
                   </div>
                 )}
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  capture="environment"
+                  className="hidden" 
+                  ref={fileInputRef}
+                  onChange={handleFileChange}
+                />
                 <Button
                   variant="outline"
                   size="sm"

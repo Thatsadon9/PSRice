@@ -48,45 +48,41 @@ export default function EmployeeDashboard() {
            <h1 className="text-2xl font-black text-slate-900 leading-tight">สวัสดี, {currentUser.full_name?.split(' ')[0]} 👋</h1>
            <p className="text-sm text-slate-500 font-medium">{formatThaiDate(new Date().toISOString())}</p>
         </div>
-        <Link href="/employee/notifications" className="relative p-2.5 bg-white rounded-2xl shadow-sm border border-slate-100 text-slate-400 hover:text-primary-600 transition-colors">
-          <Bell className="w-6 h-6" />
-          <span className="absolute top-2.5 right-2.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>
-        </Link>
       </div>
 
-      {/* Attendance Card with premium design */}
-      <div className="p-6 bg-slate-900 text-white rounded-xl shadow-xl shadow-slate-200 relative overflow-hidden group">
+      {/* Attendance Card with premium design - Now in Green */}
+      <div className="p-6 bg-emerald-600 text-white rounded-[2rem] shadow-xl shadow-emerald-100 relative overflow-hidden group">
          {/* Decorative background elements */}
-         <div className="absolute top-0 right-0 w-32 h-32 bg-primary-500/10 rounded-full -mr-16 -mt-16 blur-2xl group-hover:bg-primary-500/20 transition-all duration-500"></div>
-         <div className="absolute bottom-0 left-0 w-24 h-24 bg-blue-500/10 rounded-full -ml-12 -mb-12 blur-2xl group-hover:bg-blue-500/20 transition-all duration-500"></div>
+         <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl group-hover:bg-white/20 transition-all duration-500"></div>
+         <div className="absolute bottom-0 left-0 w-24 h-24 bg-yellow-300/10 rounded-full -ml-12 -mb-12 blur-2xl group-hover:bg-yellow-300/20 transition-all duration-500"></div>
          
          <div className="relative z-10 space-y-6">
             <div className="flex items-center justify-between">
                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-white/10 rounded-xl backdrop-blur-md">
-                     <Clock className="w-5 h-5 text-primary-300" />
+                  <div className="p-2 bg-white/20 rounded-xl backdrop-blur-md">
+                     <Clock className="w-5 h-5 text-white" />
                   </div>
                   <h2 className="font-bold text-lg">บันทึกเวลาวันนี้</h2>
                </div>
-               <Badge variant={status === 'not_checked_in' ? 'default' : 'success'} className="bg-white/10 text-white border-none backdrop-blur-md px-3 py-1">
+               <Badge variant={status === 'not_checked_in' ? 'default' : 'success'} className="bg-white/20 text-white border-none backdrop-blur-md px-3 py-1">
                   {status === 'not_checked_in' ? 'ยังไม่มีบันทึก' : status === 'checked_in' ? 'เช็กอินแล้ว' : status === 'late' ? 'มาสาย' : 'เช็กเอาต์แล้ว'}
                </Badge>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-               <div className="bg-white/5 p-4 rounded-3xl border border-white/5 space-y-1">
-                  <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest text-center">เวลาเข้า</p>
+               <div className="bg-white/10 p-4 rounded-3xl border border-white/10 space-y-1 backdrop-blur-sm">
+                  <p className="text-[10px] font-bold text-white/60 uppercase tracking-widest text-center">เวลาเข้า</p>
                   <p className="text-xl font-black text-center">{todayAttendance.checkIn ? new Date(todayAttendance.checkIn.created_at).toLocaleTimeString('th-TH').slice(0, 5) : '--:--'}</p>
                </div>
-               <div className="bg-white/5 p-4 rounded-3xl border border-white/5 space-y-1">
-                  <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest text-center">เวลาออก</p>
+               <div className="bg-white/10 p-4 rounded-3xl border border-white/10 space-y-1 backdrop-blur-sm">
+                  <p className="text-[10px] font-bold text-white/60 uppercase tracking-widest text-center">เวลาออก</p>
                   <p className="text-xl font-black text-center">{todayAttendance.checkOut ? new Date(todayAttendance.checkOut.created_at).toLocaleTimeString('th-TH').slice(0, 5) : '--:--'}</p>
                </div>
             </div>
 
             {status !== 'checked_out' && (
                <Link href="/employee/check-in">
-                  <Button fullWidth className="bg-primary-500 hover:bg-primary-600 text-white border-none h-14 rounded-2xl shadow-lg shadow-primary-500/20 text-sm font-bold gap-2">
+                  <Button variant="none" fullWidth className="bg-white text-emerald-700 hover:bg-emerald-50 border-none h-14 rounded-2xl shadow-lg shadow-emerald-900/10 text-sm font-bold gap-2">
                      <Camera className="w-5 h-5" />
                      {status === 'not_checked_in' ? 'เช็กอินเข้าทำงาน' : 'เช็กเอาต์ออกงาน'}
                   </Button>

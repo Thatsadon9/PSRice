@@ -31,11 +31,20 @@ export default function Header({ onMenuClick, showMenu = false }: HeaderProps) {
               <Menu className="w-5 h-5" />
             </button>
           )}
-          <div>
-            <h2 className="text-sm font-semibold text-slate-900">
+          
+          {/* PS Logo Branding */}
+          <Link href={`/${currentUser.role}`} className="flex items-center gap-2 mr-1">
+            <img src="/icons/PS.png" alt="PS Rice" className="w-8 h-8 rounded-lg object-cover shadow-sm" />
+            <span className="font-black tracking-tight text-slate-800 hidden sm:block">PS Rice Wholesale</span>
+          </Link>
+          
+          <div className="hidden md:block border-l border-slate-200 h-6 mx-2"></div>
+
+          <div className="hidden sm:block">
+            <h2 className="text-sm font-semibold text-slate-900 leading-tight">
               {currentUser.full_name}
             </h2>
-            <p className="text-xs text-slate-500">
+            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
               {ROLE_LABELS[currentUser.role]}
             </p>
           </div>

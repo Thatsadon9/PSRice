@@ -4,7 +4,8 @@
 // ==========================================
 
 import { create } from 'zustand';
-import type { User, UserRole } from '@/lib/types';
+import type { User } from '@/lib/types';
+import { AuthChangeEvent, Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 
 interface AuthState {
@@ -53,7 +54,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     });
 
     // 3. Listen for auth changes (logout from other tabs, etc.)
-    supabase.auth.onAuthStateChange(async (event: any, session: any) => {
+    supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session: Session | null) => {
       if (event === 'SIGNED_OUT') {
         set({ currentUser: null, isAuthenticated: false, isLoading: false });
       } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
