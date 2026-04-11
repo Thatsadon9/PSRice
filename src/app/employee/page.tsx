@@ -55,7 +55,7 @@ export default function EmployeeDashboard() {
       </div>
 
       {/* Attendance Card with premium design */}
-      <Card className="p-6 bg-slate-900 text-white border-none shadow-xl shadow-slate-200 relative overflow-hidden group">
+      <div className="p-6 bg-slate-900 text-white rounded-xl shadow-xl shadow-slate-200 relative overflow-hidden group">
          {/* Decorative background elements */}
          <div className="absolute top-0 right-0 w-32 h-32 bg-primary-500/10 rounded-full -mr-16 -mt-16 blur-2xl group-hover:bg-primary-500/20 transition-all duration-500"></div>
          <div className="absolute bottom-0 left-0 w-24 h-24 bg-blue-500/10 rounded-full -ml-12 -mb-12 blur-2xl group-hover:bg-blue-500/20 transition-all duration-500"></div>
@@ -93,7 +93,7 @@ export default function EmployeeDashboard() {
                </Link>
             )}
          </div>
-      </Card>
+      </div>
 
       {/* Stats Section */}
       <div className="grid grid-cols-2 gap-4">
