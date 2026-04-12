@@ -1,6 +1,5 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { useAttendanceStore } from '@/store/attendanceStore';
 import { useTaskStore } from '@/store/taskStore';
@@ -8,31 +7,20 @@ import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import { 
-  MapPin, Clock, ClipboardList, CheckCircle2, 
-  ArrowRight, Calendar, Bell, Shield, LogOut, History, Camera, ChevronRight, AlertCircle
+  Clock, ClipboardList, CheckCircle2,
+  Camera, ChevronRight, AlertCircle
 } from 'lucide-react';
-import { formatThaiDate, isDateToday } from '@/lib/dateUtils';
-import { TASK_STATUS_LABELS, PRIORITY_LABELS } from '@/lib/constants';
-import type { Priority } from '@/lib/types';
+import { formatThaiDate } from '@/lib/dateUtils';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 
 export default function EmployeeDashboard() {
-  const { currentUser, logout } = useAuthStore();
+  const { currentUser } = useAuthStore();
   const attendanceStore = useAttendanceStore();
   const taskStore = useTaskStore();
-  const router = useRouter();
-
-  useEffect(() => {
-    attendanceStore.fetchRecords();
-    taskStore.fetchInitialData();
-  }, []);
 
   if (!currentUser) return null;
 
   const todayAttendance = attendanceStore.getTodayRecordForUser(currentUser.id);
-  const isCheckedIn = !!todayAttendance.checkIn;
-  const isCheckedOut = !!todayAttendance.checkOut;
   const status = attendanceStore.getTodayStatus(currentUser.id);
   
   const myTasks = taskStore.getTasksByUser(currentUser.id);

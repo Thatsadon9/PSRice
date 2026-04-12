@@ -6,7 +6,6 @@ import { useEmployeeStore } from '@/store/employeeStore';
 import { useBranchStore } from '@/store/branchStore';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
-import Badge from '@/components/ui/Badge';
 import { 
   BarChart3, Download, FileSpreadsheet, FileText, 
   Calendar, Users, CheckCircle2, PieChart as PieChartIcon,

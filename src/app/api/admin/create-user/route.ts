@@ -1,14 +1,27 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import type { UserRole } from '@/lib/types';
 
-// Initialize a Supabase client with the Service Role Key - Only if variables are present
+interface CreateUserRequest {
+  email: string;
+  password: string;
+  full_name: string;
+  role?: UserRole;
+  branch_id?: string | null;
+  team_id?: string | null;
+}
+
 const supabaseAdmin = (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY)
   ? createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
-  : null as any;
+  : null;
 
 export async function POST(request: Request) {
   try {
-    const { email, password, full_name, role, branch_id, team_id } = await request.json();
+    if (!supabaseAdmin) {
+      return NextResponse.json({ error: 'Supabase admin client is not configured' }, { status: 500 });
+    }
+
+    const { email, password, full_name, role, branch_id, team_id } = (await request.json()) as CreateUserRequest;
 
     if (!email || !password || !full_name) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });

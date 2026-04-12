@@ -1,9 +1,11 @@
 'use client';
 
+import { useMemo } from 'react';
 import { Bell, Menu } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { useNotificationStore } from '@/store/notificationStore';
 import Link from 'next/link';
+import Image from 'next/image';
 import { ROLE_LABELS } from '@/lib/constants';
 
 interface HeaderProps {
@@ -12,12 +14,24 @@ interface HeaderProps {
 }
 
 export default function Header({ onMenuClick, showMenu = false }: HeaderProps) {
-  const { currentUser } = useAuthStore();
-  const unreadCount = useNotificationStore(s =>
-    currentUser ? s.getUnreadCount(currentUser.id) : 0
-  );
+  const currentUser = useAuthStore((state) => state.currentUser);
+  const notifications = useNotificationStore((state) => state.notifications);
+  const currentUserId = currentUser?.id;
+
+  const unreadCount = useMemo(() => {
+    if (!currentUserId) {
+      return 0;
+    }
+
+    return notifications.filter((notification) => {
+      return notification.user_id === currentUserId && !notification.is_read;
+    }).length;
+  }, [currentUserId, notifications]);
 
   if (!currentUser) return null;
+
+  const homeHref = currentUser.role === 'employee' ? '/employee' : '/manager';
+  const notificationsHref = currentUser.role === 'employee' ? '/employee/notifications' : '/manager/notifications';
 
   return (
     <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-sm border-b border-slate-200 safe-top no-print">
@@ -33,8 +47,8 @@ export default function Header({ onMenuClick, showMenu = false }: HeaderProps) {
           )}
           
           {/* PS Logo Branding */}
-          <Link href={`/${currentUser.role}`} className="flex items-center gap-2 mr-1">
-            <img src="/icons/PS.png" alt="PS Rice" className="w-8 h-8 rounded-lg object-cover shadow-sm" />
+          <Link href={homeHref} className="flex items-center gap-2 mr-1">
+            <Image src="/icons/PS.png" alt="PS Rice" width={32} height={32} loading="eager" className="w-8 h-8 rounded-lg object-cover shadow-sm" />
             <span className="font-black tracking-tight text-slate-800 hidden sm:block">PS Rice Wholesale</span>
           </Link>
           
@@ -51,7 +65,7 @@ export default function Header({ onMenuClick, showMenu = false }: HeaderProps) {
         </div>
 
         <Link 
-          href={currentUser.role === 'employee' ? '/employee/notifications' : '/manager/notifications'} 
+          href={notificationsHref} 
           className="relative p-2 rounded-lg hover:bg-slate-100 text-slate-600 transition-colors"
         >
           <Bell className="w-5 h-5" />

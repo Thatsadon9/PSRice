@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
 import { useEmployeeStore } from '@/store/employeeStore';
 import { useBranchStore } from '@/store/branchStore';
@@ -15,11 +15,11 @@ import { MANAGER_NAV_ITEMS, MANAGER_MOBILE_NAV_ITEMS } from '@/lib/constants';
 
 export default function ManagerLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const pathname = usePathname();
   const { isAuthenticated, currentUser } = useAuthStore();
   const fetchEmployees = useEmployeeStore(s => s.fetchUsers);
   const fetchBranches = useBranchStore(s => s.fetchBranches);
   const fetchTasks = useTaskStore(s => s.fetchInitialData);
+  const subscribeToTaskUpdates = useTaskStore(s => s.subscribeToTaskUpdates);
   const fetchAttendance = useAttendanceStore(s => s.fetchRecords);
   const fetchNotifications = useNotificationStore(s => s.fetchNotifications);
   const subscribeToNotifications = useNotificationStore(s => s.subscribeToNotifications);
@@ -31,27 +31,38 @@ export default function ManagerLayout({ children }: { children: React.ReactNode 
       router.replace('/login');
       return;
     }
-    // Hydrate data sequentially to avoid massive concurrent spikes if slow network
-    // For production, consider using React Query or SWR
+    let isActive = true;
     const hydrate = async () => {
-      await fetchBranches();
-      await fetchEmployees();
-      await fetchTasks();
-      await fetchAttendance();
-      if (currentUser?.id) {
-        await fetchNotifications(currentUser.id);
+      setDataLoaded(false);
+      await Promise.allSettled([
+        fetchBranches(),
+        fetchEmployees(),
+        fetchTasks(),
+        fetchAttendance(),
+        currentUser?.id ? fetchNotifications(currentUser.id) : Promise.resolve(),
+      ]);
+
+      if (isActive) {
+        setDataLoaded(true);
       }
-      setDataLoaded(true);
     };
-    hydrate();
+    void hydrate();
+
+    return () => {
+      isActive = false;
+    };
   }, [isAuthenticated, router, fetchBranches, fetchEmployees, fetchTasks, fetchAttendance, fetchNotifications, currentUser?.id]);
 
   useEffect(() => {
     if (isAuthenticated && currentUser?.id) {
-       const unsubscribe = subscribeToNotifications(currentUser.id);
-       return () => unsubscribe();
+       const unsubscribeNotifications = subscribeToNotifications(currentUser.id);
+       const unsubscribeTasks = subscribeToTaskUpdates();
+       return () => {
+         unsubscribeNotifications();
+         unsubscribeTasks();
+       };
     }
-  }, [isAuthenticated, currentUser?.id, subscribeToNotifications]);
+  }, [isAuthenticated, currentUser?.id, subscribeToNotifications, subscribeToTaskUpdates]);
 
   if (!isAuthenticated || !currentUser || !dataLoaded) return (
     <div className="min-h-dvh flex items-center justify-center bg-slate-50">

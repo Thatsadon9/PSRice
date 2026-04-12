@@ -2,12 +2,16 @@
 
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import {
   LayoutDashboard, Clock, ClipboardList, Users, CheckSquare,
-  Building2, FileText, CalendarCheck, BarChart3, Settings, X, ChevronLeft, LogOut
+  Building2, FileText, CalendarCheck, BarChart3, Settings, X, LogOut
 } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { useRouter } from 'next/navigation';
+import { useEmployeeStore } from '@/store/employeeStore';
+import { useTaskStore } from '@/store/taskStore';
+import { getPendingReviewCountForUser } from '@/lib/reviewHelpers';
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   LayoutDashboard, Clock, ClipboardList, Users, CheckSquare,
@@ -29,7 +33,10 @@ interface SidebarProps {
 export default function Sidebar({ items, isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { logout } = useAuthStore();
+  const { currentUser, logout } = useAuthStore();
+  const users = useEmployeeStore((state) => state.users);
+  const submissions = useTaskStore((state) => state.submissions);
+  const pendingReviewCount = getPendingReviewCountForUser(submissions, currentUser, users);
 
   const handleLogout = async () => {
     await logout();
@@ -61,7 +68,7 @@ export default function Sidebar({ items, isOpen, onClose }: SidebarProps) {
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
           <div className="flex items-center gap-2.5">
             <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center overflow-hidden border border-slate-200 shrink-0">
-              <img src="/icons/PS.png" alt="PS Rice Logo" className="w-full h-full object-cover" />
+              <Image src="/icons/PS.png" alt="PS Rice Logo" width={40} height={40} loading="eager" className="w-full h-full object-cover" />
             </div>
             <div>
               <h1 className="text-sm font-bold text-slate-900">PS Rice Wholesale</h1>
@@ -83,6 +90,7 @@ export default function Sidebar({ items, isOpen, onClose }: SidebarProps) {
               const Icon = iconMap[item.icon] || LayoutDashboard;
               const isActive = pathname === item.href ||
                 (item.href !== '/manager' && pathname.startsWith(item.href));
+              const isReviewItem = item.href === '/manager/review';
 
               return (
                 <Link
@@ -98,8 +106,18 @@ export default function Sidebar({ items, isOpen, onClose }: SidebarProps) {
                     }
                   `}
                 >
-                  <Icon className="w-[18px] h-[18px] flex-shrink-0" />
-                  {item.label}
+                  <span className="relative flex-shrink-0">
+                    <Icon className="w-[18px] h-[18px]" />
+                    {isReviewItem && pendingReviewCount > 0 && (
+                      <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-red-500 ring-2 ring-white" />
+                    )}
+                  </span>
+                  <span className="flex-1 truncate">{item.label}</span>
+                  {isReviewItem && pendingReviewCount > 0 && (
+                    <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold text-white">
+                      {pendingReviewCount > 99 ? '99+' : pendingReviewCount}
+                    </span>
+                  )}
                 </Link>
               );
             })}

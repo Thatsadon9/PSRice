@@ -1,4 +1,5 @@
 'use client';
+/* eslint-disable @next/next/no-img-element */
 
 import { useState } from 'react';
 import { useEmployeeStore } from '@/store/employeeStore';
@@ -10,7 +11,7 @@ import Badge from '@/components/ui/Badge';
 import Modal from '@/components/ui/Modal';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
-import { UserPlus, Search, Edit2, Trash2, Building2, Mail, Shield, User } from 'lucide-react';
+import { UserPlus, Search, Edit2, Building2, Mail, Shield, User } from 'lucide-react';
 import { ROLE_LABELS } from '@/lib/constants';
 import type { User as UserType, UserRole } from '@/lib/types';
 
@@ -67,7 +68,13 @@ export default function EmployeeManagementPage() {
 
   const handleSave = async () => {
     if (editingUser) {
-      const { password, ...updateData } = formData;
+      const updateData = {
+        full_name: formData.full_name,
+        email: formData.email,
+        role: formData.role,
+        branch_id: formData.branch_id,
+        team_id: formData.team_id,
+      };
       await employeeStore.updateUser(editingUser.id, updateData);
     } else {
       const newUser = {

@@ -1,4 +1,5 @@
 'use client';
+/* eslint-disable @next/next/no-img-element */
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAuthStore } from '@/store/authStore';
@@ -11,7 +12,6 @@ import {
   Camera, MapPin, CheckCircle2, XCircle, AlertTriangle,
   Navigation, Clock, Shield, Crosshair, RotateCcw
 } from 'lucide-react';
-import { ATTENDANCE_STATUS_LABELS } from '@/lib/constants';
 import { formatTime } from '@/lib/dateUtils';
 import type { GPSCoordinates, AttendanceRecord } from '@/lib/types';
 import { checkGeofence, formatDistance } from '@/lib/geofence';
@@ -38,11 +38,11 @@ export default function CheckInPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  if (!currentUser) return null;
-
-  const branch = branchStore.getBranchById(currentUser.branch_id);
-  const todayStatus = attendanceStore.getTodayStatus(currentUser.id);
-  const todayRecord = attendanceStore.getTodayRecordForUser(currentUser.id);
+  const branch = currentUser ? branchStore.getBranchById(currentUser.branch_id) : null;
+  const todayStatus = currentUser ? attendanceStore.getTodayStatus(currentUser.id) : 'not_checked_in';
+  const todayRecord = currentUser
+    ? attendanceStore.getTodayRecordForUser(currentUser.id)
+    : { checkIn: undefined, checkOut: undefined };
   const isCheckOut = todayStatus === 'checked_in' || todayStatus === 'late';
   const alreadyDone = todayStatus === 'checked_out';
 
@@ -129,13 +129,15 @@ export default function CheckInPage() {
 
   useEffect(() => {
     if (step === 'camera') {
-      startCamera();
+      void startCamera();
     }
     return () => {
       if (step === 'camera') stopCameraStream();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
+
+  if (!currentUser) return null;
 
   // Submit
   const handleSubmit = async () => {
@@ -154,7 +156,6 @@ export default function CheckInPage() {
       return;
     }
 
-    const now = new Date().toISOString();
     const isLate = !isCheckOut && new Date().getHours() >= 8 && new Date().getMinutes() > 45;
 
     const record: Omit<AttendanceRecord, 'id' | 'created_at' | 'server_timestamp'> = {

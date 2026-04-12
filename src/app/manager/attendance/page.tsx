@@ -1,4 +1,5 @@
 'use client';
+/* eslint-disable @next/next/no-img-element */
 
 import { useState } from 'react';
 import { useAttendanceStore } from '@/store/attendanceStore';
@@ -9,12 +10,12 @@ import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { 
-  Clock, MapPin, Search, Filter, Camera, 
-  User, Building2, ExternalLink, Download, ArrowRight, Navigation
+  Clock, Search, Camera,
+  User, Building2, Download, Navigation
 } from 'lucide-react';
-import { ATTENDANCE_STATUS_LABELS, ATTENDANCE_STATUS_COLORS } from '@/lib/constants';
-import { formatTime, formatThaiDateTime } from '@/lib/dateUtils';
-import { getAccuracyLevel, getAccuracyLabel, getAccuracyColor } from '@/lib/gps';
+import { ATTENDANCE_STATUS_LABELS } from '@/lib/constants';
+import { formatTime } from '@/lib/dateUtils';
+import { getAccuracyLevel, getAccuracyColor } from '@/lib/gps';
 
 export default function AttendanceMonitoringPage() {
   const attendanceStore = useAttendanceStore();

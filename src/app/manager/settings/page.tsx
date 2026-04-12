@@ -5,8 +5,7 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { 
-  Settings as SettingsIcon, Bell, Shield, 
-  MapPin, Clock, Save, Smartphone, Globe
+  Bell, Shield, Save, Smartphone, Globe
 } from 'lucide-react';
 
 export default function SettingsPage() {

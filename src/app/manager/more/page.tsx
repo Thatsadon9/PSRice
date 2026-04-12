@@ -4,7 +4,7 @@ import Link from 'next/link';
 import Card from '@/components/ui/Card';
 import { 
   BarChart3, Settings, CalendarCheck, Building2, 
-  Users, FileText, CheckSquare, Clock, ArrowRight,
+  Users, FileText, Clock, ArrowRight,
   LogOut, Shield, Code
 } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';

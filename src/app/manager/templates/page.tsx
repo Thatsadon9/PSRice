@@ -10,7 +10,7 @@ import Input, { TextArea } from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
 import { 
   ClipboardList, Plus, Edit2, Trash2, CheckSquare, 
-  Camera, FileText, Clock, Calendar, ShieldCheck 
+  Camera, FileText
 } from 'lucide-react';
 import { PRIORITY_LABELS, PROOF_TYPE_LABELS, RECURRENCE_LABELS } from '@/lib/constants';
 import type { TaskTemplate, Priority, ProofType, RecurrenceType } from '@/lib/types';

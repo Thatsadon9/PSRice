@@ -1,4 +1,5 @@
 'use client';
+/* eslint-disable @next/next/no-img-element */
 
 import { useState } from 'react';
 import { useAuthStore } from '@/store/authStore';
@@ -7,10 +8,12 @@ import { useTaskStore } from '@/store/taskStore';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import Tabs from '@/components/ui/Tabs';
-import { Clock, MapPin, CheckCircle2, XCircle, ArrowRight, ClipboardList } from 'lucide-react';
+import { Clock, MapPin, CheckCircle2, XCircle, ClipboardList } from 'lucide-react';
 import { formatThaiDate, formatTime } from '@/lib/dateUtils';
 import { ATTENDANCE_STATUS_LABELS, REVIEW_STATUS_LABELS } from '@/lib/constants';
+import { parseReviewFeedback } from '@/lib/reviewFeedback';
 import Link from 'next/link';
+import StarRating from '@/components/ui/StarRating';
 
 export default function HistoryPage() {
   const { currentUser } = useAuthStore();
@@ -98,6 +101,7 @@ export default function HistoryPage() {
            {submissions.map(sub => {
               const task = taskStore.getTaskById(sub.task_id);
               const template = (task && task.template_id) ? taskStore.getTemplateById(task.template_id) : null;
+              const feedback = parseReviewFeedback(sub.review_comment, sub.review_rating);
               
               return (
                 <Link key={sub.id} href={`/employee/tasks/${sub.task_id}`}>
@@ -113,16 +117,21 @@ export default function HistoryPage() {
                   <h3 className="text-sm font-semibold text-slate-900">{task?.title || template?.title || 'งาน'}</h3>
                   <div className="mt-2 text-xs text-slate-600 line-clamp-1">{sub.note}</div>
                   
-                  {sub.review_status === 'rejected' && sub.review_comment && (
-                     <div className="mt-2 p-2 bg-red-50 text-red-700 text-xs rounded border border-red-100 flex gap-2 items-start">
-                        <XCircle className="w-4 h-4 shrink-0" />
-                        <span>{sub.review_comment}</span>
+                  {feedback.rating != null && (
+                     <div className="mt-2">
+                        <StarRating value={feedback.rating} readOnly size="sm" />
                      </div>
                   )}
-                  {sub.review_status === 'approved' && sub.review_comment && (
+                  {sub.review_status === 'rejected' && feedback.comment && (
+                     <div className="mt-2 p-2 bg-red-50 text-red-700 text-xs rounded border border-red-100 flex gap-2 items-start">
+                        <XCircle className="w-4 h-4 shrink-0" />
+                        <span>{feedback.comment}</span>
+                     </div>
+                  )}
+                  {sub.review_status === 'approved' && feedback.comment && (
                      <div className="mt-2 p-2 bg-emerald-50 text-emerald-700 text-xs rounded border border-emerald-100 flex gap-2 items-start">
                         <CheckCircle2 className="w-4 h-4 shrink-0" />
-                        <span>{sub.review_comment}</span>
+                        <span>{feedback.comment}</span>
                      </div>
                   )}
                 </Card>

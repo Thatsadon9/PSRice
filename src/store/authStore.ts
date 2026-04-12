@@ -8,6 +8,30 @@ import type { User } from '@/lib/types';
 import { AuthChangeEvent, Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 
+let authListenerRegistered = false;
+
+async function clearInvalidSession() {
+  try {
+    await supabase.auth.signOut({ scope: 'local' });
+  } catch (error) {
+    console.warn('Failed to clear invalid local auth session', error);
+  }
+}
+
+async function fetchUserProfile(userId: string) {
+  const { data, error } = await supabase
+    .from('users')
+    .select('*')
+    .eq('id', userId)
+    .single();
+
+  if (error || !data) {
+    return null;
+  }
+
+  return data as User;
+}
+
 interface AuthState {
   currentUser: User | null;
   isAuthenticated: boolean;
@@ -25,48 +49,84 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isLoading: true, // Start as loading to prevent flash of login page
 
   initialize: async () => {
-    // 1. Get current session from Supabase
-    const { data: { session }, error } = await supabase.auth.getSession();
-    
-    if (error || !session) {
-      set({ currentUser: null, isAuthenticated: false, isLoading: false });
-      return;
-    }
+    try {
+      const {
+        data: { session },
+        error,
+      } = await supabase.auth.getSession();
 
-    // 2. Fetch the public user data linked to this auth id
-    const { data: userData, error: userError } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', session.user.id)
-      .single();
+      if (error) {
+        if (error.message.toLowerCase().includes('refresh token')) {
+          await clearInvalidSession();
+        } else {
+          console.error('Failed to restore auth session', error);
+        }
 
-    if (userError || !userData) {
-      console.error('Failed to fetch public user metadata', userError);
-      // Even if session exists, if data is missing, we consider logged out for consistent state
-      set({ currentUser: null, isAuthenticated: false, isLoading: false });
-      return;
-    }
-
-    set({ 
-      currentUser: userData as User, 
-      isAuthenticated: true, 
-      isLoading: false 
-    });
-
-    // 3. Listen for auth changes (logout from other tabs, etc.)
-    supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session: Session | null) => {
-      if (event === 'SIGNED_OUT') {
         set({ currentUser: null, isAuthenticated: false, isLoading: false });
-      } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        if (session?.user) {
-          // Re-fetch data if needed or use previous if same user
-          if (get().currentUser?.id !== session.user.id) {
-             const { data } = await supabase.from('users').select('*').eq('id', session.user.id).single();
-             if (data) set({ currentUser: data as User, isAuthenticated: true });
+        return;
+      }
+
+      if (!session) {
+        set({ currentUser: null, isAuthenticated: false, isLoading: false });
+        return;
+      }
+
+      const userData = await fetchUserProfile(session.user.id);
+
+      if (!userData) {
+        console.error('Failed to fetch public user metadata for active session');
+        await clearInvalidSession();
+        set({ currentUser: null, isAuthenticated: false, isLoading: false });
+        return;
+      }
+
+      set({
+        currentUser: userData,
+        isAuthenticated: true,
+        isLoading: false,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown auth restore error';
+
+      if (message.toLowerCase().includes('refresh token')) {
+        await clearInvalidSession();
+      } else {
+        console.error('Unexpected auth restore error', error);
+      }
+
+      set({ currentUser: null, isAuthenticated: false, isLoading: false });
+      return;
+    }
+
+    if (!authListenerRegistered) {
+      authListenerRegistered = true;
+
+      supabase.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
+        if (event === 'SIGNED_OUT') {
+          set({ currentUser: null, isAuthenticated: false, isLoading: false });
+        } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+          if (session?.user) {
+            if (get().currentUser?.id !== session.user.id) {
+              setTimeout(() => {
+                void (async () => {
+                  const userData = await fetchUserProfile(session.user.id);
+
+                  if (userData) {
+                    set({ currentUser: userData, isAuthenticated: true, isLoading: false });
+                    return;
+                  }
+
+                  await clearInvalidSession();
+                  set({ currentUser: null, isAuthenticated: false, isLoading: false });
+                })();
+              }, 0);
+            } else {
+              set({ isAuthenticated: true, isLoading: false });
+            }
           }
         }
-      }
-    });
+      });
+    }
   },
 
   login: async (email: string, password?: string) => {

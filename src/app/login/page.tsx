@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/authStore";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
-import { ClipboardList, Mail, Lock, Shield, Users, User } from "lucide-react";
-import type { UserRole } from "@/lib/types";
+import { Mail, Lock } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -48,7 +48,7 @@ export default function LoginPage() {
       <div className="relative w-full max-w-sm">
         <div className="text-center mb-8 animate-fade-in">
           <div className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-white backdrop-blur-sm border-2 border-white/20 mb-4 overflow-hidden shadow-xl">
-             <img src="/icons/PS.png" alt="PS Rice Logo" className="w-full h-full object-cover" />
+             <Image src="/icons/PS.png" alt="PS Rice Logo" width={96} height={96} loading="eager" className="w-full h-full object-cover" />
           </div>
           <h1 className="text-2xl font-bold text-white">PS Rice Wholesale</h1>
           <p className="text-emerald-100 text-sm mt-1 mb-2">ระบบจัดการงานพนักงานระดับองค์กร</p>

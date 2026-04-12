@@ -20,6 +20,16 @@ interface NotificationState {
   subscribeToNotifications: (userId: string) => () => void;
 }
 
+function sortNotifications(notifications: Notification[]) {
+  return [...notifications].sort((left, right) => {
+    return new Date(right.created_at).getTime() - new Date(left.created_at).getTime();
+  });
+}
+
+function upsertNotification(notifications: Notification[], notification: Notification) {
+  return sortNotifications([notification, ...notifications.filter((item) => item.id !== notification.id)]);
+}
+
 export const useNotificationStore = create<NotificationState>((set, get) => ({
   notifications: [],
   isLoading: false,
@@ -34,7 +44,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      set({ notifications: data as Notification[], isLoading: false });
+      set({ notifications: sortNotifications(data as Notification[]), isLoading: false });
     } catch (err) {
       console.error('Failed to fetch notifications:', err);
       set({ isLoading: false });
@@ -42,9 +52,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   },
 
   getNotificationsByUser: (userId: string) => {
-    return get().notifications
-      .filter(n => n.user_id === userId)
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    return get().notifications.filter((notification) => notification.user_id === userId);
   },
 
   getUnreadCount: (userId: string) => {
@@ -98,7 +106,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         .single();
 
       if (error) throw error;
-      set(state => ({ notifications: [data as Notification, ...state.notifications] }));
+      set((state) => ({ notifications: upsertNotification(state.notifications, data as Notification) }));
     } catch (err) {
       console.error('Failed to add notification:', err);
     }
@@ -106,7 +114,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
 
   subscribeToNotifications: (userId: string) => {
     const channel = supabase
-      .channel('public:notifications')
+      .channel(`public:notifications:${userId}`)
       .on(
         'postgres_changes',
         {
@@ -117,13 +125,26 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         },
         (payload: RealtimePostgresInsertPayload<Notification>) => {
           const newNotif = payload.new as Notification;
-          set(state => ({ notifications: [newNotif, ...state.notifications] }));
+          set((state) => ({ notifications: upsertNotification(state.notifications, newNotif) }));
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          const updatedNotification = payload.new as Notification;
+          set((state) => ({ notifications: upsertNotification(state.notifications, updatedNotification) }));
         }
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   },
 }));

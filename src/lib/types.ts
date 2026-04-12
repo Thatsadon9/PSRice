@@ -123,6 +123,7 @@ export interface TaskSubmission {
   note: string;
   submitted_at: string;
   review_status: ReviewStatus;
+  review_rating?: number | null;
   review_comment?: string;
   reviewed_by?: string;
   reviewed_at?: string;

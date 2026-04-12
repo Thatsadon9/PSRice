@@ -7,6 +7,14 @@ import { create } from 'zustand';
 import type { Task, TaskTemplate, TaskSubmission, SubmissionFile, TaskStatus, ReviewStatus, ChecklistItem } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { uploadFile, dataURLtoBlob } from '@/lib/storage';
+import { getCurrentDateStr, isSameCalendarDate } from '@/lib/dateUtils';
+import { serializeReviewFeedback } from '@/lib/reviewFeedback';
+
+interface SubmissionUploadInput extends Omit<SubmissionFile, 'id' | 'created_at' | 'file_url'> {
+  file_url?: string;
+  upload_blob?: Blob | File;
+  file_name?: string;
+}
 
 interface TaskState {
   tasks: Task[];
@@ -17,6 +25,7 @@ interface TaskState {
 
   // Init
   fetchInitialData: () => Promise<void>;
+  subscribeToTaskUpdates: () => () => void;
 
   // Task actions
   getTasksByUser: (userId: string) => Task[];
@@ -37,11 +46,11 @@ interface TaskState {
   getSubmissionsByUser: (userId: string) => TaskSubmission[];
   getPendingSubmissions: () => TaskSubmission[];
   addSubmission: (submission: Omit<TaskSubmission, 'id' | 'created_at' | 'submitted_at'>) => Promise<TaskSubmission | null>;
-  reviewSubmission: (submissionId: string, status: ReviewStatus, comment: string, reviewedBy: string) => Promise<void>;
+  reviewSubmission: (submissionId: string, status: ReviewStatus, comment: string, reviewedBy: string, rating?: number | null) => Promise<void>;
 
   // File actions
   getFilesBySubmission: (submissionId: string) => SubmissionFile[];
-  addFile: (file: Omit<SubmissionFile, 'id' | 'created_at'>) => Promise<void>;
+  addFile: (file: SubmissionUploadInput) => Promise<void>;
 
   // Stats
   getTaskStats: (userId?: string) => {
@@ -55,8 +64,30 @@ interface TaskState {
   };
 }
 
-function getToday(): string {
-  return new Date().toISOString().split('T')[0];
+function sortByCreatedAtDesc<T extends { created_at: string }>(items: T[]) {
+  return [...items].sort((left, right) => {
+    return new Date(right.created_at).getTime() - new Date(left.created_at).getTime();
+  });
+}
+
+function sortSubmissions(items: TaskSubmission[]) {
+  return [...items].sort((left, right) => {
+    return new Date(right.submitted_at).getTime() - new Date(left.submitted_at).getTime();
+  });
+}
+
+function upsertEntity<T extends { id: string }>(items: T[], entity: T) {
+  return [entity, ...items.filter((item) => item.id !== entity.id)];
+}
+
+function buildUploadPath(file: SubmissionUploadInput) {
+  const originalName = file.file_name?.replace(/[^a-zA-Z0-9._-]/g, '-') || `${Date.now()}`;
+  const baseName = originalName.includes('.') ? originalName.slice(0, originalName.lastIndexOf('.')) : originalName;
+  const safeBaseName = baseName || `${Date.now()}`;
+  const extensionFromName = originalName.includes('.') ? originalName.split('.').pop() : null;
+  const extensionFromType = file.upload_blob?.type?.split('/').pop() || (file.file_type === 'video' ? 'mp4' : 'jpg');
+  const extension = extensionFromName || extensionFromType;
+  return `tasks/${file.submission_id}/${Date.now()}-${safeBaseName}.${extension}`;
 }
 
 export const useTaskStore = create<TaskState>((set, get) => ({
@@ -70,17 +101,17 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     set({ isLoading: true });
     try {
       const [resTasks, resTemplates, resSubmissions, resFiles] = await Promise.all([
-        supabase.from('tasks').select('*'),
-        supabase.from('task_templates').select('*'),
-        supabase.from('task_submissions').select('*'),
-        supabase.from('submission_files').select('*'),
+        supabase.from('tasks').select('*').order('created_at', { ascending: false }),
+        supabase.from('task_templates').select('*').order('created_at', { ascending: false }),
+        supabase.from('task_submissions').select('*').order('submitted_at', { ascending: false }),
+        supabase.from('submission_files').select('*').order('created_at', { ascending: false }),
       ]);
 
       set({
-        tasks: (resTasks.data || []) as Task[],
-        templates: (resTemplates.data || []) as TaskTemplate[],
-        submissions: (resSubmissions.data || []) as TaskSubmission[],
-        submissionFiles: (resFiles.data || []) as SubmissionFile[],
+        tasks: sortByCreatedAtDesc((resTasks.data || []) as Task[]),
+        templates: sortByCreatedAtDesc((resTemplates.data || []) as TaskTemplate[]),
+        submissions: sortSubmissions((resSubmissions.data || []) as TaskSubmission[]),
+        submissionFiles: sortByCreatedAtDesc((resFiles.data || []) as SubmissionFile[]),
         isLoading: false
       });
     } catch (err) {
@@ -89,15 +120,78 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     }
   },
 
+  subscribeToTaskUpdates: () => {
+    const channel = supabase
+      .channel('public:task-data')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'tasks' },
+        (payload) => {
+          if (payload.eventType === 'DELETE') {
+            const deletedId = String(payload.old.id);
+            set((state) => ({
+              tasks: state.tasks.filter((task) => task.id !== deletedId),
+            }));
+            return;
+          }
+
+          const task = payload.new as Task;
+          set((state) => ({
+            tasks: sortByCreatedAtDesc(upsertEntity(state.tasks, task)),
+          }));
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'task_submissions' },
+        (payload) => {
+          if (payload.eventType === 'DELETE') {
+            const deletedId = String(payload.old.id);
+            set((state) => ({
+              submissions: state.submissions.filter((submission) => submission.id !== deletedId),
+            }));
+            return;
+          }
+
+          const submission = payload.new as TaskSubmission;
+          set((state) => ({
+            submissions: sortSubmissions(upsertEntity(state.submissions, submission)),
+          }));
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'submission_files' },
+        (payload) => {
+          if (payload.eventType === 'DELETE') {
+            const deletedId = String(payload.old.id);
+            set((state) => ({
+              submissionFiles: state.submissionFiles.filter((file) => file.id !== deletedId),
+            }));
+            return;
+          }
+
+          const file = payload.new as SubmissionFile;
+          set((state) => ({
+            submissionFiles: sortByCreatedAtDesc(upsertEntity(state.submissionFiles, file)),
+          }));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  },
+
   // Task actions
   getTasksByUser: (userId: string) => {
     return get().tasks.filter(t => t.assigned_to === userId);
   },
 
   getTodayTasksByUser: (userId: string) => {
-    // Note: Database dates might be timestamptz. We might need better parsing in production.
-    const today = getToday();
-    return get().tasks.filter(t => t.assigned_to === userId && typeof t.due_date === 'string' && t.due_date.startsWith(today));
+    const today = getCurrentDateStr();
+    return get().tasks.filter((task) => task.assigned_to === userId && isSameCalendarDate(task.due_date, today));
   },
 
   getTaskById: (taskId: string) => {
@@ -121,7 +215,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
   addTask: async (task) => {
     const { data } = await supabase.from('tasks').insert(task).select().single();
     if (data) {
-      set(state => ({ tasks: [...state.tasks, data as Task] }));
+      set((state) => ({ tasks: sortByCreatedAtDesc(upsertEntity(state.tasks, data as Task)) }));
       return true;
     }
     return false;
@@ -178,17 +272,18 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     const { data, error } = await supabase.from('task_submissions').insert(submission).select().single();
     if (data && !error) {
        const newSub = data as TaskSubmission;
-       set(state => ({ submissions: [...state.submissions, newSub] }));
+       set((state) => ({ submissions: sortSubmissions(upsertEntity(state.submissions, newSub)) }));
        return newSub;
     }
     return null;
   },
 
-  reviewSubmission: async (submissionId: string, status: ReviewStatus, comment: string, reviewedBy: string) => {
+  reviewSubmission: async (submissionId: string, status: ReviewStatus, comment: string, reviewedBy: string, rating?: number | null) => {
     const reviewedAt = new Date().toISOString();
+    const reviewComment = serializeReviewFeedback(comment, rating);
     await supabase.from('task_submissions').update({
        review_status: status,
-       review_comment: comment,
+       review_comment: reviewComment,
        reviewed_by: reviewedBy,
        reviewed_at: reviewedAt
     }).eq('id', submissionId);
@@ -199,7 +294,8 @@ export const useTaskStore = create<TaskState>((set, get) => ({
           ? {
               ...s,
               review_status: status,
-              review_comment: comment,
+              review_comment: reviewComment,
+              review_rating: rating ?? null,
               reviewed_by: reviewedBy,
               reviewed_at: reviewedAt,
             }
@@ -215,24 +311,39 @@ export const useTaskStore = create<TaskState>((set, get) => ({
 
   addFile: async (file) => {
     try {
-      let finalFileUrl = file.file_url;
-      
-      // If file_url is a dataURL (base64), upload it first
-      if (file.file_url.startsWith('data:')) {
+      let finalFileUrl = file.file_url || '';
+
+      if (file.upload_blob) {
+        const uploadedUrl = await uploadFile('proofs', buildUploadPath(file), file.upload_blob);
+        if (uploadedUrl) {
+          finalFileUrl = uploadedUrl;
+        }
+      } else if (file.file_url?.startsWith('data:')) {
         const blob = dataURLtoBlob(file.file_url);
-        const fileName = `${file.submission_id}/${Date.now()}.jpg`;
-        const uploadedUrl = await uploadFile('proofs', `tasks/${fileName}`, blob);
-        if (uploadedUrl) finalFileUrl = uploadedUrl;
+        const uploadedUrl = await uploadFile('proofs', buildUploadPath({ ...file, upload_blob: blob }), blob);
+        if (uploadedUrl) {
+          finalFileUrl = uploadedUrl;
+        }
+      }
+
+      if (!finalFileUrl) {
+        throw new Error('Submission file upload failed');
       }
 
       const { data, error } = await supabase
         .from('submission_files')
-        .insert({ ...file, file_url: finalFileUrl })
+        .insert({
+          submission_id: file.submission_id,
+          file_url: finalFileUrl,
+          file_type: file.file_type,
+        })
         .select()
         .single();
         
       if (error) throw error;
-      set(state => ({ submissionFiles: [...state.submissionFiles, data as SubmissionFile] }));
+      set((state) => ({
+        submissionFiles: sortByCreatedAtDesc(upsertEntity(state.submissionFiles, data as SubmissionFile)),
+      }));
     } catch (err) {
       console.error('Failed to add submission file:', err);
     }

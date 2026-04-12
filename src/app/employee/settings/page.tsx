@@ -3,13 +3,26 @@
 import { useState } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import Card from '@/components/ui/Card';
-import Button from '@/components/ui/Button';
 import { 
   ArrowLeft, Bell, Smartphone, Globe, Shield, 
-  Moon, Sun, LogOut, ChevronRight, User
+  LogOut, ChevronRight, User
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import type { ReactNode } from 'react';
+
+interface SettingsItem {
+  icon: ReactNode;
+  label: string;
+  description?: string;
+  href?: string;
+  action: ReactNode;
+}
+
+interface SettingsSection {
+  title: string;
+  items: SettingsItem[];
+}
 
 export default function SettingsPage() {
   const { currentUser, logout } = useAuthStore();
@@ -23,7 +36,7 @@ export default function SettingsPage() {
     router.push('/login');
   };
 
-  const sections = [
+  const sections: SettingsSection[] = [
     {
       title: 'แอปพลิเคชัน',
       items: [
@@ -89,7 +102,7 @@ export default function SettingsPage() {
             </h2>
             <Card padding="none" className="overflow-hidden border-slate-100 shadow-sm">
               <div className="divide-y divide-slate-50">
-                {section.items.map((item: any, idx) => (
+                {section.items.map((item, idx) => (
                   <div 
                     key={idx}
                     className="flex items-center justify-between p-4 bg-white hover:bg-slate-50 transition-colors cursor-pointer"

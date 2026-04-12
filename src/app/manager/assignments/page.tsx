@@ -1,4 +1,5 @@
 'use client';
+/* eslint-disable @next/next/no-img-element */
 
 import { useState } from 'react';
 import { useTaskStore } from '@/store/taskStore';
@@ -12,13 +13,29 @@ import Modal from '@/components/ui/Modal';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
 import { 
-  CalendarCheck, Plus, Search, Calendar, 
-  Users, Building2, ClipboardList, CheckCircle2,
-  User, ArrowRight, AlertTriangle, Send
+  CalendarCheck, Plus, Calendar,
+  Building2, ClipboardList, CheckCircle2,
+  User, AlertTriangle, Send
 } from 'lucide-react';
-import { formatThaiDate } from '@/lib/dateUtils';
-import type { Task, Priority } from '@/lib/types';
-import { PRIORITY_LABELS } from '@/lib/constants';
+import { formatThaiDate, getCurrentDateStr, isSameCalendarDate } from '@/lib/dateUtils';
+import type { Priority, ProofType, Task } from '@/lib/types';
+
+type AssignmentMode = 'template' | 'custom';
+type AssignmentTarget = 'employee' | 'branch';
+
+interface AssignmentFormData {
+  mode: AssignmentMode;
+  template_id: string;
+  title: string;
+  description: string;
+  priority: Priority;
+  proof_type_required: ProofType;
+  target_type: AssignmentTarget;
+  target_id: string;
+  due_date: string;
+}
+
+type TaskDraft = Omit<Task, 'id' | 'created_at' | 'assigned_to' | 'due_date' | 'status'>;
 
 export default function AssignmentsPage() {
   const taskStore = useTaskStore();
@@ -30,16 +47,16 @@ export default function AssignmentsPage() {
   const [success, setSuccess] = useState(false);
 
   // Assignment Form State
-  const [formData, setFormData] = useState({
-    mode: 'template' as 'template' | 'custom',
+  const [formData, setFormData] = useState<AssignmentFormData>({
+    mode: 'template',
     template_id: '',
     title: '',
     description: '',
-    priority: 'medium' as Priority,
-    proof_type_required: 'photo' as any,
-    target_type: 'employee' as 'employee' | 'branch',
+    priority: 'medium',
+    proof_type_required: 'photo',
+    target_type: 'employee',
     target_id: '',
-    due_date: new Date().toISOString().split('T')[0],
+    due_date: getCurrentDateStr(),
   });
 
   const templates = taskStore.templates;
@@ -49,7 +66,7 @@ export default function AssignmentsPage() {
   const handleAssign = async () => {
     setLoading(true);
     
-    let baseTaskData: any = {};
+    let baseTaskData: TaskDraft;
     
     if (formData.mode === 'template') {
       const template = taskStore.getTemplateById(formData.template_id);
@@ -74,13 +91,13 @@ export default function AssignmentsPage() {
       };
     }
 
-    const targets = formData.target_type === 'employee' 
+    const targets = formData.target_type === 'employee'
       ? [formData.target_id]
       : employeeStore.getUsersByBranch(formData.target_id).filter(u => u.role === 'employee').map(u => u.id);
 
     // Run all task creations and notifications
     const pTasks = targets.map(async (userId) => {
-      const newTask = {
+      const newTask: Omit<Task, 'id' | 'created_at'> = {
         ...baseTaskData,
         assigned_to: userId,
         due_date: formData.due_date,
@@ -112,11 +129,6 @@ export default function AssignmentsPage() {
     }, 1500);
   };
 
-  const getTargetName = (type: 'employee' | 'branch', id: string) => {
-    if (type === 'employee') return employeeStore.getUserById(id)?.full_name || 'Unknown';
-    return branchStore.getBranchById(id)?.name || 'Unknown';
-  };
-
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -140,7 +152,7 @@ export default function AssignmentsPage() {
              <div className="p-3 bg-slate-50 rounded-lg">
                 <p className="text-xs text-slate-500 mb-1">งานที่มอบหมายแล้ววันนี้</p>
                 <p className="text-xl font-bold text-slate-900">
-                  {taskStore.tasks.filter(t => t.due_date === new Date().toISOString().split('T')[0]).length} งาน
+                  {taskStore.tasks.filter((task) => isSameCalendarDate(task.due_date, getCurrentDateStr())).length} งาน
                 </p>
              </div>
              <div className="p-3 bg-slate-50 rounded-lg">
@@ -270,7 +282,7 @@ export default function AssignmentsPage() {
                       { value: 'critical', label: 'วิกฤต' },
                     ]}
                     value={formData.priority}
-                    onChange={(e) => setFormData({...formData, priority: e.target.value as any})}
+                    onChange={(e) => setFormData({...formData, priority: e.target.value as Priority})}
                   />
                   <Select 
                     label="หลักฐานที่ต้องการ"
@@ -280,7 +292,7 @@ export default function AssignmentsPage() {
                       { value: 'text', label: 'ข้อความ' },
                     ]}
                     value={formData.proof_type_required}
-                    onChange={(e) => setFormData({...formData, proof_type_required: e.target.value})}
+                    onChange={(e) => setFormData({...formData, proof_type_required: e.target.value as ProofType})}
                   />
                 </div>
               </div>
