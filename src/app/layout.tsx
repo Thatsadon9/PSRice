@@ -5,10 +5,6 @@ export const metadata: Metadata = {
   title: "PS Rice — ระบบจัดการงานพนักงาน",
   description: "ระบบจัดการงานพนักงาน ลงเวลาเข้าออกงาน และส่งหลักฐานการทำงาน",
   manifest: "/manifest.json",
-  icons: {
-    icon: "/icons/PS.png",
-    apple: "/icons/PS.png",
-  },
 };
 
 export const viewport: Viewport = {
