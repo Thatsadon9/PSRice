@@ -11,8 +11,8 @@ import {
   Flag,
   ImagePlus,
   Send,
-  Square,
   Video,
+  Zap,
 } from 'lucide-react';
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
@@ -138,19 +138,6 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
         return 'info';
       default:
         return 'default';
-    }
-  };
-
-  const getPriorityVariant = (priority?: string) => {
-    switch (priority) {
-      case 'critical':
-        return 'danger';
-      case 'high':
-        return 'warning';
-      case 'medium':
-        return 'info';
-      default:
-        return 'slate';
     }
   };
 
@@ -335,160 +322,193 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
   }
 
   return (
-    <div className="px-4 py-4 space-y-4 animate-fade-in">
-      <button
-        onClick={() => router.back()}
-        className="flex items-center gap-1.5 text-sm text-primary-700 font-medium"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        กลับ
-      </button>
+    <div className="px-4 py-6 space-y-6 animate-fade-in pb-24 max-w-lg mx-auto">
+      <div className="flex items-center justify-between">
+        <button
+          onClick={() => router.back()}
+          className="flex items-center gap-2 text-xs font-black text-slate-400 uppercase tracking-widest hover:text-primary-600 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back to Tasks
+        </button>
+        <Badge
+          variant={getStatusVariant(task.status) as 'success' | 'warning' | 'danger' | 'info' | 'default'}
+          className="px-3 py-1 font-black uppercase text-[10px] tracking-tight"
+        >
+          {TASK_STATUS_LABELS[task.status]}
+        </Badge>
+      </div>
 
-      <div>
-        <h1 className="text-lg font-bold text-slate-900">{task.title || template?.title || 'งาน'}</h1>
-        <div className="flex items-center gap-2 mt-2 flex-wrap">
-          <Badge
-            variant={getStatusVariant(task.status) as 'success' | 'warning' | 'danger' | 'info' | 'default'}
-            size="md"
-            dot
-          >
-            {TASK_STATUS_LABELS[task.status]}
-          </Badge>
+      <div className="space-y-2">
+        <h1 className="text-2xl font-black text-slate-900 leading-tight">
+          {task.title || template?.title || 'งาน'}
+        </h1>
+        <div className="flex items-center gap-3">
           {(task.priority || template?.priority) && (
-            <Badge
-              variant={getPriorityVariant(task.priority || template?.priority) as 'danger' | 'warning' | 'info' | 'slate'}
-              size="md"
-            >
+            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-tight
+              ${(task.priority || template?.priority) === 'critical' ? 'bg-red-50 text-red-600' :
+                (task.priority || template?.priority) === 'high' ? 'bg-amber-50 text-amber-600' :
+                'bg-blue-50 text-blue-600'}
+            `}>
               <Flag className="w-3 h-3" />
-              {PRIORITY_LABELS[(task.priority || template?.priority || 'medium') as Priority]}
-            </Badge>
+              {PRIORITY_LABELS[(task.priority || template?.priority || 'medium') as Priority]} Priority
+            </div>
           )}
+          <div className="flex items-center gap-1.5 text-[10px] font-black text-slate-400 uppercase tracking-tight">
+            <Calendar className="w-3.5 h-3.5" />
+            Due {formatThaiDate(task.due_date)}
+          </div>
         </div>
       </div>
 
-      <Card>
+      <Card className="border-slate-100 shadow-xl shadow-slate-200/50 rounded-[2rem]">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="p-2.5 bg-slate-50 text-slate-400 rounded-xl">
+            <FileText className="w-5 h-5" />
+          </div>
+          <h2 className="font-black text-slate-900 uppercase text-xs tracking-widest">รายละเอียดงาน</h2>
+        </div>
+        
         {(task.description || template?.description) && (
-          <p className="text-sm text-slate-600 mb-3">{task.description || template?.description}</p>
+          <p className="text-sm text-slate-600 leading-relaxed bg-slate-50/50 p-4 rounded-2xl border border-slate-50">
+            {task.description || template?.description}
+          </p>
         )}
-        <div className="space-y-2 text-sm">
-          <div className="flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-slate-400" />
-            <span className="text-slate-500">กำหนดส่ง:</span>
-            <span className="font-medium">{formatThaiDate(task.due_date)}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <FileText className="w-4 h-4 text-slate-400" />
-            <span className="text-slate-500">หลักฐานที่ต้องการ:</span>
-            <span className="font-medium">{PROOF_TYPE_LABELS[proofRequired]}</span>
-          </div>
+        
+        <div className="mt-4 pt-4 border-t border-slate-50 flex items-center gap-2">
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">หลักฐานที่ต้องส่ง:</p>
+          <Badge variant="none" className="bg-primary-50 text-primary-700 font-bold text-[10px] border-none">
+            {PROOF_TYPE_LABELS[proofRequired]}
+          </Badge>
         </div>
       </Card>
 
       {task.checklist_state && task.checklist_state.length > 0 && (
-        <Card>
-          <h3 className="text-sm font-semibold text-slate-900 mb-3">
-            รายการตรวจสอบ ({task.checklist_state.filter((item) => item.completed).length}/{task.checklist_state.length})
-          </h3>
-          <div className="space-y-1">
-            {task.checklist_state.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => handleChecklistToggle(item.id)}
-                disabled={task.status === 'approved' || task.status === 'submitted'}
-                className={`
-                  w-full flex items-start gap-3 px-3 py-2.5 rounded-lg text-left
-                  transition-colors duration-150
-                  ${item.completed ? 'bg-emerald-50' : 'hover:bg-slate-50'}
-                  disabled:opacity-70
-                `}
-              >
-                {item.completed ? (
-                  <CheckSquare className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
-                ) : (
-                  <Square className="w-5 h-5 text-slate-300 flex-shrink-0 mt-0.5" />
-                )}
-                <span className={`text-sm ${item.completed ? 'text-slate-500 line-through' : 'text-slate-800'}`}>
-                  {item.label}
-                </span>
-              </button>
-            ))}
-          </div>
-        </Card>
+        <div className="space-y-4">
+          <h2 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] px-1">Checklist Items</h2>
+          <Card padding="none" className="overflow-hidden border-slate-100 shadow-sm rounded-[2rem]">
+            <div className="divide-y divide-slate-100">
+              {task.checklist_state.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => handleChecklistToggle(item.id)}
+                  disabled={task.status === 'approved' || task.status === 'submitted'}
+                  className={`
+                    w-full flex items-center gap-4 px-5 py-4 text-left
+                    transition-all active:scale-[0.98]
+                    ${item.completed ? 'bg-emerald-50/30' : 'hover:bg-slate-50'}
+                    disabled:opacity-70 disabled:active:scale-100
+                  `}
+                >
+                  <div className={`
+                    w-6 h-6 rounded-lg flex items-center justify-center shrink-0 border-2 transition-all
+                    ${item.completed ? 'bg-emerald-600 border-emerald-600' : 'border-slate-200 bg-white'}
+                  `}>
+                    {item.completed && <CheckSquare className="w-4 h-4 text-white" />}
+                  </div>
+                  <span className={`text-sm font-bold transition-all ${item.completed ? 'text-slate-400 line-through' : 'text-slate-700'}`}>
+                    {item.label}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </Card>
+        </div>
       )}
 
       {task.status !== 'approved' && task.status !== 'submitted' && (
-        <Card>
-          <h3 className="text-sm font-semibold text-slate-900 mb-3">ส่งหลักฐาน</h3>
+        <div className="space-y-4">
+          <h2 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] px-1">ส่งหลักฐานของคุณ</h2>
+          <Card className="border-slate-100 shadow-2xl shadow-primary-900/10 rounded-[2.5rem] relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-primary-100/30 rounded-full blur-3xl -mr-16 -mt-16" />
+            
+            <div className="relative z-10 space-y-6">
+              {(proofRequired === 'photo' || proofRequired === 'video' || proofRequired === 'any') && (
+                <div className="space-y-4">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept={getProofAccept(proofRequired)}
+                    capture={proofRequired === 'photo' || proofRequired === 'video' ? 'environment' : undefined}
+                    multiple
+                    className="hidden"
+                    onChange={handleFileChange}
+                  />
 
-          {(proofRequired === 'photo' || proofRequired === 'video' || proofRequired === 'any') && (
-            <div className="space-y-3 mb-4">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept={getProofAccept(proofRequired)}
-                capture={proofRequired === 'photo' || proofRequired === 'video' ? 'environment' : undefined}
-                multiple
-                className="hidden"
-                onChange={handleFileChange}
-              />
+                  {previewFiles.length > 0 && (
+                    <SubmissionFilesGrid
+                      files={previewFiles}
+                      emptyLabel="ยังไม่มีไฟล์หลักฐาน"
+                      onRemove={removeUpload}
+                    />
+                  )}
 
-              {previewFiles.length > 0 && (
-                <SubmissionFilesGrid
-                  files={previewFiles}
-                  emptyLabel="ยังไม่มีไฟล์หลักฐาน"
-                  onRemove={removeUpload}
-                />
+                  <button
+                    onClick={openProofPicker}
+                    className="w-full flex flex-col items-center justify-center gap-3 py-10 border-2 border-dashed border-slate-200 rounded-[2rem] hover:border-primary-400 hover:bg-primary-50/30 transition-all group"
+                  >
+                    <div className="p-4 bg-primary-50 text-primary-600 rounded-full group-hover:scale-110 transition-transform shadow-sm">
+                      {proofRequired === 'video' ? <Video className="w-6 h-6" /> : <ImagePlus className="w-6 h-6" />}
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm font-black text-slate-900">
+                        {proofRequired === 'photo' && 'ถ่ายรูปหลักฐาน'}
+                        {proofRequired === 'video' && 'ถ่ายวิดีโอหลักฐาน'}
+                        {proofRequired === 'any' && 'แนบหลักฐาน (รูป/วิดีโอ)'}
+                      </p>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Tap to capture source</p>
+                    </div>
+                  </button>
+                </div>
               )}
 
-              <Button
-                variant="outline"
-                size="sm"
-                fullWidth
-                onClick={openProofPicker}
-                icon={proofRequired === 'video' ? <Video className="w-4 h-4" /> : <ImagePlus className="w-4 h-4" />}
-              >
-                {proofRequired === 'photo' && 'เพิ่มรูปหลักฐาน'}
-                {proofRequired === 'video' && 'เพิ่มวิดีโอหลักฐาน'}
-                {proofRequired === 'any' && 'เพิ่มรูปภาพหรือวิดีโอ'}
-              </Button>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">หมายเหตุ (Optional)</label>
+                <TextArea
+                  id="proof-note"
+                  placeholder="ระบุรายละเอียดเพิ่มเติมถึงผู้จัดการ..."
+                  className="rounded-2xl border-slate-100 focus:ring-primary-100"
+                  value={note}
+                  onChange={(event) => setNote(event.target.value)}
+                  rows={3}
+                />
+              </div>
+
+              <div className="pt-2">
+                <Button
+                  fullWidth
+                  size="lg"
+                  variant="none"
+                  className={`h-14 rounded-2xl text-sm font-black flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-lg
+                    ${canSubmit 
+                      ? 'bg-primary-600 text-white shadow-primary-200 hover:bg-primary-700' 
+                      : 'bg-slate-100 text-slate-400 shadow-none cursor-not-allowed'}
+                  `}
+                  loading={submitting}
+                  disabled={!canSubmit}
+                  onClick={handleSubmit}
+                  icon={<Send className="w-4 h-4" />}
+                >
+                  ส่งงานเพื่อตรวจสอบ
+                </Button>
+
+                {submitError && (
+                  <p className="text-[10px] font-bold text-red-500 text-center mt-3 uppercase tracking-wider">{submitError}</p>
+                )}
+
+                {!canSubmit && proofHint && (
+                  <p className="text-[10px] font-bold text-amber-500 text-center mt-3 uppercase tracking-wider">{proofHint}</p>
+                )}
+              </div>
             </div>
-          )}
-
-          <TextArea
-            id="proof-note"
-            label="หมายเหตุ"
-            placeholder="ระบุรายละเอียดเพิ่มเติม..."
-            value={note}
-            onChange={(event) => setNote(event.target.value)}
-            rows={3}
-          />
-
-          <Button
-            fullWidth
-            size="lg"
-            className="mt-4"
-            loading={submitting}
-            disabled={!canSubmit}
-            onClick={handleSubmit}
-            icon={<Send className="w-4 h-4" />}
-          >
-            ส่งงาน
-          </Button>
-
-          {submitError && (
-            <p className="text-xs text-red-600 text-center mt-2">{submitError}</p>
-          )}
-
-          {!canSubmit && proofHint && (
-            <p className="text-xs text-amber-600 text-center mt-2">{proofHint}</p>
-          )}
-        </Card>
+          </Card>
+        </div>
       )}
 
       {submissions.length > 0 && (
-        <Card>
-          <h3 className="text-sm font-semibold text-slate-900 mb-3">ประวัติการส่ง</h3>
-          <div className="space-y-3">
+        <div className="space-y-4">
+          <h2 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] px-1">Submission History</h2>
+          <div className="space-y-4">
             {submissions.map((submission) => {
               const files = taskStore.getFilesBySubmission(submission.id);
               const reviewer = submission.reviewed_by ? employeeStore.getUserById(submission.reviewed_by) : null;
@@ -506,47 +526,72 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
               })() as 'success' | 'danger' | 'warning';
 
               return (
-                <div key={submission.id} className="border border-slate-100 rounded-lg p-3 space-y-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <Badge variant={reviewVariant} size="sm" dot>
-                      {REVIEW_STATUS_LABELS[submission.review_status]}
-                    </Badge>
-                    <span className="text-xs text-slate-500">
-                      {formatRelativeTime(submission.submitted_at)}
-                    </span>
-                  </div>
-
-                  {submission.note && <p className="text-sm text-slate-600">{submission.note}</p>}
-
-                  {files.length > 0 && (
-                    <SubmissionFilesGrid
-                      files={files.map((file) => ({
-                        id: file.id,
-                        file_url: file.file_url,
-                        file_type: file.file_type,
-                      }))}
-                      className="!grid-cols-1"
-                    />
-                  )}
-
-                  {(feedback.rating != null || feedback.comment) && (
-                    <div className="bg-slate-50 rounded-lg px-3 py-2 mt-2 space-y-2">
-                      <p className="text-xs text-slate-500">
-                        ความเห็นจาก {reviewer?.full_name || 'ผู้จัดการ'}:
-                      </p>
-                      {feedback.rating != null && (
-                        <StarRating value={feedback.rating} readOnly size="sm" />
-                      )}
-                      {feedback.comment && (
-                        <p className="text-sm text-slate-700">{feedback.comment}</p>
-                      )}
+                <Card key={submission.id} className="border-slate-100 shadow-sm rounded-[2rem] overflow-hidden p-0">
+                  <div className={`h-1.5 w-full ${
+                    reviewVariant === 'success' ? 'bg-emerald-500' :
+                    reviewVariant === 'danger' ? 'bg-red-500' : 'bg-amber-500'
+                  }`} />
+                  
+                  <div className="p-5 space-y-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <Badge variant={reviewVariant} size="sm" dot className="font-black uppercase text-[9px]">
+                        {REVIEW_STATUS_LABELS[submission.review_status]}
+                      </Badge>
+                      <span className="text-[10px] font-bold text-slate-400">
+                        Submitted {formatRelativeTime(submission.submitted_at)}
+                      </span>
                     </div>
-                  )}
-                </div>
+
+                    {submission.note && (
+                      <p className="text-sm font-medium text-slate-700 bg-slate-50 p-3 rounded-xl border border-slate-50 italic">
+                        &quot;{submission.note}&quot;
+                      </p>
+                    )}
+
+                    {files.length > 0 && (
+                      <SubmissionFilesGrid
+                        files={files.map((file) => ({
+                          id: file.id,
+                          file_url: file.file_url,
+                          file_type: file.file_type,
+                        }))}
+                        className="!grid-cols-1"
+                      />
+                    )}
+
+                    {(feedback.rating != null || feedback.comment) && (
+                      <div className="bg-slate-900 rounded-[2rem] p-5 shadow-xl relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 w-24 h-24 bg-primary-500/10 rounded-full blur-2xl" />
+                        
+                        <div className="relative z-10 flex flex-col gap-3">
+                          <div className="flex items-center justify-between">
+                            <p className="text-[10px] font-black text-primary-400 uppercase tracking-widest">Feedback from Manager</p>
+                            {feedback.rating != null && (
+                              <StarRating value={feedback.rating} readOnly size="sm" />
+                            )}
+                          </div>
+                          
+                          <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 rounded-full bg-white/10 flex items-center justify-center text-xs font-black text-white shrink-0">
+                              {reviewer?.full_name?.charAt(0) || 'M'}
+                            </div>
+                            <div>
+                               <p className="text-sm font-bold text-white line-clamp-2">
+                                 {feedback.comment || 'ไม่มีความเห็นเพิ่มเติม'}
+                               </p>
+                               <p className="text-[9px] font-bold text-slate-500 uppercase mt-0.5">Reviewed by {reviewer?.full_name || 'System'}</p>
+                            </div>
+                          </div>
+                        </div>
+                        <Zap className="absolute bottom-[-10px] right-[-10px] w-16 h-16 text-white/5 rotate-12" />
+                      </div>
+                    )}
+                  </div>
+                </Card>
               );
             })}
           </div>
-        </Card>
+        </div>
       )}
     </div>
   );

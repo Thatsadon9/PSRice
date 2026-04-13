@@ -5,7 +5,8 @@ import Link from 'next/link';
 import Image from 'next/image';
 import {
   LayoutDashboard, Clock, ClipboardList, Users, CheckSquare,
-  Building2, FileText, CalendarCheck, BarChart3, Settings, X, LogOut
+  Building2, FileText, CalendarCheck, BarChart3, Settings, X, LogOut,
+  CalendarDays, WalletCards, ReceiptText,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { useRouter } from 'next/navigation';
@@ -16,6 +17,7 @@ import { getPendingReviewCountForUser } from '@/lib/reviewHelpers';
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   LayoutDashboard, Clock, ClipboardList, Users, CheckSquare,
   Building2, FileText, CalendarCheck, BarChart3, Settings,
+  CalendarDays, WalletCards, ReceiptText,
 };
 
 interface NavItem {

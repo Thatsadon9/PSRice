@@ -31,6 +31,10 @@ export type ProofType = 'photo' | 'video' | 'text' | 'checklist' | 'any';
 export type RecurrenceType = 'daily' | 'weekly' | 'monthly' | 'once';
 export type FileType = 'image' | 'video' | 'document';
 export type NotificationType = 'task' | 'attendance' | 'review' | 'system';
+export type ShiftAssignmentStatus = 'scheduled' | 'day_off' | 'leave' | 'holiday';
+export type CompensationType = 'daily' | 'hourly' | 'monthly';
+export type EmployeeRequestType = 'leave' | 'advance' | 'expense';
+export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
 
 // ---- Interfaces ----
 
@@ -55,6 +59,104 @@ export interface Branch {
   longitude: number;
   geofence_radius_meters: number;
   created_at: string;
+}
+
+export interface BranchAttendancePolicy {
+  id: string;
+  branch_id: string;
+  shift_start_time: string;
+  shift_end_time: string;
+  break_minutes: number;
+  late_grace_minutes: number;
+  early_out_grace_minutes: number;
+  minimum_ot_minutes: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ShiftTemplate {
+  id: string;
+  branch_id?: string | null;
+  name: string;
+  code?: string | null;
+  color: string;
+  start_time: string;
+  end_time: string;
+  break_minutes: number;
+  late_grace_minutes: number;
+  early_out_grace_minutes: number;
+  minimum_ot_minutes: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ShiftAssignment {
+  id: string;
+  user_id: string;
+  branch_id?: string | null;
+  shift_template_id?: string | null;
+  work_date: string;
+  shift_name: string;
+  start_time: string;
+  end_time: string;
+  break_minutes: number;
+  late_grace_minutes: number;
+  early_out_grace_minutes: number;
+  minimum_ot_minutes: number;
+  status: ShiftAssignmentStatus;
+  notes?: string | null;
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CompensationProfile {
+  id: string;
+  user_id: string;
+  pay_type: CompensationType;
+  base_rate: number;
+  ot_rate: number;
+  late_deduction_rate: number;
+  absence_deduction_rate: number;
+  leave_deduction_rate: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EmployeeRequest {
+  id: string;
+  user_id: string;
+  branch_id?: string | null;
+  request_type: EmployeeRequestType;
+  status: ApprovalStatus;
+  title: string;
+  description?: string | null;
+  amount?: number | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  attachment_urls: string[];
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+  review_note?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RegistrationRequest {
+  id: string;
+  full_name: string;
+  email: string;
+  phone: string;
+  desired_branch_id?: string | null;
+  team_id?: string | null;
+  note?: string | null;
+  status: ApprovalStatus;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+  review_note?: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface AttendanceRecord {

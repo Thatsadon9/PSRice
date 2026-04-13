@@ -125,6 +125,24 @@ export const useTaskStore = create<TaskState>((set, get) => ({
       .channel('public:task-data')
       .on(
         'postgres_changes',
+        { event: '*', schema: 'public', table: 'task_templates' },
+        (payload) => {
+          if (payload.eventType === 'DELETE') {
+            const deletedId = String(payload.old.id);
+            set((state) => ({
+              templates: state.templates.filter((template) => template.id !== deletedId),
+            }));
+            return;
+          }
+
+          const template = payload.new as TaskTemplate;
+          set((state) => ({
+            templates: sortByCreatedAtDesc(upsertEntity(state.templates, template)),
+          }));
+        }
+      )
+      .on(
+        'postgres_changes',
         { event: '*', schema: 'public', table: 'tasks' },
         (payload) => {
           if (payload.eventType === 'DELETE') {
@@ -230,7 +248,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     // We omit created_at but let Postgres handle it via DEFAULT
     const { data } = await supabase.from('task_templates').insert(template).select().single();
     if (data) {
-      set(state => ({ templates: [...state.templates, data as TaskTemplate] }));
+      set(state => ({ templates: sortByCreatedAtDesc(upsertEntity(state.templates, data as TaskTemplate)) }));
       return true;
     }
     return false;
@@ -240,7 +258,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     const { data } = await supabase.from('task_templates').update(updates).eq('id', templateId).select().single();
     if (data) {
       set(state => ({
-        templates: state.templates.map(t => t.id === templateId ? { ...t, ...(data as TaskTemplate) } : t),
+        templates: sortByCreatedAtDesc(upsertEntity(state.templates, data as TaskTemplate)),
       }));
       return true;
     }

@@ -11,12 +11,28 @@ interface EmployeeState {
   users: User[];
   isLoading: boolean;
   fetchUsers: () => Promise<void>;
+  subscribeToUserUpdates: () => () => void;
   getUserById: (id: string) => User | undefined;
   getUsersByBranch: (branchId: string) => User[];
   getUsersByRole: (role: string) => User[];
   getEmployees: () => User[];
   addUser: (user: Omit<User, 'id' | 'created_at'>, password?: string) => Promise<boolean>;
   updateUser: (userId: string, updates: Partial<User>) => Promise<boolean>;
+}
+
+function sortUsers(users: User[]) {
+  return [...users].sort((left, right) => {
+    const nameCompare = left.full_name.localeCompare(right.full_name, 'th');
+    if (nameCompare !== 0) {
+      return nameCompare;
+    }
+
+    return new Date(right.created_at).getTime() - new Date(left.created_at).getTime();
+  });
+}
+
+function upsertUser(users: User[], user: User) {
+  return sortUsers([user, ...users.filter((item) => item.id !== user.id)]);
 }
 
 export const useEmployeeStore = create<EmployeeState>((set, get) => ({
@@ -28,11 +44,39 @@ export const useEmployeeStore = create<EmployeeState>((set, get) => ({
     try {
       const { data, error } = await supabase.from('users').select('*');
       if (error) throw error;
-      set({ users: data as User[], isLoading: false });
+      set({ users: sortUsers((data || []) as User[]), isLoading: false });
     } catch (err) {
       console.error('Failed to fetch users:', err);
       set({ isLoading: false });
     }
+  },
+
+  subscribeToUserUpdates: () => {
+    const channel = supabase
+      .channel('public:users')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'users' },
+        (payload) => {
+          if (payload.eventType === 'DELETE') {
+            const deletedId = String(payload.old.id);
+            set((state) => ({
+              users: state.users.filter((user) => user.id !== deletedId),
+            }));
+            return;
+          }
+
+          const user = payload.new as User;
+          set((state) => ({
+            users: upsertUser(state.users, user),
+          }));
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
   },
 
   getUserById: (id: string) => {
@@ -73,7 +117,7 @@ export const useEmployeeStore = create<EmployeeState>((set, get) => ({
       // Fallback to direct insertion if no password (though we'd usually want a password now)
       const { data, error } = await supabase.from('users').insert(user).select().single();
       if (error) throw error;
-      set(state => ({ users: [...state.users, data as User], isLoading: false }));
+      set(state => ({ users: upsertUser(state.users, data as User), isLoading: false }));
       return true;
     } catch (err) {
       console.error('Add user error:', err instanceof Error ? err.message : err);
@@ -88,7 +132,7 @@ export const useEmployeeStore = create<EmployeeState>((set, get) => ({
       const { data, error } = await supabase.from('users').update(updates).eq('id', userId).select().single();
       if (error) throw error;
       set(state => ({
-        users: state.users.map(u => u.id === userId ? { ...u, ...(data as User) } : u),
+        users: upsertUser(state.users, data as User),
         isLoading: false,
       }));
       return true;

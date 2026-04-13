@@ -1,0 +1,20 @@
+
+> workflow-pro@0.1.0 dev
+> next dev --hostname 127.0.0.1 --port 3000
+
+▲ Next.js 16.2.3 (Turbopack)
+- Local:         http://127.0.0.1:3000
+- Network:       http://127.0.0.1:3000
+- Environments: .env.local
+✓ Ready in 592ms
+Creating turbopack project {
+  dir: 'C:\\Users\\ninet\\.gemini\\antigravity\\scratch\\workflow-pro',
+  testMode: true
+}
+
+○ Compiling /manager ...
+ GET /manager 200 in 4.5s (next.js: 4.2s, application-code: 269ms)
+ GET / 200 in 483ms (next.js: 438ms, application-code: 45ms)
+ GET /login 200 in 955ms (next.js: 871ms, application-code: 84ms)
+ GET /manager 200 in 37ms (next.js: 4ms, application-code: 33ms)
+[?25h

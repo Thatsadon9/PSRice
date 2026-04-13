@@ -1,14 +1,25 @@
 'use client';
 
 import Link from 'next/link';
-import Card from '@/components/ui/Card';
-import { 
-  BarChart3, Settings, CalendarCheck, Building2, 
-  Users, FileText, Clock, ArrowRight,
-  LogOut, Shield, Code
-} from 'lucide-react';
-import { useAuthStore } from '@/store/authStore';
 import { useRouter } from 'next/navigation';
+import Card from '@/components/ui/Card';
+import { useAuthStore } from '@/store/authStore';
+import {
+  ArrowRight,
+  BarChart3,
+  Building2,
+  CalendarCheck,
+  CalendarDays,
+  Clock,
+  Code,
+  FileText,
+  LogOut,
+  ReceiptText,
+  Settings,
+  Shield,
+  Users,
+  WalletCards,
+} from 'lucide-react';
 
 export default function ManagerMorePage() {
   const { logout } = useAuthStore();
@@ -21,10 +32,13 @@ export default function ManagerMorePage() {
 
   const menuItems = [
     { label: 'มอบหมายงาน', href: '/manager/assignments', icon: <CalendarCheck className="w-5 h-5" />, color: 'bg-blue-50 text-blue-600' },
-    { label: 'ต้นแบบงาน', href: '/manager/templates', icon: <FileText className="w-5 h-5" />, color: 'bg-primary-50 text-primary-600' },
+    { label: 'ตารางกะ', href: '/manager/schedule', icon: <CalendarDays className="w-5 h-5" />, color: 'bg-teal-50 text-teal-600' },
+    { label: 'เทมเพลตงาน', href: '/manager/templates', icon: <FileText className="w-5 h-5" />, color: 'bg-primary-50 text-primary-600' },
+    { label: 'คำขออนุมัติ', href: '/manager/requests', icon: <ReceiptText className="w-5 h-5" />, color: 'bg-amber-50 text-amber-700' },
     { label: 'จัดการสาขา', href: '/manager/branches', icon: <Building2 className="w-5 h-5" />, color: 'bg-indigo-50 text-indigo-600' },
     { label: 'จัดการพนักงาน', href: '/manager/employees', icon: <Users className="w-5 h-5" />, color: 'bg-sky-50 text-sky-600' },
-    { label: 'รายงานและสถิติ', href: '/manager/reports', icon: <BarChart3 className="w-5 h-5" />, color: 'bg-emerald-50 text-emerald-600' },
+    { label: 'คำนวณค่าแรง', href: '/manager/payroll', icon: <WalletCards className="w-5 h-5" />, color: 'bg-emerald-50 text-emerald-600' },
+    { label: 'รายงานและสถิติ', href: '/manager/reports', icon: <BarChart3 className="w-5 h-5" />, color: 'bg-lime-50 text-lime-700' },
     { label: 'การเข้างานวันนี้', href: '/manager/attendance', icon: <Clock className="w-5 h-5" />, color: 'bg-amber-50 text-amber-600' },
     { label: 'ตั้งค่าระบบ', href: '/manager/settings', icon: <Settings className="w-5 h-5" />, color: 'bg-slate-100 text-slate-600' },
   ];
@@ -48,23 +62,23 @@ export default function ManagerMorePage() {
       </div>
 
       <div className="pt-4 border-t border-slate-200">
-         <button 
-           onClick={handleLogout}
-           className="w-full flex items-center gap-4 py-3 px-4 rounded-xl bg-red-50 text-red-700 hover:bg-red-100 transition-colors"
-         >
-           <div className="p-2 rounded-lg bg-red-100">
-             <LogOut className="w-5 h-5 text-red-600" />
-           </div>
-           <span className="font-bold">ออกจากระบบ</span>
-         </button>
+        <button
+          onClick={handleLogout}
+          className="w-full flex items-center gap-4 py-3 px-4 rounded-xl bg-red-50 text-red-700 hover:bg-red-100 transition-colors"
+        >
+          <div className="p-2 rounded-lg bg-red-100">
+            <LogOut className="w-5 h-5 text-red-600" />
+          </div>
+          <span className="font-bold">ออกจากระบบ</span>
+        </button>
       </div>
 
       <div className="text-center py-4">
-         <p className="text-xs text-slate-400">PS Rice Manager v1.0.0</p>
-         <div className="flex justify-center gap-4 mt-2">
-            <Shield className="w-4 h-4 text-slate-300" />
-            <Code className="w-4 h-4 text-slate-300" />
-         </div>
+        <p className="text-xs text-slate-400">PS Rice Manager v1.0.0</p>
+        <div className="flex justify-center gap-4 mt-2">
+          <Shield className="w-4 h-4 text-slate-300" />
+          <Code className="w-4 h-4 text-slate-300" />
+        </div>
       </div>
     </div>
   );

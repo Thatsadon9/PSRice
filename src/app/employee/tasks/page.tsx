@@ -47,6 +47,11 @@ export default function MyTasksPage() {
       label: 'สัปดาห์นี้',
       count: allTasks.filter((task) => isDateWithinRange(task.due_date, today, weekEnd)).length,
     },
+    {
+      id: 'upcoming',
+      label: 'เร็วๆ นี้',
+      count: allTasks.filter((task) => new Date(task.due_date) > weekEnd).length,
+    },
     { id: 'overdue', label: 'เลยกำหนด', count: allTasks.filter((task) => task.status === 'overdue').length },
     { id: 'all', label: 'ทั้งหมด', count: allTasks.length },
   ];
@@ -57,6 +62,8 @@ export default function MyTasksPage() {
         return allTasks.filter((task) => isSameCalendarDate(task.due_date, today));
       case 'week':
         return allTasks.filter((task) => isDateWithinRange(task.due_date, today, weekEnd));
+      case 'upcoming':
+        return allTasks.filter((task) => new Date(task.due_date) > weekEnd);
       case 'overdue':
         return allTasks.filter((task) => task.status === 'overdue');
       default:

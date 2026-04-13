@@ -8,12 +8,14 @@ import { persist } from 'zustand/middleware';
 import type { AttendanceRecord, AttendanceStatus } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { uploadFile, dataURLtoBlob } from '@/lib/storage';
+import { getCurrentDateStr } from '@/lib/dateUtils';
 
 interface AttendanceState {
   records: AttendanceRecord[];
   isLoading: boolean;
   error: string | null;
   fetchRecords: () => Promise<void>;
+  subscribeToAttendanceUpdates: () => () => void;
   addRecord: (record: Omit<AttendanceRecord, 'id' | 'created_at' | 'server_timestamp'>) => Promise<{ success: boolean; error?: string }>;
   getRecordsByUser: (userId: string) => AttendanceRecord[];
   getRecordsByDate: (date: string) => AttendanceRecord[];
@@ -23,7 +25,17 @@ interface AttendanceState {
 }
 
 function getToday(): string {
-  return new Date().toISOString().split('T')[0];
+  return getCurrentDateStr();
+}
+
+function sortRecords(records: AttendanceRecord[]) {
+  return [...records].sort((left, right) => {
+    return new Date(right.created_at).getTime() - new Date(left.created_at).getTime();
+  });
+}
+
+function upsertRecord(records: AttendanceRecord[], record: AttendanceRecord) {
+  return sortRecords([record, ...records.filter((item) => item.id !== record.id)]);
 }
 
 export const useAttendanceStore = create<AttendanceState>()(
@@ -43,11 +55,39 @@ export const useAttendanceStore = create<AttendanceState>()(
             .limit(1000);
             
           if (error) throw error;
-          set({ records: data as AttendanceRecord[], isLoading: false });
+          set({ records: sortRecords((data || []) as AttendanceRecord[]), isLoading: false });
         } catch (err) {
           console.error('Failed to fetch attendance:', err);
           set({ isLoading: false, error: err instanceof Error ? err.message : 'Unknown error' });
         }
+      },
+
+      subscribeToAttendanceUpdates: () => {
+        const channel = supabase
+          .channel('public:attendance-records')
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'attendance_records' },
+            (payload) => {
+              if (payload.eventType === 'DELETE') {
+                const deletedId = String(payload.old.id);
+                set((state) => ({
+                  records: state.records.filter((record) => record.id !== deletedId),
+                }));
+                return;
+              }
+
+              const record = payload.new as AttendanceRecord;
+              set((state) => ({
+                records: upsertRecord(state.records, record),
+              }));
+            },
+          )
+          .subscribe();
+
+        return () => {
+          void supabase.removeChannel(channel);
+        };
       },
 
       addRecord: async (record) => {
@@ -78,7 +118,7 @@ export const useAttendanceStore = create<AttendanceState>()(
           }
 
           set(state => ({ 
-            records: [data as AttendanceRecord, ...state.records], 
+            records: upsertRecord(state.records, data as AttendanceRecord), 
             isLoading: false 
           }));
           return { success: true };
@@ -127,4 +167,3 @@ export const useAttendanceStore = create<AttendanceState>()(
     }
   )
 );
-

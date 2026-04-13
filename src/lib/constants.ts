@@ -1,8 +1,19 @@
 // ==========================================
-// WorkFlow Pro — Constants
+// WorkFlow Pro - Constants
 // ==========================================
 
-import type { AttendanceStatus, TaskStatus, Priority, ReviewStatus, ProofType, RecurrenceType } from './types';
+import type {
+  ApprovalStatus,
+  AttendanceStatus,
+  CompensationType,
+  EmployeeRequestType,
+  Priority,
+  ProofType,
+  RecurrenceType,
+  ReviewStatus,
+  ShiftAssignmentStatus,
+  TaskStatus,
+} from './types';
 
 // ---- Status Labels (Thai) ----
 
@@ -91,13 +102,39 @@ export const ROLE_LABELS: Record<string, string> = {
   employee: 'พนักงาน',
 };
 
+export const SHIFT_ASSIGNMENT_STATUS_LABELS: Record<ShiftAssignmentStatus, string> = {
+  scheduled: 'วันทำงาน',
+  day_off: 'วันหยุด',
+  leave: 'ลา',
+  holiday: 'วันหยุดนักขัตฤกษ์',
+};
+
+export const COMPENSATION_TYPE_LABELS: Record<CompensationType, string> = {
+  daily: 'รายวัน',
+  hourly: 'รายชั่วโมง',
+  monthly: 'รายเดือน',
+};
+
+export const EMPLOYEE_REQUEST_TYPE_LABELS: Record<EmployeeRequestType, string> = {
+  leave: 'คำขอลา',
+  advance: 'เบิกเงินล่วงหน้า',
+  expense: 'เบิกค่าใช้จ่าย',
+};
+
+export const APPROVAL_STATUS_LABELS: Record<ApprovalStatus, string> = {
+  pending: 'รออนุมัติ',
+  approved: 'อนุมัติแล้ว',
+  rejected: 'ไม่อนุมัติ',
+  cancelled: 'ยกเลิก',
+};
+
 // ---- App Config ----
 
 export const APP_NAME = 'PS Rice';
 export const APP_DESCRIPTION = 'ระบบจัดการงานพนักงาน PS Rice Wholesale';
 
-export const DEFAULT_GEOFENCE_RADIUS = 100; // meters
-export const MAX_GPS_ACCURACY = 100; // meters, warn if worse
+export const DEFAULT_GEOFENCE_RADIUS = 100;
+export const MAX_GPS_ACCURACY = 100;
 export const WORK_START_TIME = '08:30';
 export const WORK_END_TIME = '17:30';
 export const LATE_THRESHOLD_MINUTES = 15;
@@ -107,6 +144,7 @@ export const LATE_THRESHOLD_MINUTES = 15;
 export const EMPLOYEE_NAV_ITEMS = [
   { label: 'หน้าแรก', href: '/employee', icon: 'LayoutDashboard' },
   { label: 'ลงเวลา', href: '/employee/check-in', icon: 'Clock' },
+  { label: 'ตารางงาน', href: '/employee/schedule', icon: 'CalendarDays' },
   { label: 'งาน', href: '/employee/tasks', icon: 'ClipboardList' },
   { label: 'ประวัติ', href: '/employee/history', icon: 'History' },
   { label: 'โปรไฟล์', href: '/employee/profile', icon: 'UserCircle' },
@@ -116,10 +154,13 @@ export const MANAGER_NAV_ITEMS = [
   { label: 'แดชบอร์ด', href: '/manager', icon: 'LayoutDashboard' },
   { label: 'พนักงาน', href: '/manager/employees', icon: 'Users' },
   { label: 'สาขา', href: '/manager/branches', icon: 'Building2' },
+  { label: 'ตารางกะ', href: '/manager/schedule', icon: 'CalendarDays' },
   { label: 'เทมเพลตงาน', href: '/manager/templates', icon: 'FileText' },
   { label: 'มอบหมายงาน', href: '/manager/assignments', icon: 'CalendarCheck' },
   { label: 'ตรวจงาน', href: '/manager/review', icon: 'CheckSquare' },
+  { label: 'คำขออนุมัติ', href: '/manager/requests', icon: 'ReceiptText' },
   { label: 'การเข้างาน', href: '/manager/attendance', icon: 'Clock' },
+  { label: 'ค่าแรง', href: '/manager/payroll', icon: 'WalletCards' },
   { label: 'รายงาน', href: '/manager/reports', icon: 'BarChart3' },
   { label: 'ตั้งค่า', href: '/manager/settings', icon: 'Settings' },
 ];
@@ -128,6 +169,6 @@ export const MANAGER_MOBILE_NAV_ITEMS = [
   { label: 'แดชบอร์ด', href: '/manager', icon: 'LayoutDashboard' },
   { label: 'พนักงาน', href: '/manager/employees', icon: 'Users' },
   { label: 'ตรวจงาน', href: '/manager/review', icon: 'CheckSquare' },
-  { label: 'การเข้างาน', href: '/manager/attendance', icon: 'Clock' },
+  { label: 'เข้างาน', href: '/manager/attendance', icon: 'Clock' },
   { label: 'เพิ่มเติม', href: '/manager/more', icon: 'Menu' },
 ];

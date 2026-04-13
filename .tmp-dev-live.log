@@ -1,0 +1,74 @@
+
+> workflow-pro@0.1.0 dev
+> next dev --hostname 127.0.0.1 --port 3000
+
+▲ Next.js 16.2.3 (Turbopack)
+- Local:         http://127.0.0.1:3000
+- Network:       http://127.0.0.1:3000
+- Environments: .env.local
+✓ Ready in 618ms
+Creating turbopack project {
+  dir: 'C:\\Users\\ninet\\.gemini\\antigravity\\scratch\\workflow-pro',
+  testMode: true
+}
+
+ GET /manager 200 in 480ms (next.js: 225ms, application-code: 255ms)
+ GET /manager 200 in 43ms (next.js: 4ms, application-code: 39ms)
+ GET /manager 200 in 31ms (next.js: 3ms, application-code: 28ms)
+ GET /manager/notifications 200 in 613ms (next.js: 579ms, application-code: 34ms)
+ GET /manager/review/3edfb469-a332-43df-ae35-31cecdc87630?task=1910ea8e-10a0-4e74-ad16-231586f3e285 200 in 1237ms (next.js: 1200ms, application-code: 37ms)
+ GET /manager 200 in 23ms (next.js: 4ms, application-code: 19ms)
+ GET /manager/employees 200 in 418ms (next.js: 374ms, application-code: 44ms)
+ GET /manager/schedule 200 in 521ms (next.js: 481ms, application-code: 40ms)
+ GET /manager/templates 200 in 442ms (next.js: 415ms, application-code: 26ms)
+ GET /manager/assignments 200 in 405ms (next.js: 379ms, application-code: 26ms)
+ GET /manager/review 200 in 379ms (next.js: 353ms, application-code: 26ms)
+ GET /manager/requests 200 in 406ms (next.js: 378ms, application-code: 29ms)
+ GET /manager/attendance 200 in 876ms (next.js: 848ms, application-code: 28ms)
+ GET /manager/payroll 200 in 419ms (next.js: 381ms, application-code: 38ms)
+✓ Finished filesystem cache database compaction in 10.9s
+ GET /manager/reports 200 in 1245ms (next.js: 1218ms, application-code: 26ms)
+[browser] The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[browser] The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[browser] The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[browser] The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[browser] The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[browser] The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+ GET /manager/settings 200 in 424ms (next.js: 384ms, application-code: 40ms)
+ GET /manager 200 in 22ms (next.js: 3ms, application-code: 19ms)
+ GET /manager/employees 200 in 26ms (next.js: 3ms, application-code: 23ms)
+ GET /manager/schedule 200 in 25ms (next.js: 3ms, application-code: 22ms)
+ GET /manager 200 in 20ms (next.js: 2ms, application-code: 17ms)
+ GET /manager/employees 200 in 32ms (next.js: 4ms, application-code: 28ms)
+ GET /manager/schedule 200 in 26ms (next.js: 3ms, application-code: 23ms)
+ GET /manager/settings 200 in 29ms (next.js: 5ms, application-code: 24ms)
+ GET /manager 200 in 24ms (next.js: 3ms, application-code: 21ms)
+ GET /manager/employees 200 in 39ms (next.js: 4ms, application-code: 34ms)
+ GET /manager/branches 200 in 452ms (next.js: 425ms, application-code: 28ms)
+ GET /manager/schedule 200 in 28ms (next.js: 2ms, application-code: 26ms)
+ GET /manager/templates 200 in 24ms (next.js: 3ms, application-code: 20ms)
+ GET /manager/assignments 200 in 24ms (next.js: 3ms, application-code: 22ms)
+ GET /manager/templates 200 in 22ms (next.js: 3ms, application-code: 19ms)
+ GET /manager/assignments 200 in 30ms (next.js: 4ms, application-code: 26ms)
+ GET /manager/review 200 in 22ms (next.js: 4ms, application-code: 18ms)
+ GET /manager/requests 200 in 22ms (next.js: 3ms, application-code: 20ms)
+ GET /manager/attendance 200 in 34ms (next.js: 4ms, application-code: 30ms)
+ GET /manager/attendance 200 in 270ms (next.js: 19ms, application-code: 251ms)

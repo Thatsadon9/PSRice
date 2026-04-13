@@ -5,17 +5,22 @@ import { useState, useRef } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { useBranchStore } from '@/store/branchStore';
 import { useEmployeeStore } from '@/store/employeeStore';
+import { useHrStore } from '@/store/hrStore';
 import { useRouter } from 'next/navigation';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
-import { UserCircle, MapPin, Building2, LogOut, Settings, Bell, Shield, ChevronRight, Camera } from 'lucide-react';
-import { ROLE_LABELS } from '@/lib/constants';
+import { UserCircle, MapPin, Building2, LogOut, Settings, Bell, Shield, ChevronRight, Camera, ReceiptText, CalendarDays } from 'lucide-react';
+import { ROLE_LABELS, SHIFT_ASSIGNMENT_STATUS_LABELS } from '@/lib/constants';
 import { uploadFile } from '@/lib/storage';
+import { getCurrentDateStr } from '@/lib/dateUtils';
+import { resolveShiftForUserDate } from '@/lib/hr';
 
 export default function ProfilePage() {
   const { currentUser, logout, initialize } = useAuthStore();
   const branchStore = useBranchStore();
   const employeeStore = useEmployeeStore();
+  const branchPolicies = useHrStore((state) => state.branchPolicies);
+  const shiftAssignments = useHrStore((state) => state.shiftAssignments);
   const router = useRouter();
 
   const [uploading, setUploading] = useState(false);
@@ -23,6 +28,12 @@ export default function ProfilePage() {
 
   if (!currentUser) return null;
   const branch = branchStore.getBranchById(currentUser.branch_id);
+  const todayShift = resolveShiftForUserDate({
+    user: currentUser,
+    workDate: getCurrentDateStr(),
+    assignments: shiftAssignments,
+    branchPolicies,
+  });
 
   const handleLogout = async () => {
     await logout();
@@ -81,26 +92,64 @@ export default function ProfilePage() {
         </div>
       </Card>
 
-      <Card padding="none" className="overflow-hidden">
+      <Card padding="none" className="overflow-hidden shadow-sm border-slate-100">
+         <div className="p-4 bg-slate-50 border-b border-slate-100">
+            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">ข้อมูลการจ้างงาน (Employment)</h3>
+         </div>
          <div className="divide-y divide-slate-100">
             <div className="p-4 flex items-center justify-between">
                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-slate-50 rounded-lg"><MapPin className="w-5 h-5 text-slate-600" /></div>
+                  <div className="p-2 bg-white rounded-lg border border-slate-100"><MapPin className="w-5 h-5 text-slate-600" /></div>
                   <div>
-                     <p className="text-xs text-slate-500">สาขาที่สังกัด</p>
-                     <p className="text-sm font-medium text-slate-900">{branch?.name}</p>
+                     <p className="text-[10px] font-black text-slate-400 uppercase">สาขาที่สังกัด</p>
+                     <p className="text-sm font-bold text-slate-900">{branch?.name || 'ไม่ได้ระบุ'}</p>
                   </div>
                </div>
             </div>
             <div className="p-4 flex items-center justify-between">
                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-slate-50 rounded-lg"><Shield className="w-5 h-5 text-slate-600" /></div>
+                  <div className="p-2 bg-white rounded-lg border border-slate-100"><Shield className="w-5 h-5 text-slate-600" /></div>
                   <div>
-                     <p className="text-xs text-slate-500">ทีม</p>
-                     <p className="text-sm font-medium text-slate-900">{currentUser.team_id}</p>
+                     <p className="text-[10px] font-black text-slate-400 uppercase">ทีม / แผนก</p>
+                     <p className="text-sm font-bold text-slate-900">{currentUser.team_id || 'ทั่วไป'}</p>
                   </div>
                </div>
             </div>
+            {hrStore.getCompensationProfile(currentUser.id) && (
+              <div className="p-4 flex items-center justify-between">
+                 <div className="flex items-center gap-3">
+                    <div className="p-2 bg-white rounded-lg border border-slate-100"><ReceiptText className="w-5 h-5 text-slate-600" /></div>
+                    <div>
+                       <p className="text-[10px] font-black text-slate-400 uppercase">รูปแบบรายได้</p>
+                       <p className="text-sm font-bold text-slate-900">
+                         {hrStore.getCompensationProfile(currentUser.id)?.pay_type === 'daily' ? 'รายวัน' : 
+                          hrStore.getCompensationProfile(currentUser.id)?.pay_type === 'hourly' ? 'รายชั่วโมง' : 'รายเดือน'}
+                       </p>
+                    </div>
+                 </div>
+              </div>
+            )}
+         </div>
+      </Card>
+
+      <Card className="border-slate-100">
+         <div className="flex items-start gap-3">
+            <div className="p-3 bg-teal-50 rounded-2xl text-teal-600">
+               <CalendarDays className="w-5 h-5" />
+            </div>
+            <div className="flex-1 min-w-0">
+               <p className="text-xs text-slate-500">กะของวันนี้</p>
+               <p className="text-sm font-semibold text-slate-900 mt-1">{todayShift.shift_name}</p>
+               <p className="text-xs text-slate-500 mt-1">{todayShift.start_time} - {todayShift.end_time}</p>
+               <p className="text-xs text-slate-400 mt-2">{SHIFT_ASSIGNMENT_STATUS_LABELS[todayShift.status]}</p>
+            </div>
+            <button
+              type="button"
+              className="text-xs font-bold text-primary-600"
+              onClick={() => router.push('/employee/history?tab=schedule')}
+            >
+              ดูกะ
+            </button>
          </div>
       </Card>
 
@@ -108,11 +157,31 @@ export default function ProfilePage() {
          <div className="divide-y divide-slate-100">
             <button 
               className="w-full p-4 flex items-center justify-between hover:bg-slate-50 transition-colors"
+              onClick={() => router.push('/employee/history?tab=schedule')}
+            >
+               <div className="flex items-center gap-3">
+                  <div className="p-2 bg-primary-50 rounded-lg"><CalendarDays className="w-5 h-5 text-primary-600" /></div>
+                  <span className="text-sm font-medium text-slate-900">กะงานของฉัน</span>
+               </div>
+               <ChevronRight className="w-4 h-4 text-slate-400" />
+            </button>
+            <button 
+              className="w-full p-4 flex items-center justify-between hover:bg-slate-50 transition-colors"
               onClick={() => router.push('/employee/notifications')}
             >
                <div className="flex items-center gap-3">
                   <div className="p-2 bg-primary-50 rounded-lg"><Bell className="w-5 h-5 text-primary-600" /></div>
                   <span className="text-sm font-medium text-slate-900">การแจ้งเตือน</span>
+               </div>
+               <ChevronRight className="w-4 h-4 text-slate-400" />
+            </button>
+            <button 
+              className="w-full p-4 flex items-center justify-between hover:bg-slate-50 transition-colors"
+              onClick={() => router.push('/employee/requests')}
+            >
+               <div className="flex items-center gap-3">
+                  <div className="p-2 bg-primary-50 rounded-lg"><ReceiptText className="w-5 h-5 text-primary-600" /></div>
+                  <span className="text-sm font-medium text-slate-900">คำขอและรายงาน</span>
                </div>
                <ChevronRight className="w-4 h-4 text-slate-400" />
             </button>

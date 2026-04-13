@@ -8,6 +8,7 @@ import { useBranchStore } from '@/store/branchStore';
 import { useTaskStore } from '@/store/taskStore';
 import { useAttendanceStore } from '@/store/attendanceStore';
 import { useNotificationStore } from '@/store/notificationStore';
+import { useHrStore } from '@/store/hrStore';
 import Sidebar from '@/components/layout/Sidebar';
 import Header from '@/components/layout/Header';
 import BottomNav from '@/components/layout/BottomNav';
@@ -16,11 +17,18 @@ import { MANAGER_NAV_ITEMS, MANAGER_MOBILE_NAV_ITEMS } from '@/lib/constants';
 export default function ManagerLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { isAuthenticated, currentUser } = useAuthStore();
+  const subscribeToCurrentUserProfile = useAuthStore(s => s.subscribeToCurrentUserProfile);
   const fetchEmployees = useEmployeeStore(s => s.fetchUsers);
+  const subscribeToUserUpdates = useEmployeeStore(s => s.subscribeToUserUpdates);
   const fetchBranches = useBranchStore(s => s.fetchBranches);
+  const subscribeToBranchUpdates = useBranchStore(s => s.subscribeToBranchUpdates);
   const fetchTasks = useTaskStore(s => s.fetchInitialData);
   const subscribeToTaskUpdates = useTaskStore(s => s.subscribeToTaskUpdates);
   const fetchAttendance = useAttendanceStore(s => s.fetchRecords);
+  const subscribeToAttendanceUpdates = useAttendanceStore(s => s.subscribeToAttendanceUpdates);
+  const fetchHrData = useHrStore(s => s.fetchInitialData);
+  const subscribeToHrUpdates = useHrStore(s => s.subscribeToHrUpdates);
+  const hrSchemaReady = useHrStore(s => s.schemaReady);
   const fetchNotifications = useNotificationStore(s => s.fetchNotifications);
   const subscribeToNotifications = useNotificationStore(s => s.subscribeToNotifications);
   const [dataLoaded, setDataLoaded] = useState(false);
@@ -39,6 +47,7 @@ export default function ManagerLayout({ children }: { children: React.ReactNode 
         fetchEmployees(),
         fetchTasks(),
         fetchAttendance(),
+        fetchHrData(),
         currentUser?.id ? fetchNotifications(currentUser.id) : Promise.resolve(),
       ]);
 
@@ -51,18 +60,40 @@ export default function ManagerLayout({ children }: { children: React.ReactNode 
     return () => {
       isActive = false;
     };
-  }, [isAuthenticated, router, fetchBranches, fetchEmployees, fetchTasks, fetchAttendance, fetchNotifications, currentUser?.id]);
+  }, [isAuthenticated, router, fetchBranches, fetchEmployees, fetchTasks, fetchAttendance, fetchHrData, fetchNotifications, currentUser?.id]);
 
   useEffect(() => {
-    if (isAuthenticated && currentUser?.id) {
-       const unsubscribeNotifications = subscribeToNotifications(currentUser.id);
-       const unsubscribeTasks = subscribeToTaskUpdates();
+    if (isAuthenticated && currentUser?.id && dataLoaded) {
+       const cleanups = [
+         subscribeToCurrentUserProfile(currentUser.id),
+         subscribeToUserUpdates(),
+         subscribeToBranchUpdates(),
+         subscribeToTaskUpdates(),
+         subscribeToAttendanceUpdates(),
+         subscribeToNotifications(currentUser.id),
+       ];
+
+       if (hrSchemaReady) {
+         cleanups.push(subscribeToHrUpdates());
+       }
+
        return () => {
-         unsubscribeNotifications();
-         unsubscribeTasks();
+         cleanups.forEach((cleanup) => cleanup());
        };
     }
-  }, [isAuthenticated, currentUser?.id, subscribeToNotifications, subscribeToTaskUpdates]);
+  }, [
+    currentUser?.id,
+    dataLoaded,
+    hrSchemaReady,
+    isAuthenticated,
+    subscribeToAttendanceUpdates,
+    subscribeToBranchUpdates,
+    subscribeToCurrentUserProfile,
+    subscribeToHrUpdates,
+    subscribeToNotifications,
+    subscribeToTaskUpdates,
+    subscribeToUserUpdates,
+  ]);
 
   if (!isAuthenticated || !currentUser || !dataLoaded) return (
     <div className="min-h-dvh flex items-center justify-center bg-slate-50">

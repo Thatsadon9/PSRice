@@ -32,6 +32,34 @@ async function fetchUserProfile(userId: string) {
   return data as User;
 }
 
+async function getInactiveAccountMessage(email: string) {
+  const { data } = await supabase
+    .from('registration_requests')
+    .select('status, review_note')
+    .eq('email', email)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!data) {
+    return 'บัญชีนี้ยังไม่ได้รับสิทธิ์เข้าใช้งาน';
+  }
+
+  if (data.status === 'rejected') {
+    const reviewNote = typeof data.review_note === 'string' && data.review_note.trim()
+      ? ` หมายเหตุ: ${data.review_note.trim()}`
+      : '';
+    return `คำขอสมัครยังไม่ได้รับอนุมัติ${reviewNote}`;
+  }
+
+  return 'บัญชีนี้กำลังรอผู้จัดการหรือแอดมินอนุมัติก่อนเข้าใช้งาน';
+}
+
+interface LoginResult {
+  success: boolean;
+  message?: string;
+}
+
 interface AuthState {
   currentUser: User | null;
   isAuthenticated: boolean;
@@ -39,7 +67,9 @@ interface AuthState {
   
   // Transitions
   initialize: () => Promise<void>;
-  login: (email: string, password?: string) => Promise<boolean>;
+  refreshCurrentUser: (userId?: string) => Promise<void>;
+  subscribeToCurrentUserProfile: (userId: string) => () => void;
+  login: (email: string, password?: string) => Promise<LoginResult>;
   logout: () => Promise<void>;
 }
 
@@ -80,6 +110,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return;
       }
 
+      if (userData.status !== 'active') {
+        await clearInvalidSession();
+        set({ currentUser: null, isAuthenticated: false, isLoading: false });
+        return;
+      }
+
       set({
         currentUser: userData,
         isAuthenticated: true,
@@ -108,17 +144,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           if (session?.user) {
             if (get().currentUser?.id !== session.user.id) {
               setTimeout(() => {
-                void (async () => {
-                  const userData = await fetchUserProfile(session.user.id);
-
-                  if (userData) {
-                    set({ currentUser: userData, isAuthenticated: true, isLoading: false });
-                    return;
-                  }
-
-                  await clearInvalidSession();
-                  set({ currentUser: null, isAuthenticated: false, isLoading: false });
-                })();
+                void get().refreshCurrentUser(session.user.id);
               }, 0);
             } else {
               set({ isAuthenticated: true, isLoading: false });
@@ -127,6 +153,75 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
       });
     }
+  },
+
+  refreshCurrentUser: async (userId) => {
+    const targetUserId = userId || get().currentUser?.id;
+
+    if (!targetUserId) {
+      return;
+    }
+
+    const userData = await fetchUserProfile(targetUserId);
+
+    if (!userData || userData.status !== 'active') {
+      await clearInvalidSession();
+      set({ currentUser: null, isAuthenticated: false, isLoading: false });
+      return;
+    }
+
+    set({
+      currentUser: userData,
+      isAuthenticated: true,
+      isLoading: false,
+    });
+  },
+
+  subscribeToCurrentUserProfile: (userId) => {
+    const channel = supabase
+      .channel(`public:current-user:${userId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'users',
+          filter: `id=eq.${userId}`,
+        },
+        (payload) => {
+          const nextUser = payload.new as User;
+
+          if (nextUser.status !== 'active') {
+            void clearInvalidSession();
+            set({ currentUser: null, isAuthenticated: false, isLoading: false });
+            return;
+          }
+
+          set({
+            currentUser: nextUser,
+            isAuthenticated: true,
+            isLoading: false,
+          });
+        },
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'users',
+          filter: `id=eq.${userId}`,
+        },
+        () => {
+          void clearInvalidSession();
+          set({ currentUser: null, isAuthenticated: false, isLoading: false });
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
   },
 
   login: async (email: string, password?: string) => {
@@ -142,7 +237,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (error || !data.user) {
         console.error('Auth error:', error?.message);
         set({ isLoading: false });
-        return false;
+        return {
+          success: false,
+          message: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง',
+        };
       }
 
       // 2. Fetch linked public user data
@@ -154,8 +252,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       if (userError || !userData) {
         console.error('User meta data missing');
+        await clearInvalidSession();
         set({ isLoading: false });
-        return false;
+        return {
+          success: false,
+          message: 'ไม่พบบัญชีผู้ใช้ในระบบ',
+        };
+      }
+
+      if ((userData as User).status !== 'active') {
+        const message = await getInactiveAccountMessage(email);
+        await clearInvalidSession();
+        set({ currentUser: null, isAuthenticated: false, isLoading: false });
+        return {
+          success: false,
+          message,
+        };
       }
 
       set({ 
@@ -163,16 +275,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isAuthenticated: true, 
         isLoading: false 
       });
-      return true;
+      return { success: true };
     } catch (err) {
       console.error(err);
       set({ isLoading: false });
-      return false;
+      return {
+        success: false,
+        message: 'ไม่สามารถเข้าสู่ระบบได้ในขณะนี้',
+      };
     }
   },
 
   logout: async () => {
     await supabase.auth.signOut();
-    set({ currentUser: null, isAuthenticated: false });
+    set({ currentUser: null, isAuthenticated: false, isLoading: false });
   },
 }));

@@ -1,21 +1,34 @@
 'use client';
 /* eslint-disable @next/next/no-img-element */
 
-import { useState, useRef, useEffect, useCallback } from 'react';
-import { useAuthStore } from '@/store/authStore';
-import { useAttendanceStore } from '@/store/attendanceStore';
-import { useBranchStore } from '@/store/branchStore';
+import { differenceInMinutes, format } from 'date-fns';
+import { th } from 'date-fns/locale';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
-import {
-  Camera, MapPin, CheckCircle2, XCircle, AlertTriangle,
-  Navigation, Clock, Shield, Crosshair, RotateCcw
-} from 'lucide-react';
-import { formatTime } from '@/lib/dateUtils';
-import type { GPSCoordinates, AttendanceRecord } from '@/lib/types';
+import { useAuthStore } from '@/store/authStore';
+import { useAttendanceStore } from '@/store/attendanceStore';
+import { useBranchStore } from '@/store/branchStore';
+import { useHrStore } from '@/store/hrStore';
+import { formatTime, getCurrentDateStr } from '@/lib/dateUtils';
 import { checkGeofence, formatDistance } from '@/lib/geofence';
-import { getAccuracyLevel, getAccuracyLabel, getAccuracyColor, getDeviceInfo } from '@/lib/gps';
+import { createLocalDateTime, resolveShiftForUserDate } from '@/lib/hr';
+import { getAccuracyColor, getAccuracyLabel, getAccuracyLevel, getDeviceInfo } from '@/lib/gps';
+import type { AttendanceRecord, GPSCoordinates } from '@/lib/types';
+import {
+  AlertTriangle,
+  ArrowLeft,
+  Camera,
+  CheckCircle2,
+  Clock,
+  MapPin,
+  Navigation,
+  RotateCcw,
+  Shield,
+  XCircle,
+  Zap,
+} from 'lucide-react';
 
 type Step = 'status' | 'camera' | 'confirm' | 'result';
 
@@ -23,13 +36,17 @@ export default function CheckInPage() {
   const { currentUser } = useAuthStore();
   const attendanceStore = useAttendanceStore();
   const branchStore = useBranchStore();
+  const branchPolicies = useHrStore((state) => state.branchPolicies);
+  const shiftAssignments = useHrStore((state) => state.shiftAssignments);
+  const schemaReady = useHrStore((state) => state.schemaReady);
+  const schemaMessage = useHrStore((state) => state.schemaMessage);
 
   const [step, setStep] = useState<Step>('status');
   const [gpsCoords, setGpsCoords] = useState<GPSCoordinates | null>(null);
-  const [gpsError, setGpsError] = useState<string>('');
+  const [gpsError, setGpsError] = useState('');
   const [gpsLoading, setGpsLoading] = useState(false);
   const [photoData, setPhotoData] = useState<string | null>(null);
-  const [cameraError, setCameraError] = useState<string>('');
+  const [cameraError, setCameraError] = useState('');
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [resultStatus, setResultStatus] = useState<'success' | 'error'>('success');
@@ -39,124 +56,171 @@ export default function CheckInPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const branch = currentUser ? branchStore.getBranchById(currentUser.branch_id) : null;
+  const todayDate = getCurrentDateStr();
   const todayStatus = currentUser ? attendanceStore.getTodayStatus(currentUser.id) : 'not_checked_in';
   const todayRecord = currentUser
     ? attendanceStore.getTodayRecordForUser(currentUser.id)
     : { checkIn: undefined, checkOut: undefined };
   const isCheckOut = todayStatus === 'checked_in' || todayStatus === 'late';
+  const isCheckIn = !isCheckOut;
   const alreadyDone = todayStatus === 'checked_out';
+
+  const todayShift = useMemo(() => {
+    if (!currentUser) {
+      return null;
+    }
+
+    return resolveShiftForUserDate({
+      user: currentUser,
+      workDate: todayDate,
+      assignments: shiftAssignments,
+      branchPolicies,
+    });
+  }, [branchPolicies, currentUser, shiftAssignments, todayDate]);
+
+  const shiftStartAt = todayShift ? createLocalDateTime(todayDate, todayShift.start_time) : null;
+  const shiftLateThreshold = useMemo(() => {
+    if (!shiftStartAt || !todayShift) {
+      return null;
+    }
+
+    return new Date(shiftStartAt.getTime() + (todayShift.late_grace_minutes * 60 * 1000));
+  }, [shiftStartAt, todayShift]);
 
   const geofenceResult = gpsCoords && branch
     ? checkGeofence(gpsCoords, branch)
     : null;
+  const canCheckIn = todayShift?.status !== 'leave';
 
-  // GPS
   const fetchGPS = useCallback(() => {
     setGpsLoading(true);
     setGpsError('');
 
     if (!navigator.geolocation) {
-      setGpsError('GPS ไม่พร้อมใช้งานบนอุปกรณ์นี้');
+      setGpsError('อุปกรณ์นี้ไม่รองรับการระบุตำแหน่ง');
       setGpsLoading(false);
       return;
     }
 
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
+      (position) => {
         setGpsCoords({
-          latitude: pos.coords.latitude,
-          longitude: pos.coords.longitude,
-          accuracy: pos.coords.accuracy,
-          timestamp: pos.timestamp,
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+          timestamp: position.timestamp,
         });
         setGpsLoading(false);
       },
-      (err) => {
-        const msgs: Record<number, string> = {
-          1: 'กรุณาอนุญาตการเข้าถึงตำแหน่งที่ตั้ง',
+      (error) => {
+        const messages: Record<number, string> = {
+          1: 'กรุณาอนุญาตการเข้าถึงตำแหน่ง',
           2: 'ไม่สามารถระบุตำแหน่งได้ กรุณาเปิด GPS',
-          3: 'หมดเวลาการระบุตำแหน่ง กรุณาลองใหม่',
+          3: 'หมดเวลาการระบุตำแหน่ง กรุณาลองใหม่อีกครั้ง',
         };
-        setGpsError(msgs[err.code] || 'เกิดข้อผิดพลาดในการระบุตำแหน่ง');
+        setGpsError(messages[error.code] || 'เกิดข้อผิดพลาดในการระบุตำแหน่ง');
         setGpsLoading(false);
       },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
     );
   }, []);
 
   useEffect(() => {
-    if (step === 'status') fetchGPS();
-  }, [step, fetchGPS]);
+    if (step === 'status') {
+      const timer = window.setTimeout(() => {
+        fetchGPS();
+      }, 0);
 
-  // Camera
-  const startCamera = async () => {
+      return () => window.clearTimeout(timer);
+    }
+  }, [fetchGPS, step]);
+
+  const stopCameraStream = useCallback(() => {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach((track) => track.stop());
+      setCameraStream(null);
+    }
+  }, [cameraStream]);
+
+  const startCamera = useCallback(async () => {
     setCameraError('');
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
         audio: false,
       });
       setCameraStream(stream);
+
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
       }
     } catch {
       setCameraError('ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตการเข้าถึงกล้อง');
     }
-  };
-
-  const stopCameraStream = () => {
-    if (cameraStream) {
-      cameraStream.getTracks().forEach(t => t.stop());
-      setCameraStream(null);
-    }
-  };
+  }, []);
 
   const takePhoto = () => {
-    if (!videoRef.current || !canvasRef.current) return;
+    if (!videoRef.current || !canvasRef.current) {
+      return;
+    }
+
     const video = videoRef.current;
     const canvas = canvasRef.current;
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.drawImage(video, 0, 0);
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-    setPhotoData(dataUrl);
+    const context = canvas.getContext('2d');
+
+    if (!context) {
+      return;
+    }
+
+    context.drawImage(video, 0, 0);
+    setPhotoData(canvas.toDataURL('image/jpeg', 0.85));
     stopCameraStream();
     setStep('confirm');
   };
 
   useEffect(() => {
     if (step === 'camera') {
-      void startCamera();
+      const timer = window.setTimeout(() => {
+        void startCamera();
+      }, 0);
+
+      return () => {
+        window.clearTimeout(timer);
+        stopCameraStream();
+      };
     }
-    return () => {
-      if (step === 'camera') stopCameraStream();
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step]);
+  }, [startCamera, step, stopCameraStream]);
 
-  if (!currentUser) return null;
+  if (!currentUser) {
+    return null;
+  }
 
-  // Submit
   const handleSubmit = async () => {
-    if (!gpsCoords || !branch || !photoData) return;
+    if (!gpsCoords || !branch || !photoData) {
+      return;
+    }
 
     setSubmitting(true);
-    await new Promise(r => setTimeout(r, 1200));
+    await new Promise((resolve) => setTimeout(resolve, 900));
 
     const geoResult = checkGeofence(gpsCoords, branch);
 
     if (!geoResult.isWithinGeofence) {
       setResultStatus('error');
-      setResultMessage(`คุณอยู่ห่างจาก${branch.name} ${formatDistance(geoResult.distanceMeters)} เกินรัศมีที่อนุญาต (${branch.geofence_radius_meters} ม.)`);
+      setResultMessage(`อยู่นอกพื้นที่ ${branch.name} ${formatDistance(geoResult.distanceMeters)}`);
       setStep('result');
       setSubmitting(false);
       return;
     }
 
-    const isLate = !isCheckOut && new Date().getHours() >= 8 && new Date().getMinutes() > 45;
+    const now = new Date();
+    const lateMinutes = !isCheckOut && shiftLateThreshold
+      ? Math.max(0, differenceInMinutes(now, shiftLateThreshold))
+      : 0;
+    const isLate = lateMinutes > 0;
 
     const record: Omit<AttendanceRecord, 'id' | 'created_at' | 'server_timestamp'> = {
       user_id: currentUser.id,
@@ -168,24 +232,36 @@ export default function CheckInPage() {
       gps_accuracy: gpsCoords.accuracy,
       verified_in_geofence: true,
       device_info: getDeviceInfo(),
-      status: isCheckOut ? 'checked_out' : (isLate ? 'late' : 'checked_in'),
-      notes: isLate ? `เข้างานสาย` : '',
+      status: isCheckOut ? 'checked_out' : isLate ? 'late' : 'checked_in',
+      notes: isCheckOut
+        ? todayShift ? `เช็กเอาต์กะ ${todayShift.shift_name}` : ''
+        : isLate
+          ? `เข้างานสาย ${lateMinutes} นาที`
+          : todayShift
+            ? `เช็กอินกะ ${todayShift.shift_name}`
+            : '',
     };
 
     const result = await attendanceStore.addRecord(record);
+
     if (result.success) {
       setResultStatus('success');
-      setResultMessage(isCheckOut ? 'เช็กเอาต์สำเร็จ' : (isLate ? 'เช็กอินสำเร็จ (สาย)' : 'เช็กอินสำเร็จ'));
+      setResultMessage(
+        isCheckOut
+          ? 'เช็กเอาต์สำเร็จ'
+          : isLate
+            ? `เช็กอินสำเร็จ (สาย ${lateMinutes} นาที)`
+            : 'เช็กอินสำเร็จ',
+      );
     } else {
       setResultStatus('error');
-      setResultMessage(result.error || 'ไม่สามารถบันทึกข้อมูลได้ กรุณาลองใหม่อีกครั้ง');
+      setResultMessage(result.error || 'ไม่สามารถบันทึกข้อมูลได้ กรุณาลองใหม่');
     }
+
     setStep('result');
     setSubmitting(false);
   };
 
-
-  // Reset for retry
   const reset = () => {
     setPhotoData(null);
     setStep('status');
@@ -193,296 +269,360 @@ export default function CheckInPage() {
   };
 
   return (
-    <div className="px-4 py-4 space-y-4 animate-fade-in">
-      <h1 className="text-lg font-bold text-slate-900">
-        {isCheckOut ? 'เช็กเอาต์ออกงาน' : 'เช็กอินเข้างาน'}
-      </h1>
+    <div className="px-4 py-8 space-y-6 animate-fade-in pb-24 max-w-lg mx-auto">
+      <div className="flex items-center justify-between gap-4">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-black text-slate-900 leading-tight">
+            {isCheckIn ? 'ลงเวลาเข้างาน' : 'ลงเวลาออกงาน'}
+          </h1>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Attendance Terminal</p>
+        </div>
+        <div className={`h-12 w-12 rounded-2xl flex items-center justify-center shadow-lg ${isCheckIn ? 'bg-emerald-600 text-white shadow-emerald-200' : 'bg-slate-900 text-white shadow-slate-200'}`}>
+           {isCheckIn ? <MapPin className="w-6 h-6" /> : <Clock className="w-6 h-6" />}
+        </div>
+      </div>
 
-      {/* Already checked out */}
-      {alreadyDone && step === 'status' && (
-        <Card statusColor="blue">
-          <div className="flex flex-col items-center text-center py-6">
-            <div className="p-3 rounded-full bg-blue-100 mb-3">
-              <CheckCircle2 className="w-8 h-8 text-blue-600" />
+      {!schemaReady && (
+        <Card className="bg-amber-50 border-amber-100 rounded-[2rem] p-5">
+          <div className="flex items-start gap-4">
+            <div className="p-3 bg-amber-100 text-amber-600 rounded-2xl">
+              <AlertTriangle className="w-6 h-6" />
             </div>
-            <h3 className="text-lg font-semibold text-slate-900 mb-1">เช็กเอาต์แล้ววันนี้</h3>
-            <p className="text-sm text-slate-500">
-              เช็กอิน {todayRecord.checkIn && formatTime(todayRecord.checkIn.created_at)} —
-              เช็กเอาต์ {todayRecord.checkOut && formatTime(todayRecord.checkOut.created_at)}
-            </p>
+            <div>
+              <p className="text-sm font-black text-amber-900 leading-tight">Sync Status: Offline</p>
+              <p className="text-[10px] font-bold text-amber-800/60 uppercase tracking-wider mt-1">{schemaMessage}</p>
+            </div>
           </div>
         </Card>
       )}
 
-      {/* Step: Status / GPS */}
-      {step === 'status' && !alreadyDone && (
-        <>
-          {/* GPS Status */}
-          <Card>
-            <div className="flex items-center gap-3 mb-3">
-              <div className={`p-2 rounded-lg ${gpsCoords ? 'bg-emerald-100' : gpsError ? 'bg-red-100' : 'bg-slate-100'}`}>
-                <Navigation className={`w-5 h-5 ${gpsCoords ? 'text-emerald-600' : gpsError ? 'text-red-600' : 'text-slate-400'}`} />
+      {todayShift && (
+        <div className="relative group">
+          <div className="absolute -inset-0.5 bg-gradient-to-r from-emerald-500 to-primary-500 rounded-[2rem] blur opacity-10 group-hover:opacity-20 transition duration-1000"></div>
+          <Card className="relative bg-white border-slate-100 rounded-[2rem] p-5 shadow-xl shadow-slate-200/50">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="h-14 w-14 rounded-2xl bg-slate-50 flex flex-col items-center justify-center border border-slate-100">
+                  <span className="text-[9px] font-black text-slate-400 uppercase leading-none mb-1">{format(new Date(), 'EEE', { locale: th })}</span>
+                  <span className="text-lg font-black text-slate-900 leading-none">{format(new Date(), 'd')}</span>
+                </div>
+                <div>
+                  <p className="text-sm font-black text-slate-900 underline decoration-primary-200 decoration-2 underline-offset-4">{todayShift.shift_name}</p>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1.5 flex items-center gap-1.5">
+                    <Clock className="w-3 h-3" />
+                    {todayShift.start_time} - {todayShift.end_time}
+                  </p>
+                </div>
               </div>
-              <div className="flex-1">
-                <p className="text-sm font-semibold text-slate-900">ตำแหน่ง GPS</p>
-                {gpsLoading && <p className="text-xs text-slate-500">กำลังระบุตำแหน่ง...</p>}
-                {gpsError && <p className="text-xs text-red-600">{gpsError}</p>}
-                {gpsCoords && (
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <Badge variant="success" size="sm" dot>พร้อม</Badge>
-                    <span className={`text-xs ${getAccuracyColor(getAccuracyLevel(gpsCoords.accuracy))}`}>
-                      {getAccuracyLabel(getAccuracyLevel(gpsCoords.accuracy))} ({Math.round(gpsCoords.accuracy)} ม.)
-                    </span>
-                  </div>
-                )}
-              </div>
-              {(gpsError || gpsCoords) && (
-                <button onClick={fetchGPS} className="p-2 rounded-lg hover:bg-slate-100">
-                  <RotateCcw className="w-4 h-4 text-slate-400" />
-                </button>
-              )}
+              <Badge variant={todayShift.source === 'assignment' ? 'success' : 'info'} className="font-black uppercase text-[9px] tracking-tight">
+                {todayShift.source === 'assignment' ? 'Synced' : 'Default'}
+              </Badge>
             </div>
-
-            {gpsCoords && (
-              <div className="text-xs text-slate-500 bg-slate-50 rounded-lg px-3 py-2">
-                <div className="flex items-center gap-1">
-                  <Crosshair className="w-3 h-3" />
-                  {gpsCoords.latitude.toFixed(6)}, {gpsCoords.longitude.toFixed(6)}
-                </div>
-              </div>
-            )}
           </Card>
-
-          {/* Geofence Status */}
-          {geofenceResult && (
-            <Card statusColor={geofenceResult.isWithinGeofence ? 'green' : 'red'}>
-              <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-lg ${geofenceResult.isWithinGeofence ? 'bg-emerald-100' : 'bg-red-100'}`}>
-                  <MapPin className={`w-5 h-5 ${geofenceResult.isWithinGeofence ? 'text-emerald-600' : 'text-red-600'}`} />
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-semibold text-slate-900">
-                    {geofenceResult.isWithinGeofence ? 'อยู่ในพื้นที่ทำงาน' : 'อยู่นอกพื้นที่ทำงาน'}
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    {geofenceResult.branchName} — ห่าง {formatDistance(geofenceResult.distanceMeters)}
-                    {' '}(อนุญาต {geofenceResult.allowedRadius} ม.)
-                  </p>
-                </div>
-                {geofenceResult.isWithinGeofence ? (
-                  <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                ) : (
-                  <XCircle className="w-5 h-5 text-red-500" />
-                )}
-              </div>
-            </Card>
-          )}
-
-          {/* Warning for low accuracy */}
-          {gpsCoords && gpsCoords.accuracy > 100 && (
-            <Card statusColor="amber" className="bg-amber-50/50">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
-                <p className="text-xs text-amber-800">
-                  ความแม่นยำ GPS ต่ำ ({Math.round(gpsCoords.accuracy)} ม.) อาจส่งผลต่อการตรวจสอบตำแหน่ง
-                </p>
-              </div>
-            </Card>
-          )}
-
-          {/* Action button */}
-          <Button
-            fullWidth
-            size="lg"
-            onClick={() => setStep('camera')}
-            disabled={!gpsCoords || !geofenceResult?.isWithinGeofence}
-            icon={<Camera className="w-5 h-5" />}
-          >
-            ถ่ายรูปเพื่อ{isCheckOut ? 'เช็กเอาต์' : 'เช็กอิน'}
-          </Button>
-
-          {gpsError && (
-            <Button fullWidth variant="outline" onClick={fetchGPS} icon={<RotateCcw className="w-4 h-4" />}>
-              ลองระบุตำแหน่งอีกครั้ง
-            </Button>
-          )}
-
-          {/* Security note */}
-          <div className="flex items-start gap-2 px-1">
-            <Shield className="w-3.5 h-3.5 text-slate-400 mt-0.5 flex-shrink-0" />
-            <p className="text-[10px] text-slate-400 leading-relaxed">
-              ระบบจะบันทึกรูปถ่ายสด, พิกัด GPS, เวลาเซิร์ฟเวอร์ และข้อมูลอุปกรณ์ เพื่อใช้ยืนยันตัวตนและตรวจสอบย้อนหลัง
-              Browser/device อาจมีข้อจำกัดด้าน anti-spoofing ระบบออกแบบเป็น best-effort security
-            </p>
-          </div>
-        </>
+        </div>
       )}
 
-      {/* Step: Camera */}
-      {step === 'camera' && (
-        <div className="space-y-4">
-          <Card padding="none" className="overflow-hidden">
-            {cameraError ? (
-              <div className="flex flex-col items-center justify-center py-12 px-4">
-                <XCircle className="w-10 h-10 text-red-400 mb-2" />
-                <p className="text-sm text-red-600 text-center">{cameraError}</p>
-                <Button variant="outline" size="sm" className="mt-3" onClick={startCamera}>
-                  ลองใหม่
-                </Button>
+      {alreadyDone && step === 'status' && (
+        <Card className="bg-slate-900 border-slate-800 rounded-[2.5rem] p-8 shadow-2xl overflow-hidden relative group">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-1000" />
+          
+          <div className="relative z-10 flex flex-col items-center text-center">
+            <div className="p-4 rounded-[2rem] bg-emerald-500/10 text-emerald-400 mb-6 border border-emerald-500/20">
+              <CheckCircle2 className="w-10 h-10" />
+            </div>
+            <h3 className="text-xl font-black text-white mb-2 tracking-tight">คุณลงเวลาออกงานแล้ว</h3>
+            <p className="text-xs text-slate-400 font-bold uppercase tracking-widest leading-relaxed">
+              In: {todayRecord.checkIn ? formatTime(todayRecord.checkIn.created_at) : '--:--'} <span className="mx-2 text-slate-700">•</span> Out: {todayRecord.checkOut ? formatTime(todayRecord.checkOut.created_at) : '--:--'}
+            </p>
+            <div className="mt-8 w-full flex gap-3">
+               <Button fullWidth variant="none" className="bg-white/5 border border-white/10 text-white font-black text-xs h-12 rounded-2xl hover:bg-white/10 transition-all uppercase tracking-widest" onClick={() => window.history.back()}>
+                 🏠 Home
+               </Button>
+               <Button fullWidth variant="none" className="bg-primary-600 text-white font-black text-xs h-12 rounded-2xl shadow-lg shadow-primary-900/40 hover:bg-primary-500 transition-all uppercase tracking-widest">
+                 📜 View History
+               </Button>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {step === 'status' && !alreadyDone && (
+        <div className="space-y-6">
+          {!canCheckIn && (
+            <Card className="bg-red-50 border-red-100 rounded-[2rem] p-5">
+              <div className="flex items-start gap-4">
+                <div className="p-3 bg-red-100 text-red-600 rounded-2xl">
+                  <XCircle className="w-6 h-6" />
+                </div>
+                <div>
+                  <p className="text-sm font-black text-red-900">วันนี้เป็นวันลาพิทักษ์</p>
+                  <p className="text-[10px] font-bold text-red-800/60 uppercase tracking-wider mt-1">Leave status detected. System locked.</p>
+                </div>
               </div>
-            ) : (
-              <div className="camera-viewfinder">
+            </Card>
+          )}
+
+          <div className="grid grid-cols-2 gap-4">
+             <Card className="p-5 rounded-[2rem] border-slate-100 shadow-sm relative overflow-hidden group">
+                <div className="flex items-center justify-between mb-3">
+                   <div className="p-2.5 bg-slate-50 rounded-xl group-hover:scale-110 transition-transform">
+                      <Navigation className={`w-5 h-5 ${gpsCoords ? 'text-emerald-500' : 'text-slate-400'}`} />
+                   </div>
+                   {gpsLoading && <div className="w-4 h-4 rounded-full border-2 border-primary-100 border-t-primary-600 animate-spin" />}
+                </div>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">GPS Signal</p>
+                <div className="flex items-baseline gap-1.5">
+                   <p className="text-lg font-black text-slate-900">{gpsCoords ? 'Ready' : 'Locating'}</p>
+                   {gpsCoords && <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />}
+                </div>
+                {gpsCoords && (
+                  <p className={`text-[9px] font-black uppercase mt-1 tracking-tighter ${getAccuracyColor(getAccuracyLevel(gpsCoords.accuracy))}`}>
+                    Precise to {Math.round(gpsCoords.accuracy)}m
+                  </p>
+                )}
+             </Card>
+
+             <Card className="p-5 rounded-[2rem] border-slate-100 shadow-sm relative overflow-hidden group">
+                <div className="flex items-center justify-between mb-3">
+                   <div className="p-2.5 bg-slate-50 rounded-xl group-hover:scale-110 transition-transform">
+                      <MapPin className={`w-5 h-5 ${geofenceResult?.isWithinGeofence ? 'text-emerald-500' : 'text-slate-400'}`} />
+                   </div>
+                </div>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Location</p>
+                <p className="text-lg font-black text-slate-900 truncate">
+                   {geofenceResult ? (geofenceResult.isWithinGeofence ? 'Verified' : 'Out') : '--'}
+                </p>
+                {geofenceResult && (
+                  <p className={`text-[9px] font-black uppercase mt-1 tracking-tighter ${geofenceResult.isWithinGeofence ? 'text-emerald-600' : 'text-red-600'}`}>
+                    {geofenceResult.isWithinGeofence ? 'Inside Zone' : 'Outside Zone'}
+                  </p>
+                )}
+             </Card>
+          </div>
+
+          <div className="space-y-4">
+             <div className="bg-slate-900 rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden group">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-primary-500/20 rounded-full blur-3xl -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-1000" />
+                <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full blur-2xl -ml-12 -mb-12" />
+                
+                <div className="relative z-10 flex flex-col items-center text-center space-y-6">
+                   <div className="p-6 rounded-[2.5rem] bg-white/5 border border-white/10 shadow-inner group-hover:scale-105 transition-transform duration-500">
+                      <Camera className="w-12 h-12 text-white" />
+                   </div>
+                   
+                   <div className="space-y-2">
+                      <h3 className="text-xl font-black text-white tracking-tight">Security Verification</h3>
+                      <p className="text-xs text-slate-400 font-bold uppercase tracking-[0.2em]">Take a live selfie to proceed</p>
+                   </div>
+                   
+                   <Button
+                      fullWidth
+                      size="lg"
+                      variant="none"
+                      onClick={() => setStep('camera')}
+                      disabled={!gpsCoords || !geofenceResult?.isWithinGeofence || !canCheckIn}
+                      className={`h-16 rounded-[2rem] text-sm font-black uppercase tracking-widest transition-all
+                        ${!gpsCoords || !geofenceResult?.isWithinGeofence || !canCheckIn 
+                          ? 'bg-slate-800 text-slate-600 cursor-not-allowed' 
+                          : 'bg-primary-600 text-white shadow-xl shadow-primary-900/40 hover:bg-primary-500 active:scale-95'}
+                      `}
+                   >
+                     📸 Capture Source
+                   </Button>
+                </div>
+             </div>
+             
+             <div className="flex items-center justify-center gap-6 px-4">
+                <div className="flex items-center gap-2">
+                   <Shield className="w-3 h-3 text-slate-300" />
+                   <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Biometric Link</span>
+                </div>
+                <div className="flex items-center gap-2">
+                   <Navigation className="w-3 h-3 text-slate-300" />
+                   <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">GPS Enforced</span>
+                </div>
+             </div>
+          </div>
+        </div>
+      )}
+
+      {step === 'camera' && (
+        <div className="space-y-4 animate-in slide-in-from-bottom-4 duration-500">
+           <div className="relative rounded-[3rem] overflow-hidden shadow-2xl bg-black aspect-[3/4]">
+              <div className="absolute inset-0 z-0 opacity-40">
+                 <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_center,_transparent_0%,_black_100%)]" />
+              </div>
+              
+              {cameraError ? (
+                <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center bg-slate-900">
+                   <XCircle className="w-12 h-12 text-red-500 mb-4" />
+                   <p className="text-lg font-black text-white leading-tight">{cameraError}</p>
+                   <Button variant="outline" size="sm" className="mt-6 border-white/20 text-white hover:bg-white/10" onClick={() => void startCamera()}>
+                     Try Again
+                   </Button>
+                </div>
+              ) : (
                 <video
                   ref={videoRef}
                   autoPlay
                   playsInline
                   muted
-                  className="w-full aspect-[3/4] object-cover bg-black"
+                  className="w-full h-full object-cover"
                 />
+              )}
+              
+              <div className="absolute inset-0 pointer-events-none ring-1 ring-inset ring-white/20 rounded-[3rem]" />
+              
+              <div className="absolute bottom-8 left-1/2 -translate-x-1/2 w-full px-8 flex justify-center">
+                 <button
+                   onClick={takePhoto}
+                   disabled={Boolean(cameraError) || !cameraStream}
+                   className="w-20 h-20 rounded-full bg-white p-1 hover:scale-110 active:scale-95 transition-all shadow-2xl disabled:opacity-50"
+                 >
+                    <div className="w-full h-full rounded-full border-4 border-slate-900 flex items-center justify-center text-slate-900">
+                       <div className="w-4 h-4 bg-slate-900 rounded-sm" />
+                    </div>
+                 </button>
               </div>
-            )}
-          </Card>
 
-          <canvas ref={canvasRef} className="hidden" />
-
-          <div className="flex gap-3">
-            <Button
-              variant="secondary"
-              fullWidth
-              onClick={() => { stopCameraStream(); setStep('status'); }}
-            >
-              ยกเลิก
-            </Button>
-            <Button
-              fullWidth
-              size="lg"
-              onClick={takePhoto}
-              disabled={!!cameraError || !cameraStream}
-              icon={<Camera className="w-5 h-5" />}
-            >
-              ถ่ายรูป
-            </Button>
-          </div>
-
-          <p className="text-xs text-center text-slate-400">
-            กรุณาถ่ายรูปใบหน้าให้ชัดเจน ไม่อนุญาตให้ใช้รูปจาก Gallery
-          </p>
+              <button 
+                 onClick={() => { stopCameraStream(); setStep('status'); }}
+                 className="absolute top-8 left-8 p-3 bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl text-white hover:bg-black/60 transition-all"
+              >
+                 <ArrowLeft className="w-5 h-5" />
+              </button>
+           </div>
+           
+           <canvas ref={canvasRef} className="hidden" />
+           <p className="text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">Position your face within the frame</p>
         </div>
       )}
 
-      {/* Step: Confirm */}
       {step === 'confirm' && photoData && (
-        <div className="space-y-4">
-          <Card padding="none" className="overflow-hidden">
-            <img src={photoData} alt="Preview" className="w-full aspect-[3/4] object-cover" />
-          </Card>
-
-          <Card>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-slate-500">ประเภท</span>
-                <span className="font-medium">{isCheckOut ? 'เช็กเอาต์' : 'เช็กอิน'}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">เวลา</span>
-                <span className="font-medium">{new Date().toLocaleTimeString('th-TH')}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">สถานที่</span>
-                <span className="font-medium">{branch?.name}</span>
-              </div>
-              {gpsCoords && (
-                <>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">พิกัด</span>
-                    <span className="font-medium text-xs">
-                      {gpsCoords.latitude.toFixed(6)}, {gpsCoords.longitude.toFixed(6)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">ความแม่นยำ</span>
-                    <span className={`font-medium ${getAccuracyColor(getAccuracyLevel(gpsCoords.accuracy))}`}>
-                      {Math.round(gpsCoords.accuracy)} ม.
-                    </span>
-                  </div>
-                </>
-              )}
-              {geofenceResult && (
-                <div className="flex justify-between">
-                  <span className="text-slate-500">ระยะจากสาขา</span>
-                  <span className="font-medium">{formatDistance(geofenceResult.distanceMeters)}</span>
+        <div className="space-y-6 animate-in fade-in zoom-in-95 duration-500">
+          <div className="relative group">
+             <div className="absolute -inset-1 bg-gradient-to-r from-primary-500 to-emerald-500 rounded-[3rem] blur opacity-10"></div>
+             <Card padding="none" className="relative overflow-hidden rounded-[3rem] shadow-2xl aspect-[3/4]">
+                <img src={photoData} alt="Preview" className="w-full h-full object-cover" />
+                <div className="absolute bottom-0 left-0 w-full p-8 bg-gradient-to-t from-black/80 via-black/20 to-transparent">
+                   <div className="flex items-center justify-between gap-4">
+                      <div>
+                         <p className="text-xl font-black text-white">{isCheckIn ? 'In' : 'Out'}</p>
+                         <p className="text-xs font-black text-white/60 uppercase tracking-widest">Identity Verified</p>
+                      </div>
+                      <div className="p-3 bg-emerald-500 text-white rounded-2xl shadow-lg shadow-emerald-500/40">
+                         <CheckCircle2 className="w-6 h-6" />
+                      </div>
+                   </div>
                 </div>
-              )}
-            </div>
+             </Card>
+          </div>
+
+          <Card className="rounded-[2.5rem] border-slate-100 p-6 space-y-4 shadow-xl shadow-slate-200/50">
+             <div className="flex items-center justify-between pb-4 border-b border-slate-50">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Entry Details</p>
+                <div className="h-2 w-2 bg-emerald-500 rounded-full" />
+             </div>
+             
+             <div className="space-y-3">
+               {[
+                 { label: 'Timestamp', value: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) },
+                 { label: 'Terminal', value: branch?.name },
+                 { label: 'Shift', value: todayShift?.shift_name || 'General' },
+                 { label: 'GPS Accuracy', value: `${Math.round(gpsCoords?.accuracy || 0)} meters`, color: getAccuracyColor(getAccuracyLevel(gpsCoords?.accuracy || 0)) },
+               ].map((item, idx) => (
+                 <div key={idx} className="flex justify-between items-baseline">
+                   <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider">{item.label}</span>
+                   <span className={`text-[13px] font-black ${item.color || 'text-slate-900'}`}>{item.value}</span>
+                 </div>
+               ))}
+             </div>
           </Card>
 
-          <div className="flex gap-3">
+          <div className="flex gap-4">
             <Button
-              variant="secondary"
+              variant="none"
               fullWidth
-              onClick={() => { setPhotoData(null); setStep('camera'); }}
+              onClick={() => {
+                setPhotoData(null);
+                setStep('camera');
+              }}
+              className="h-16 rounded-[2rem] bg-slate-100 text-slate-600 font-black uppercase tracking-widest text-xs hover:bg-slate-200 transition-all flex items-center justify-center gap-2"
             >
-              ถ่ายใหม่
+              <RotateCcw className="w-4 h-4" />
+              Retake
             </Button>
             <Button
               fullWidth
               size="lg"
+              variant="none"
               loading={submitting}
               onClick={handleSubmit}
-              icon={<CheckCircle2 className="w-5 h-5" />}
-              variant={isCheckOut ? 'primary' : 'success'}
+              className={`h-16 rounded-[2rem] text-white font-black uppercase tracking-widest text-xs shadow-xl transition-all flex items-center justify-center gap-2
+                ${isCheckIn ? 'bg-emerald-600 shadow-emerald-900/40 hover:bg-emerald-500' : 'bg-slate-900 shadow-slate-900/40 hover:bg-slate-800'}
+              `}
             >
-              ยืนยัน{isCheckOut ? 'เช็กเอาต์' : 'เช็กอิน'}
+               Confirm & Submit
+               <CheckCircle2 className="w-4 h-4" />
             </Button>
           </div>
         </div>
       )}
 
-      {/* Step: Result */}
       {step === 'result' && (
-        <Card>
-          <div className="flex flex-col items-center text-center py-6">
-            <div className={`p-4 rounded-full mb-4 ${resultStatus === 'success' ? 'bg-emerald-100' : 'bg-red-100'}`}>
-              {resultStatus === 'success' ? (
-                <CheckCircle2 className="w-10 h-10 text-emerald-600" />
-              ) : (
-                <XCircle className="w-10 h-10 text-red-600" />
-              )}
+        <div className="animate-in zoom-in-95 fade-in-0 duration-700 max-w-sm mx-auto pt-10">
+          <Card className="rounded-[3rem] border-slate-100 shadow-2xl relative overflow-hidden group">
+            <div className={`h-2.5 w-full ${resultStatus === 'success' ? 'bg-emerald-500' : 'bg-red-500'}`} />
+            
+            <div className="p-10 flex flex-col items-center text-center">
+              <div className={`p-6 rounded-[2.5rem] mb-8 relative ${resultStatus === 'success' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
+                {resultStatus === 'success' ? (
+                  <>
+                    <CheckCircle2 className="w-16 h-16" />
+                    <div className="absolute -top-2 -right-2 w-8 h-8 bg-emerald-500 text-white rounded-full flex items-center justify-center shadow-lg animate-bounce">
+                       <Zap className="w-4 h-4" />
+                    </div>
+                  </>
+                ) : (
+                  <XCircle className="w-16 h-16" />
+                )}
+              </div>
+              
+              <h3 className={`text-2xl font-black mb-3 tracking-tight ${resultStatus === 'success' ? 'text-slate-900' : 'text-red-900'}`}>
+                {resultMessage}
+              </h3>
+              
+              <p className="text-xs text-slate-400 font-bold uppercase tracking-[0.2em] leading-relaxed mb-8">
+                {resultStatus === 'success'
+                  ? `${new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} • Secure Sync Confirmed`
+                  : 'Critical process failure. Please report if persists.'}
+              </p>
+              
+              <div className="w-full space-y-3">
+                {resultStatus === 'success' ? (
+                  <Button 
+                     fullWidth 
+                     variant="none" 
+                     onClick={() => window.history.back()}
+                     className="h-14 rounded-2xl bg-slate-900 text-white font-black text-xs uppercase tracking-widest hover:bg-slate-800 hover:shadow-xl transition-all"
+                  >
+                    Back to Dashboard
+                  </Button>
+                ) : (
+                  <Button 
+                     fullWidth 
+                     variant="none"
+                     onClick={reset}
+                     className="h-14 rounded-2xl bg-red-600 text-white font-black text-xs uppercase tracking-widest hover:bg-red-500 hover:shadow-xl transition-all flex items-center justify-center gap-2"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    Restart Process
+                  </Button>
+                )}
+              </div>
             </div>
-            <h3 className={`text-lg font-semibold mb-1 ${resultStatus === 'success' ? 'text-emerald-900' : 'text-red-900'}`}>
-              {resultMessage}
-            </h3>
-            <p className="text-sm text-slate-500">
-              {resultStatus === 'success'
-                ? `${new Date().toLocaleTimeString('th-TH')} — ${branch?.name}`
-                : 'กรุณาลองใหม่อีกครั้ง'}
-            </p>
-            <div className="mt-4 w-full">
-              {resultStatus === 'success' ? (
-                <Button fullWidth variant="outline" onClick={() => window.history.back()}>
-                  กลับหน้าหลัก
-                </Button>
-              ) : (
-                <Button fullWidth onClick={reset} icon={<RotateCcw className="w-4 h-4" />}>
-                  ลองใหม่
-                </Button>
-              )}
-            </div>
-          </div>
-        </Card>
-      )}
-
-      {/* Today's check-in info (shown on status step) */}
-      {step === 'status' && todayRecord.checkIn && !alreadyDone && (
-        <Card className="bg-primary-50/50">
-          <div className="flex items-center gap-3">
-            <Clock className="w-4 h-4 text-primary-600" />
-            <div>
-              <p className="text-xs text-primary-600 font-medium">เช็กอินวันนี้เมื่อ</p>
-              <p className="text-sm font-semibold text-slate-900">{formatTime(todayRecord.checkIn.created_at)}</p>
-            </div>
-          </div>
-        </Card>
+          </Card>
+        </div>
       )}
     </div>
   );
