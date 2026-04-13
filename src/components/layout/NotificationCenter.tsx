@@ -115,7 +115,7 @@ export default function NotificationCenter({
 
       {unreadCount > 0 && (
         <div className="px-1">
-          <Badge variant="primary" className="font-black text-[10px] px-3 py-1">
+          <Badge variant="info" className="font-black text-[10px] px-3 py-1">
             You have {unreadCount} unread message{unreadCount > 1 ? 's' : ''}
           </Badge>
         </div>

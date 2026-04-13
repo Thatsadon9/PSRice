@@ -149,7 +149,7 @@ export default function HistoryPage() {
           <div className="space-y-6">
             <div className="flex items-center justify-between px-1">
                <h2 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Timeline Logs</h2>
-               <Badge variant="blue" className="text-[9px] px-2 py-0.5 font-black uppercase tracking-tight">{attendanceRecords.length} Entries</Badge>
+               <Badge variant="info" className="text-[9px] px-2 py-0.5 font-black uppercase tracking-tight">{attendanceRecords.length} Entries</Badge>
             </div>
             
             <div className="relative space-y-6 before:absolute before:inset-0 before:ml-[23px] before:-translate-x-px before:h-full before:w-1 before:bg-slate-100">
@@ -204,7 +204,7 @@ export default function HistoryPage() {
           <div className="space-y-4">
             <div className="flex items-center justify-between px-1">
                <h2 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Assignment Proofs</h2>
-               <Badge variant="primary" className="text-[9px] px-2 py-0.5 font-black uppercase tracking-tight">{submissions.length} Total</Badge>
+               <Badge variant="info" className="text-[9px] px-2 py-0.5 font-black uppercase tracking-tight">{submissions.length} Total</Badge>
             </div>
 
             <div className="space-y-3">

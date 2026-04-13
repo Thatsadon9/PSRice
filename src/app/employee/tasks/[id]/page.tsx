@@ -377,7 +377,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
         
         <div className="mt-4 pt-4 border-t border-slate-50 flex items-center gap-2">
           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">หลักฐานที่ต้องส่ง:</p>
-          <Badge variant="none" className="bg-primary-50 text-primary-700 font-bold text-[10px] border-none">
+          <Badge variant="default" className="bg-primary-50 text-primary-700 font-bold text-[10px] border-none">
             {PROOF_TYPE_LABELS[proofRequired]}
           </Badge>
         </div>

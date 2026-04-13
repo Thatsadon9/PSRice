@@ -19,8 +19,9 @@ export default function ProfilePage() {
   const { currentUser, logout, initialize } = useAuthStore();
   const branchStore = useBranchStore();
   const employeeStore = useEmployeeStore();
-  const branchPolicies = useHrStore((state) => state.branchPolicies);
-  const shiftAssignments = useHrStore((state) => state.shiftAssignments);
+  const hrStore = useHrStore();
+  const branchPolicies = hrStore.branchPolicies;
+  const shiftAssignments = hrStore.shiftAssignments;
   const router = useRouter();
 
   const [uploading, setUploading] = useState(false);
