@@ -389,14 +389,14 @@ export function calculateDailyAttendanceSummary(params: {
     ? Math.max(0, differenceInMinutes(parseISO(pair.checkOut.created_at), end))
     : 0;
   const otMinutes = rawOtMinutes >= shift.minimum_ot_minutes ? rawOtMinutes : 0;
-  const isScheduledAssignment = shift.source === 'assignment' && shift.status === 'scheduled';
-  const isAbsent = isScheduledAssignment && !pair.checkIn;
+  const isScheduledShift = shift.status === 'scheduled' && shift.source !== 'fallback';
+  const isAbsent = isScheduledShift && !pair.checkIn;
 
   return {
     work_date: workDate,
     status: isAbsent ? 'absent' : pair.checkIn ? 'worked' : 'unscheduled',
     source: shift.source,
-    scheduled: isScheduledAssignment,
+    scheduled: isScheduledShift,
     leave_day: false,
     absent: isAbsent,
     has_check_in: Boolean(pair.checkIn),

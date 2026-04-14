@@ -329,7 +329,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
           className="flex items-center gap-2 text-xs font-black text-slate-400 uppercase tracking-widest hover:text-primary-600 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
-          Back to Tasks
+          กลับไปหน้ารายการงาน
         </button>
         <Badge
           variant={getStatusVariant(task.status) as 'success' | 'warning' | 'danger' | 'info' | 'default'}
@@ -351,7 +351,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                 'bg-blue-50 text-blue-600'}
             `}>
               <Flag className="w-3 h-3" />
-              {PRIORITY_LABELS[(task.priority || template?.priority || 'medium') as Priority]} Priority
+              ระดับ {PRIORITY_LABELS[(task.priority || template?.priority || 'medium') as Priority]}
             </div>
           )}
           <div className="flex items-center gap-1.5 text-[10px] font-black text-slate-400 uppercase tracking-tight">
@@ -385,7 +385,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
 
       {task.checklist_state && task.checklist_state.length > 0 && (
         <div className="space-y-4">
-          <h2 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] px-1">Checklist Items</h2>
+          <h2 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] px-1">รายการที่ต้องดำเนินการ</h2>
           <Card padding="none" className="overflow-hidden border-slate-100 shadow-sm rounded-[2rem]">
             <div className="divide-y divide-slate-100">
               {task.checklist_state.map((item) => (
@@ -456,14 +456,14 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                         {proofRequired === 'video' && 'ถ่ายวิดีโอหลักฐาน'}
                         {proofRequired === 'any' && 'แนบหลักฐาน (รูป/วิดีโอ)'}
                       </p>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Tap to capture source</p>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">แตะเพื่อเพิ่มหลักฐานจากเครื่องหรือถ่ายใหม่</p>
                     </div>
                   </button>
                 </div>
               )}
 
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">หมายเหตุ (Optional)</label>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">หมายเหตุ (ไม่บังคับ)</label>
                 <TextArea
                   id="proof-note"
                   placeholder="ระบุรายละเอียดเพิ่มเติมถึงผู้จัดการ..."
@@ -507,7 +507,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
 
       {submissions.length > 0 && (
         <div className="space-y-4">
-          <h2 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] px-1">Submission History</h2>
+          <h2 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] px-1">ประวัติการส่งงาน</h2>
           <div className="space-y-4">
             {submissions.map((submission) => {
               const files = taskStore.getFilesBySubmission(submission.id);
@@ -538,7 +538,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                         {REVIEW_STATUS_LABELS[submission.review_status]}
                       </Badge>
                       <span className="text-[10px] font-bold text-slate-400">
-                        Submitted {formatRelativeTime(submission.submitted_at)}
+                        ส่งเมื่อ {formatRelativeTime(submission.submitted_at)}
                       </span>
                     </div>
 
@@ -565,7 +565,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                         
                         <div className="relative z-10 flex flex-col gap-3">
                           <div className="flex items-center justify-between">
-                            <p className="text-[10px] font-black text-primary-400 uppercase tracking-widest">Feedback from Manager</p>
+                            <p className="text-[10px] font-black text-primary-400 uppercase tracking-widest">ความคิดเห็นจากผู้จัดการ</p>
                             {feedback.rating != null && (
                               <StarRating value={feedback.rating} readOnly size="sm" />
                             )}
@@ -579,7 +579,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                                <p className="text-sm font-bold text-white line-clamp-2">
                                  {feedback.comment || 'ไม่มีความเห็นเพิ่มเติม'}
                                </p>
-                               <p className="text-[9px] font-bold text-slate-500 uppercase mt-0.5">Reviewed by {reviewer?.full_name || 'System'}</p>
+                               <p className="text-[9px] font-bold text-slate-500 uppercase mt-0.5">ตรวจโดย {reviewer?.full_name || 'System'}</p>
                             </div>
                           </div>
                         </div>

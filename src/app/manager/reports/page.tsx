@@ -3,7 +3,6 @@
 import { useMemo, useState } from 'react';
 import {
   AlertTriangle,
-  ArrowUpRight,
   Banknote,
   BarChart3,
   CalendarCheck,
@@ -22,7 +21,6 @@ import {
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
-import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
 import { useAuthStore } from '@/store/authStore';
 import { useAttendanceStore } from '@/store/attendanceStore';
@@ -483,10 +481,10 @@ export default function ReportsPage() {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
           {[
-            { label: 'Attendance Summary', desc: 'สรุปกะ, สาย, ขาด และโอที', icon: FileSpreadsheet, color: 'emerald', action: handleExportAttendanceSummary, type: 'Excel' },
-            { label: 'Payroll Summary', desc: 'ค่าจ้างก่อนหัก, โอที และรับสุทธิ', icon: WalletCards, color: 'blue', action: handleExportPayrollSummary, type: 'Excel' },
-            { label: 'Employee Requests', desc: 'รายการลา, เบิกเงิน และค่าใช้จ่าย', icon: ReceiptText, color: 'amber', action: handleExportRequests, type: 'CSV' },
-            { label: 'Task Summary', desc: 'ภาพรวมงานของพนักงานในสาขา', icon: FileText, color: 'slate', action: handleExportTasks, type: 'CSV' },
+            { label: 'สรุปการเข้างาน (Attendance)', desc: 'สรุปกะ, สาย, ขาด และโอที', icon: FileSpreadsheet, color: 'emerald', action: handleExportAttendanceSummary, type: 'Excel' },
+            { label: 'สรุปการจ่ายเงิน (Payroll)', desc: 'ค่าจ้างก่อนหัก, โอที และรับสุทธิ', icon: WalletCards, color: 'blue', action: handleExportPayrollSummary, type: 'Excel' },
+            { label: 'คำขอพนักงาน (Requests)', desc: 'รายการลา, เบิกเงิน และค่าใช้จ่าย', icon: ReceiptText, color: 'amber', action: handleExportRequests, type: 'CSV' },
+            { label: 'สรุปภารกิจงาน (Tasks)', desc: 'ภาพรวมงานของพนักงานในสาขา', icon: FileText, color: 'slate', action: handleExportTasks, type: 'CSV' },
           ].map((item) => (
             <Card key={item.label} className="group flex flex-col justify-between hover:border-primary-200 transition-all border-dashed">
               <div className="flex items-start gap-3">

@@ -23,7 +23,7 @@ export default function SettingsPage() {
             <Card>
                <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
                   <Globe className="w-5 h-5 text-primary-600" />
-                  General Settings
+                  การตั้งค่าทั่วไป
                </h3>
                <div className="space-y-4">
                   <Input 
@@ -41,7 +41,7 @@ export default function SettingsPage() {
             <Card>
                <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
                   <Shield className="w-5 h-5 text-primary-600" />
-                  Security & Compliance
+                  ความปลอดภัยและข้อกำหนด
                </h3>
                <div className="space-y-4">
                   <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
@@ -70,7 +70,7 @@ export default function SettingsPage() {
             <Card>
                <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
                   <Bell className="w-5 h-5 text-primary-600" />
-                  Notifications
+                  การแจ้งเตือน
                </h3>
                <div className="space-y-3">
                   <label className="flex items-center gap-2 text-sm text-slate-700">

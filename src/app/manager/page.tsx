@@ -13,20 +13,16 @@ import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import {
   Activity,
-  AlertTriangle,
   ArrowRight,
   ArrowUpRight,
   CalendarCheck,
   CheckCircle2,
   CheckSquare,
-  ClipboardList,
   Clock,
-  ExternalLink,
   FileSpreadsheet,
   History,
   LayoutDashboard,
   MapPin,
-  Menu,
   Plus,
   ShieldAlert,
   ShieldCheck,
@@ -37,6 +33,7 @@ import {
 } from 'lucide-react';
 import { formatThaiDate } from '@/lib/dateUtils';
 import { getPendingReviewSubmissionsForUser } from '@/lib/reviewHelpers';
+import { subDays, isAfter, parseISO } from 'date-fns';
 
 export default function ManagerDashboard() {
   const { currentUser } = useAuthStore();
@@ -44,7 +41,7 @@ export default function ManagerDashboard() {
   const attendanceStore = useAttendanceStore();
   const employeeStore = useEmployeeStore();
   const branchStore = useBranchStore();
-  const { shiftAssignments, employeeRequests, branchPolicies } = useHrStore();
+  const { employeeRequests } = useHrStore();
 
   // Derived Data for the Command Center
   const dashboardData = useMemo(() => {
@@ -57,6 +54,8 @@ export default function ManagerDashboard() {
         branchEmployees: [],
         overdueCount: 0,
         todayRecordsCount: 0,
+        weekAccuracy: 0,
+        leaveRate: 0,
       };
     }
 
@@ -85,6 +84,30 @@ export default function ManagerDashboard() {
     // 4. Overdue Tasks
     const overdueCount = taskStore.getTaskStats().overdue;
 
+    // 5. Weekly Stats Calculation
+    const sevenDaysAgo = subDays(new Date(), 7);
+    
+    // On-time accuracy
+    const weekCheckIns = attendanceStore.records.filter(r => 
+      r.type === 'check_in' && 
+      isAfter(parseISO(r.created_at), sevenDaysAgo)
+    );
+    const onTimeCheckIns = weekCheckIns.filter(r => r.status === 'checked_in');
+    const weekAccuracy = weekCheckIns.length > 0 
+      ? Math.round((onTimeCheckIns.length / weekCheckIns.length) * 100) 
+      : 0;
+
+    // Leave rate
+    const weekLeaves = employeeRequests.filter(req => 
+      req.request_type === 'leave' && 
+      req.status === 'approved' &&
+      req.start_date &&
+      isAfter(parseISO(req.created_at), sevenDaysAgo)
+    );
+    const leaveRate = branchEmployees.length > 0
+      ? Number(((weekLeaves.length / branchEmployees.length) * 10).toFixed(1))
+      : 0;
+
     return {
       submissions,
       pendingRequests,
@@ -92,7 +115,9 @@ export default function ManagerDashboard() {
       recentActivity,
       branchEmployees,
       overdueCount,
-      todayRecordsCount: todayRecords.length
+      todayRecordsCount: todayRecords.length,
+      weekAccuracy,
+      leaveRate
     };
   }, [attendanceStore, branchStore, currentUser, employeeRequests, employeeStore, taskStore]);
 
@@ -141,14 +166,14 @@ export default function ManagerDashboard() {
           <div>
             <div className="flex items-center gap-3 mb-4">
               <span className="bg-primary-500/20 text-primary-400 text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full border border-primary-500/30">
-                Operations Center
+                ศูนย์ปฏิบัติการ
               </span>
               <span className="text-slate-500 text-[10px] font-bold">
                 {formatThaiDate(new Date().toISOString())}
               </span>
             </div>
-            <h1 className="text-3xl lg:text-4xl font-black leading-tight">
-              ยินดีต้อนรับกลับ, <span className="text-primary-400">{currentUser.full_name}</span>
+            <h1 className="text-2xl lg:text-4xl font-black leading-tight">
+              ยินดีต้อนรับกลับ, <span className="text-primary-400 block sm:inline">{currentUser.full_name}</span>
             </h1>
             <p className="text-slate-400 mt-2 text-sm max-w-xl leading-relaxed">
               วันนี้มีรายการที่คุณต้องตรวจสอบทั้งหมด {dashboardData.submissions.length + dashboardData.pendingRequests.length} รายการ 
@@ -255,7 +280,12 @@ export default function ManagerDashboard() {
                       <div className="relative">
                         <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-400 group-hover:bg-emerald-50 group-hover:text-emerald-600 transition-colors shrink-0 overflow-hidden">
                           {employee?.avatar_url ? (
-                            <img src={employee.avatar_url} alt="" className="w-full h-full object-cover" />
+                            <div
+                              role="img"
+                              aria-label={employee.full_name}
+                              className="h-full w-full bg-cover bg-center bg-no-repeat"
+                              style={{ backgroundImage: `url(${employee.avatar_url})` }}
+                            />
                           ) : employee?.full_name?.charAt(0)}
                         </div>
                         <div className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full bg-white flex items-center justify-center shadow-sm">
@@ -278,7 +308,7 @@ export default function ManagerDashboard() {
             </div>
           </Card>
 
-          {/* Activity Logs */}
+          {/* บันทึกกิจกรรม (Activity Logs) */}
           <Card className="border-slate-200 shadow-sm relative overflow-hidden">
             <div className="flex items-center justify-between mb-8">
               <div className="flex items-center gap-3">
@@ -304,7 +334,7 @@ export default function ManagerDashboard() {
                     </span>
                     <p className="text-sm font-bold text-slate-700 flex-1 truncate">{employee?.full_name}</p>
                     <Badge variant={isCheckIn ? 'success' : 'slate'} className="px-2 py-0.5 text-[9px] font-black uppercase tracking-tight">
-                      {isCheckIn ? 'IN' : 'OUT'}
+                      {isCheckIn ? 'เข้า' : 'ออก'}
                     </Badge>
                   </div>
                 );
@@ -320,7 +350,7 @@ export default function ManagerDashboard() {
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-lg font-bold text-slate-900 leading-none">ศูนย์จัดการงาน</h2>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase mt-2">Action Required</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase mt-2">รายการที่ต้องดำเนินการ</p>
                 </div>
                 <div className="h-10 w-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-lg shadow-amber-200">
                   <CheckSquare className="w-5 h-5" />
@@ -371,7 +401,7 @@ export default function ManagerDashboard() {
                       <Link key={submission.id} href={`/manager/review/${submission.id}`}>
                         <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-primary-200 hover:bg-white transition-all group shadow-sm hover:shadow-md">
                           <div className="flex justify-between items-start mb-2">
-                            <Badge variant="slate" className="text-[9px] font-black bg-white">REVIEWS</Badge>
+                            <Badge variant="slate" className="text-[9px] font-black bg-white">ตรวจงาน</Badge>
                             <ArrowRight className="w-3 h-3 text-slate-300 group-hover:text-primary-500 group-hover:translate-x-1 transition-all" />
                           </div>
                           <p className="text-sm font-bold text-slate-900 truncate">{task?.title || template?.title || 'รายการงาน'}</p>
@@ -399,17 +429,17 @@ export default function ManagerDashboard() {
             <div className="space-y-4 relative z-10">
               <div className="flex justify-between items-center text-xs">
                 <span className="text-primary-100">พนักงานตรงตามเวลา</span>
-                <span className="font-bold">92%</span>
+                <span className="font-bold">{dashboardData.weekAccuracy}%</span>
               </div>
               <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
-                <div className="h-full bg-primary-400 w-[92%]" />
+                <div className="h-full bg-primary-400" style={{ width: `${dashboardData.weekAccuracy}%` }} />
               </div>
               <div className="flex justify-between items-center text-xs">
                 <span className="text-primary-100">อัตราการลาเฉลี่ย</span>
-                <span className="font-bold">2.4%</span>
+                <span className="font-bold">{dashboardData.leaveRate}%</span>
               </div>
               <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
-                <div className="h-full bg-indigo-400 w-[15%]" />
+                <div className="h-full bg-indigo-400" style={{ width: `${Math.min(100, dashboardData.leaveRate * 5)}%` }} />
               </div>
             </div>
             

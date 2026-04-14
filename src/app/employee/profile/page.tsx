@@ -95,7 +95,7 @@ export default function ProfilePage() {
 
       <Card padding="none" className="overflow-hidden shadow-sm border-slate-100">
          <div className="p-4 bg-slate-50 border-b border-slate-100">
-            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">ข้อมูลการจ้างงาน (Employment)</h3>
+            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">ข้อมูลการจ้างงาน</h3>
          </div>
          <div className="divide-y divide-slate-100">
             <div className="p-4 flex items-center justify-between">
@@ -139,7 +139,7 @@ export default function ProfilePage() {
                <CalendarDays className="w-5 h-5" />
             </div>
             <div className="flex-1 min-w-0">
-               <p className="text-xs text-slate-500">กะของวันนี้</p>
+               <p className="text-xs text-slate-500">กะงานวันนี้</p>
                <p className="text-sm font-semibold text-slate-900 mt-1">{todayShift.shift_name}</p>
                <p className="text-xs text-slate-500 mt-1">{todayShift.start_time} - {todayShift.end_time}</p>
                <p className="text-xs text-slate-400 mt-2">{SHIFT_ASSIGNMENT_STATUS_LABELS[todayShift.status]}</p>

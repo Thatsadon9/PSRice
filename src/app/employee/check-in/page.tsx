@@ -4,6 +4,7 @@
 import { differenceInMinutes, format } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
@@ -29,11 +30,13 @@ import {
   XCircle,
   Zap,
 } from 'lucide-react';
+import { openCamera, stopCamera, capturePhoto } from '@/lib/camera';
 
 type Step = 'status' | 'camera' | 'confirm' | 'result';
 
 export default function CheckInPage() {
   const { currentUser } = useAuthStore();
+  const router = useRouter();
   const attendanceStore = useAttendanceStore();
   const branchStore = useBranchStore();
   const branchPolicies = useHrStore((state) => state.branchPolicies);
@@ -54,6 +57,7 @@ export default function CheckInPage() {
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   const branch = currentUser ? branchStore.getBranchById(currentUser.branch_id) : null;
   const todayDate = getCurrentDateStr();
@@ -136,59 +140,56 @@ export default function CheckInPage() {
   }, [fetchGPS, step]);
 
   const stopCameraStream = useCallback(() => {
-    if (cameraStream) {
-      cameraStream.getTracks().forEach((track) => track.stop());
-      setCameraStream(null);
+    if (streamRef.current) {
+      stopCamera(streamRef.current);
+      streamRef.current = null;
     }
-  }, [cameraStream]);
+    setCameraStream(null);
+  }, []);
 
   const startCamera = useCallback(async () => {
     setCameraError('');
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
-        audio: false,
-      });
+      const stream = await openCamera('user');
+      streamRef.current = stream;
       setCameraStream(stream);
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
       }
-    } catch {
-      setCameraError('ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตการเข้าถึงกล้อง');
+    } catch (error) {
+      setCameraError(error instanceof Error ? error.message : 'ไม่สามารถเปิดกล้องได้');
     }
   }, []);
 
   const takePhoto = () => {
-    if (!videoRef.current || !canvasRef.current) {
+    if (!videoRef.current) {
       return;
     }
 
     const video = videoRef.current;
-    const canvas = canvasRef.current;
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const context = canvas.getContext('2d');
-
-    if (!context) {
+    
+    // Ensure video is ready
+    if (video.videoWidth === 0 || video.readyState < 2) {
       return;
     }
 
-    context.drawImage(video, 0, 0);
-    setPhotoData(canvas.toDataURL('image/jpeg', 0.85));
+    const result = capturePhoto(video);
+    if (!result) {
+      return;
+    }
+
+    setPhotoData(result.dataUrl);
     stopCameraStream();
     setStep('confirm');
   };
 
   useEffect(() => {
     if (step === 'camera') {
-      const timer = window.setTimeout(() => {
-        void startCamera();
-      }, 0);
+      void startCamera();
 
       return () => {
-        window.clearTimeout(timer);
         stopCameraStream();
       };
     }
@@ -204,7 +205,7 @@ export default function CheckInPage() {
     }
 
     setSubmitting(true);
-    await new Promise((resolve) => setTimeout(resolve, 900));
+    // Removed artificial delay for production readiness
 
     const geoResult = checkGeofence(gpsCoords, branch);
 
@@ -275,7 +276,7 @@ export default function CheckInPage() {
           <h1 className="text-2xl font-black text-slate-900 leading-tight">
             {isCheckIn ? 'ลงเวลาเข้างาน' : 'ลงเวลาออกงาน'}
           </h1>
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Attendance Terminal</p>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">ศุนย์ลงเวลาพนักงาน</p>
         </div>
         <div className={`h-12 w-12 rounded-2xl flex items-center justify-center shadow-lg ${isCheckIn ? 'bg-emerald-600 text-white shadow-emerald-200' : 'bg-slate-900 text-white shadow-slate-200'}`}>
            {isCheckIn ? <MapPin className="w-6 h-6" /> : <Clock className="w-6 h-6" />}
@@ -289,7 +290,7 @@ export default function CheckInPage() {
               <AlertTriangle className="w-6 h-6" />
             </div>
             <div>
-              <p className="text-sm font-black text-amber-900 leading-tight">Sync Status: Offline</p>
+              <p className="text-sm font-black text-amber-900 leading-tight">สถานะซิงก์: ออฟไลน์</p>
               <p className="text-[10px] font-bold text-amber-800/60 uppercase tracking-wider mt-1">{schemaMessage}</p>
             </div>
           </div>
@@ -315,7 +316,7 @@ export default function CheckInPage() {
                 </div>
               </div>
               <Badge variant={todayShift.source === 'assignment' ? 'success' : 'info'} className="font-black uppercase text-[9px] tracking-tight">
-                {todayShift.source === 'assignment' ? 'Synced' : 'Default'}
+                {todayShift.source === 'assignment' ? 'ซิงก์แล้ว' : 'ค่าเริ่มต้น'}
               </Badge>
             </div>
           </Card>
@@ -332,14 +333,14 @@ export default function CheckInPage() {
             </div>
             <h3 className="text-xl font-black text-white mb-2 tracking-tight">คุณลงเวลาออกงานแล้ว</h3>
             <p className="text-xs text-slate-400 font-bold uppercase tracking-widest leading-relaxed">
-              In: {todayRecord.checkIn ? formatTime(todayRecord.checkIn.created_at) : '--:--'} <span className="mx-2 text-slate-700">•</span> Out: {todayRecord.checkOut ? formatTime(todayRecord.checkOut.created_at) : '--:--'}
+              เข้า: {todayRecord.checkIn ? formatTime(todayRecord.checkIn.created_at) : '--:--'} <span className="mx-2 text-slate-700">•</span> ออก: {todayRecord.checkOut ? formatTime(todayRecord.checkOut.created_at) : '--:--'}
             </p>
             <div className="mt-8 w-full flex gap-3">
-               <Button fullWidth variant="none" className="bg-white/5 border border-white/10 text-white font-black text-xs h-12 rounded-2xl hover:bg-white/10 transition-all uppercase tracking-widest" onClick={() => window.history.back()}>
-                 🏠 Home
+               <Button fullWidth variant="none" className="bg-white/5 border border-white/10 text-white font-black text-xs h-12 rounded-2xl hover:bg-white/10 transition-all uppercase tracking-widest" onClick={() => router.push('/employee')}>
+                 🏠 หน้าแรก
                </Button>
-               <Button fullWidth variant="none" className="bg-primary-600 text-white font-black text-xs h-12 rounded-2xl shadow-lg shadow-primary-900/40 hover:bg-primary-500 transition-all uppercase tracking-widest">
-                 📜 View History
+               <Button fullWidth variant="none" className="bg-primary-600 text-white font-black text-xs h-12 rounded-2xl shadow-lg shadow-primary-900/40 hover:bg-primary-500 transition-all uppercase tracking-widest" onClick={() => router.push('/employee/history?tab=attendance')}>
+                 📜 ดูประวัติ
                </Button>
             </div>
           </div>
@@ -355,7 +356,7 @@ export default function CheckInPage() {
                   <XCircle className="w-6 h-6" />
                 </div>
                 <div>
-                  <p className="text-sm font-black text-red-900">วันนี้เป็นวันลาพิทักษ์</p>
+                  <p className="text-sm font-black text-red-900">ตรวจพบสถานะการลา ระบบล็อคชั่วคราว</p>
                   <p className="text-[10px] font-bold text-red-800/60 uppercase tracking-wider mt-1">Leave status detected. System locked.</p>
                 </div>
               </div>
@@ -370,14 +371,14 @@ export default function CheckInPage() {
                    </div>
                    {gpsLoading && <div className="w-4 h-4 rounded-full border-2 border-primary-100 border-t-primary-600 animate-spin" />}
                 </div>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">GPS Signal</p>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">สัญญาณ GPS</p>
                 <div className="flex items-baseline gap-1.5">
-                   <p className="text-lg font-black text-slate-900">{gpsCoords ? 'Ready' : 'Locating'}</p>
+                   <p className="text-lg font-black text-slate-900">{gpsCoords ? 'พร้อม' : 'กำลังค้นหา...'}</p>
                    {gpsCoords && <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />}
                 </div>
                 {gpsCoords && (
                   <p className={`text-[9px] font-black uppercase mt-1 tracking-tighter ${getAccuracyColor(getAccuracyLevel(gpsCoords.accuracy))}`}>
-                    Precise to {Math.round(gpsCoords.accuracy)}m
+                    แม่นยำระยะ {Math.round(gpsCoords.accuracy)}ม. • {getAccuracyLabel(getAccuracyLevel(gpsCoords.accuracy))}
                   </p>
                 )}
              </Card>
@@ -390,15 +391,37 @@ export default function CheckInPage() {
                 </div>
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Location</p>
                 <p className="text-lg font-black text-slate-900 truncate">
-                   {geofenceResult ? (geofenceResult.isWithinGeofence ? 'Verified' : 'Out') : '--'}
+                   {geofenceResult ? (geofenceResult.isWithinGeofence ? 'ตรงพิกัด' : 'นอกพื้นที่') : '--'}
                 </p>
                 {geofenceResult && (
                   <p className={`text-[9px] font-black uppercase mt-1 tracking-tighter ${geofenceResult.isWithinGeofence ? 'text-emerald-600' : 'text-red-600'}`}>
-                    {geofenceResult.isWithinGeofence ? 'Inside Zone' : 'Outside Zone'}
+                    {geofenceResult.isWithinGeofence ? 'อยู่ในพื้นที่' : 'อยู่นอกพื้นที่'}
                   </p>
                 )}
              </Card>
           </div>
+
+          {gpsError && (
+            <Card className="bg-red-50 border-red-100 rounded-[2rem] p-5">
+              <div className="flex items-start gap-4">
+                <div className="p-3 bg-red-100 text-red-600 rounded-2xl">
+                  <AlertTriangle className="w-6 h-6" />
+                </div>
+                <div>
+                  <p className="text-sm font-black text-red-900">ไม่สามารถเข้าถึง GPS</p>
+                  <p className="text-[10px] font-bold text-red-800/70 uppercase tracking-wider mt-1">{gpsError}</p>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="mt-3 px-0 text-red-700 hover:bg-transparent"
+                    onClick={fetchGPS}
+                  >
+                    ลองใหม่อีกครั้ง
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          )}
 
           <div className="space-y-4">
              <div className="bg-slate-900 rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden group">
@@ -411,8 +434,8 @@ export default function CheckInPage() {
                    </div>
                    
                    <div className="space-y-2">
-                      <h3 className="text-xl font-black text-white tracking-tight">Security Verification</h3>
-                      <p className="text-xs text-slate-400 font-bold uppercase tracking-[0.2em]">Take a live selfie to proceed</p>
+                      <h3 className="text-xl font-black text-white tracking-tight">ตรวจสอบความปลอดภัย</h3>
+                      <p className="text-xs text-slate-400 font-bold uppercase tracking-[0.2em]">ถ่ายรูปเซลฟีเพื่อยืนยันตัวตน</p>
                    </div>
                    
                    <Button
@@ -427,7 +450,7 @@ export default function CheckInPage() {
                           : 'bg-primary-600 text-white shadow-xl shadow-primary-900/40 hover:bg-primary-500 active:scale-95'}
                       `}
                    >
-                     📸 Capture Source
+                     📸 ถ่ายรูปยืนยัน
                    </Button>
                 </div>
              </div>
@@ -435,11 +458,11 @@ export default function CheckInPage() {
              <div className="flex items-center justify-center gap-6 px-4">
                 <div className="flex items-center gap-2">
                    <Shield className="w-3 h-3 text-slate-300" />
-                   <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Biometric Link</span>
+                   <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">ระบบยืนยันตัวตน</span>
                 </div>
                 <div className="flex items-center gap-2">
                    <Navigation className="w-3 h-3 text-slate-300" />
-                   <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">GPS Enforced</span>
+                   <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">บังคับใช้พิกัด</span>
                 </div>
              </div>
           </div>
@@ -458,7 +481,7 @@ export default function CheckInPage() {
                    <XCircle className="w-12 h-12 text-red-500 mb-4" />
                    <p className="text-lg font-black text-white leading-tight">{cameraError}</p>
                    <Button variant="outline" size="sm" className="mt-6 border-white/20 text-white hover:bg-white/10" onClick={() => void startCamera()}>
-                     Try Again
+                     ลองใหม่
                    </Button>
                 </div>
               ) : (
@@ -494,7 +517,7 @@ export default function CheckInPage() {
            </div>
            
            <canvas ref={canvasRef} className="hidden" />
-           <p className="text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">Position your face within the frame</p>
+           <p className="text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">จัดใบหน้าให้อยู่ในกรอบที่กำหนด</p>
         </div>
       )}
 
@@ -507,8 +530,8 @@ export default function CheckInPage() {
                 <div className="absolute bottom-0 left-0 w-full p-8 bg-gradient-to-t from-black/80 via-black/20 to-transparent">
                    <div className="flex items-center justify-between gap-4">
                       <div>
-                         <p className="text-xl font-black text-white">{isCheckIn ? 'In' : 'Out'}</p>
-                         <p className="text-xs font-black text-white/60 uppercase tracking-widest">Identity Verified</p>
+                         <p className="text-xl font-black text-white">{isCheckIn ? 'เข้างาน' : 'ออกงาน'}</p>
+                         <p className="text-xs font-black text-white/60 uppercase tracking-widest">ยืนยันตัวตนแล้ว</p>
                       </div>
                       <div className="p-3 bg-emerald-500 text-white rounded-2xl shadow-lg shadow-emerald-500/40">
                          <CheckCircle2 className="w-6 h-6" />
@@ -520,16 +543,16 @@ export default function CheckInPage() {
 
           <Card className="rounded-[2.5rem] border-slate-100 p-6 space-y-4 shadow-xl shadow-slate-200/50">
              <div className="flex items-center justify-between pb-4 border-b border-slate-50">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Entry Details</p>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">รายละเอียดการลงเวลา</p>
                 <div className="h-2 w-2 bg-emerald-500 rounded-full" />
              </div>
              
              <div className="space-y-3">
                {[
-                 { label: 'Timestamp', value: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) },
-                 { label: 'Terminal', value: branch?.name },
-                 { label: 'Shift', value: todayShift?.shift_name || 'General' },
-                 { label: 'GPS Accuracy', value: `${Math.round(gpsCoords?.accuracy || 0)} meters`, color: getAccuracyColor(getAccuracyLevel(gpsCoords?.accuracy || 0)) },
+                 { label: 'เวลาที่บันทึก', value: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) },
+                 { label: 'สาขา/ศูนย์ปฏิบัติงาน', value: branch?.name },
+                 { label: 'กะงาน', value: todayShift?.shift_name || 'ทั่วไป' },
+                 { label: 'ความแม่นยำ GPS', value: `${Math.round(gpsCoords?.accuracy || 0)} เมตร`, color: getAccuracyColor(getAccuracyLevel(gpsCoords?.accuracy || 0)) },
                ].map((item, idx) => (
                  <div key={idx} className="flex justify-between items-baseline">
                    <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider">{item.label}</span>
@@ -550,7 +573,7 @@ export default function CheckInPage() {
               className="h-16 rounded-[2rem] bg-slate-100 text-slate-600 font-black uppercase tracking-widest text-xs hover:bg-slate-200 transition-all flex items-center justify-center gap-2"
             >
               <RotateCcw className="w-4 h-4" />
-              Retake
+              ถ่ายใหม่
             </Button>
             <Button
               fullWidth
@@ -562,7 +585,7 @@ export default function CheckInPage() {
                 ${isCheckIn ? 'bg-emerald-600 shadow-emerald-900/40 hover:bg-emerald-500' : 'bg-slate-900 shadow-slate-900/40 hover:bg-slate-800'}
               `}
             >
-               Confirm & Submit
+               ยืนยันและส่งข้อมูล
                <CheckCircle2 className="w-4 h-4" />
             </Button>
           </div>
@@ -594,8 +617,8 @@ export default function CheckInPage() {
               
               <p className="text-xs text-slate-400 font-bold uppercase tracking-[0.2em] leading-relaxed mb-8">
                 {resultStatus === 'success'
-                  ? `${new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} • Secure Sync Confirmed`
-                  : 'Critical process failure. Please report if persists.'}
+                  ? `${new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} • เชื่อมต่อข้อมูลสำเร็จ`
+                  : 'เกิดข้อผิดพลาดรุนแรง โปรดติดต่อผู้ดูแลระบบหากยังพบปัญหา'}
               </p>
               
               <div className="w-full space-y-3">
@@ -603,10 +626,10 @@ export default function CheckInPage() {
                   <Button 
                      fullWidth 
                      variant="none" 
-                     onClick={() => window.history.back()}
+                     onClick={() => router.push('/employee')}
                      className="h-14 rounded-2xl bg-slate-900 text-white font-black text-xs uppercase tracking-widest hover:bg-slate-800 hover:shadow-xl transition-all"
                   >
-                    Back to Dashboard
+                    กลับสู่แดชบอร์ด
                   </Button>
                 ) : (
                   <Button 
@@ -616,7 +639,7 @@ export default function CheckInPage() {
                      className="h-14 rounded-2xl bg-red-600 text-white font-black text-xs uppercase tracking-widest hover:bg-red-500 hover:shadow-xl transition-all flex items-center justify-center gap-2"
                   >
                     <RotateCcw className="w-4 h-4" />
-                    Restart Process
+                    เริ่มกระบวนการใหม่
                   </Button>
                 )}
               </div>

@@ -15,7 +15,6 @@ import {
 } from 'lucide-react';
 import Badge from '@/components/ui/Badge';
 import Card from '@/components/ui/Card';
-import Tabs from '@/components/ui/Tabs';
 import StarRating from '@/components/ui/StarRating';
 import {
   ATTENDANCE_STATUS_LABELS,
@@ -23,7 +22,7 @@ import {
   SHIFT_ASSIGNMENT_STATUS_LABELS,
 } from '@/lib/constants';
 import { formatThaiDate, formatTime } from '@/lib/dateUtils';
-import { createLocalDateTime, resolveShiftForUserDate } from '@/lib/hr';
+import { resolveShiftForUserDate } from '@/lib/hr';
 import { parseReviewFeedback } from '@/lib/reviewFeedback';
 import { useAuthStore } from '@/store/authStore';
 import { useAttendanceStore } from '@/store/attendanceStore';
@@ -121,7 +120,7 @@ export default function HistoryPage() {
       <div className="flex items-center justify-between gap-4">
         <div className="space-y-1">
           <h1 className="text-2xl font-black text-slate-900 leading-tight">ประวัติและพอร์ต</h1>
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Your Work Ledger</p>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">ศูนย์รวมประวัติการปฏิบัติงาน</p>
         </div>
         <div className="h-12 w-12 rounded-2xl bg-slate-900 flex items-center justify-center text-primary-400">
            <Zap className="w-6 h-6 fill-primary-400/20" />
@@ -148,8 +147,8 @@ export default function HistoryPage() {
         {activeTab === 'attendance' && (
           <div className="space-y-6">
             <div className="flex items-center justify-between px-1">
-               <h2 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Timeline Logs</h2>
-               <Badge variant="info" className="text-[9px] px-2 py-0.5 font-black uppercase tracking-tight">{attendanceRecords.length} Entries</Badge>
+               <h2 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">ไทม์ไลน์การเข้างาน</h2>
+               <Badge variant="info" className="text-[9px] px-2 py-0.5 font-black uppercase tracking-tight">{attendanceRecords.length} รายการ</Badge>
             </div>
             
             <div className="relative space-y-6 before:absolute before:inset-0 before:ml-[23px] before:-translate-x-px before:h-full before:w-1 before:bg-slate-100">
@@ -203,15 +202,15 @@ export default function HistoryPage() {
         {activeTab === 'tasks' && (
           <div className="space-y-4">
             <div className="flex items-center justify-between px-1">
-               <h2 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Assignment Proofs</h2>
-               <Badge variant="info" className="text-[9px] px-2 py-0.5 font-black uppercase tracking-tight">{submissions.length} Total</Badge>
+               <h2 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">รายการส่งงาน</h2>
+               <Badge variant="info" className="text-[9px] px-2 py-0.5 font-black uppercase tracking-tight">รวม {submissions.length} รายการ</Badge>
             </div>
 
             <div className="space-y-3">
               {submissions.length === 0 ? (
                 <div className="text-center py-20 bg-slate-50 rounded-[2.5rem] border border-dashed border-slate-200">
                    <ClipboardList className="w-12 h-12 text-slate-200 mx-auto mb-4" />
-                   <p className="text-sm font-black text-slate-400 uppercase tracking-widest">No submission history</p>
+                   <p className="text-sm font-black text-slate-400 uppercase tracking-widest">ยังไม่มีประวัติการส่งงาน</p>
                 </div>
               ) : (
                 submissions.map((submission) => {
@@ -236,7 +235,7 @@ export default function HistoryPage() {
                                 </div>
                                 <div className="min-w-0">
                                    <h3 className="text-sm font-black text-slate-900 group-hover:text-primary-600 transition-colors truncate">{task?.title || template?.title || 'งาน'}</h3>
-                                   <p className="text-[10px] font-bold text-slate-400 uppercase mt-1 tracking-widest leading-none">Submitted {formatThaiDate(submission.submitted_at)}</p>
+                                   <p className="text-[10px] font-bold text-slate-400 uppercase mt-1 tracking-widest leading-none">ส่งเมื่อ {formatThaiDate(submission.submitted_at)}</p>
                                 </div>
                              </div>
                              <Badge variant={reviewVariant} size="sm" dot className="font-black uppercase text-[9px] tracking-tight">
@@ -252,7 +251,7 @@ export default function HistoryPage() {
 
                           {feedback.rating != null && (
                             <div className="flex items-center justify-between bg-slate-900 px-4 py-3 rounded-[1.25rem]">
-                               <p className="text-[9px] font-black text-primary-400 uppercase tracking-widest">Performance Rating</p>
+                               <p className="text-[9px] font-black text-primary-400 uppercase tracking-widest">คะแนนผลงาน</p>
                                <StarRating value={feedback.rating} readOnly size="sm" />
                             </div>
                           )}
@@ -269,8 +268,8 @@ export default function HistoryPage() {
         {activeTab === 'schedule' && (
           <div className="space-y-4">
             <div className="flex items-center justify-between px-1">
-               <h2 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Upcoming Shifts</h2>
-               <Link href="/employee/schedule" className="text-[10px] font-black text-primary-600 bg-primary-100 px-3 py-1.5 rounded-full">Calendar View</Link>
+               <h2 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">ตารางงานล่วงหน้า</h2>
+               <Link href="/employee/schedule" className="text-[10px] font-black text-primary-600 bg-primary-100 px-3 py-1.5 rounded-full">ดูแบบปฏิทิน</Link>
             </div>
 
             <div className="space-y-2">
@@ -290,7 +289,7 @@ export default function HistoryPage() {
                         <div>
                           <p className="text-sm font-bold text-slate-900">{item.shift.shift_name}</p>
                           <p className="text-[10px] font-bold text-slate-400">{item.shift.start_time} - {item.shift.end_time}</p>
-                          <p className="text-[9px] font-black text-slate-300 uppercase tracking-tighter mt-1">{item.shift.source === 'assignment' ? 'Direct Assign' : 'Branch Default'}</p>
+                          <p className="text-[9px] font-black text-slate-300 uppercase tracking-tighter mt-1">{item.shift.source === 'assignment' ? 'มอบหมายโดยตรง' : 'ค่าเริ่มต้นสาขา'}</p>
                         </div>
                       </div>
                       <Badge variant={shiftVariant} size="sm" className="font-black uppercase text-[9px] tracking-tight">

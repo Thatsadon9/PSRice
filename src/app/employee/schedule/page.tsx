@@ -27,6 +27,7 @@ import {
 } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { SHIFT_ASSIGNMENT_STATUS_LABELS } from '@/lib/constants';
+import { resolveShiftForUserDate } from '@/lib/hr';
 import { ZoomIn, ZoomOut, Zap, Calendar as CalendarIcon } from 'lucide-react';
 
 export default function EmployeeSchedulePage() {
@@ -38,6 +39,21 @@ export default function EmployeeSchedulePage() {
   const [selectedDate, setSelectedDate] = useState(new Date());
 
   const myAssignments = currentUser ? hrStore.getAssignmentsByUser(currentUser.id) : [];
+
+  const getResolvedShift = (workDate: string) => {
+    if (!currentUser) {
+      return null;
+    }
+
+    const resolvedShift = resolveShiftForUserDate({
+      user: currentUser,
+      workDate,
+      assignments: hrStore.shiftAssignments,
+      branchPolicies: hrStore.branchPolicies,
+    });
+
+    return resolvedShift.source === 'fallback' ? null : resolvedShift;
+  };
 
   // Logic for a full 42-day month grid (to keep layout consistent)
   const calendarDays = useMemo(() => {
@@ -88,7 +104,7 @@ export default function EmployeeSchedulePage() {
         <div className="flex items-center justify-between">
           <div className="space-y-1">
             <h1 className="text-2xl font-black text-slate-900 leading-tight">ตารางกะงาน</h1>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Schedule Terminal</p>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">ศุนย์จัดการตารางงาน</p>
           </div>
           <div className="h-12 w-12 rounded-2xl bg-slate-900 flex items-center justify-center text-primary-400">
              <Zap className="w-6 h-6 fill-primary-400/20" />
@@ -115,14 +131,14 @@ export default function EmployeeSchedulePage() {
          <button 
            onClick={() => setCurrentMonth(new Date())}
            className="h-14 w-14 rounded-2xl bg-white text-slate-900 border border-slate-200 shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all"
-           title="Today"
+           title="วันนี้"
          >
            <Zap className="w-6 h-6 fill-primary-500 text-primary-500" />
          </button>
          <button 
            onClick={() => setViewMode(viewMode === 'calendar' ? 'list' : 'calendar')}
            className="h-14 w-14 rounded-2xl bg-slate-900 text-white shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all"
-           title={viewMode === 'calendar' ? 'Zoom In (List)' : 'Zoom Out (Calendar)'}
+           title={viewMode === 'calendar' ? 'ซูมเข้า (รายการ)' : 'ซูมออก (ปฏิทิน)'}
          >
            {viewMode === 'calendar' ? <ZoomIn className="w-6 h-6" /> : <ZoomOut className="w-6 h-6" />}
          </button>
@@ -144,18 +160,17 @@ export default function EmployeeSchedulePage() {
              {calendarDays.map((day, i) => {
                const dateStr = format(day, 'yyyy-MM-dd');
                const assignment = myAssignments.find(a => a.work_date === dateStr);
+               const resolvedShift = getResolvedShift(dateStr);
                const isCurrentMonth = isSameMonth(day, currentMonth);
                const isToday = isSameDay(day, new Date());
                const isSelected = isSameDay(day, selectedDate);
-               const variant = assignment ? getShiftVariant(assignment.status) : null;
+               const variant = resolvedShift ? getShiftVariant(resolvedShift.status) : null;
 
                return (
                  <button
                    key={i}
                    onClick={() => {
                      setSelectedDate(day);
-                     // If they click a day with an assignment, maybe show list view?
-                     // setViewMode('list'); 
                    }}
                    className={`
                      aspect-square rounded-2xl flex flex-col items-center justify-center relative transition-all
@@ -187,23 +202,26 @@ export default function EmployeeSchedulePage() {
                          <CalendarIcon className="w-5 h-5" />
                       </div>
                       <div>
-                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Focus Date</p>
+                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">วันที่เลือก</p>
                          <h3 className="text-sm font-black text-slate-900">{format(selectedDate, 'EEEE d MMMM', { locale: th })}</h3>
                       </div>
                    </div>
                    {isSameDay(selectedDate, new Date()) && (
-                     <Badge variant="info" className="font-black uppercase text-[9px]">Today</Badge>
+                     <Badge variant="info" className="font-black uppercase text-[9px]">วันนี้</Badge>
                    )}
                 </div>
 
                 {(() => {
-                  const assignment = myAssignments.find(a => a.work_date === format(selectedDate, 'yyyy-MM-dd'));
-                  const branch = assignment?.branch_id ? branchStore.getBranchById(assignment.branch_id) : null;
+                  const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+                  const assignment = myAssignments.find(a => a.work_date === selectedDateStr);
+                  const resolvedShift = getResolvedShift(selectedDateStr);
+                  const branchId = assignment?.branch_id || resolvedShift?.branch_id || currentUser.branch_id;
+                  const branch = branchId ? branchStore.getBranchById(branchId) : null;
                   
-                  if (!assignment) return (
+                  if (!resolvedShift) return (
                     <div className="py-6 text-center bg-slate-50/50 rounded-3xl border border-dashed border-slate-200">
-                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">No Shifts Logged</p>
-                       <p className="text-xs font-bold text-slate-300">Contact admin if this is unexpected</p>
+                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">ไม่มีการลงกะงาน</p>
+                       <p className="text-xs font-bold text-slate-300">โปรดติดต่อผู้ดูแลระบบหากข้อมูลไม่ถูกต้อง</p>
                     </div>
                   );
 
@@ -212,19 +230,21 @@ export default function EmployeeSchedulePage() {
                       <div className="flex items-center justify-between">
                          <div className="flex items-center gap-2">
                            <Clock className="w-4 h-4 text-primary-500" />
-                           <span className="text-sm font-black text-slate-900">{assignment.start_time} - {assignment.end_time}</span>
+                           <span className="text-sm font-black text-slate-900">{resolvedShift.start_time} - {resolvedShift.end_time}</span>
                          </div>
-                         <Badge variant={getShiftVariant(assignment.status)} className="font-black uppercase text-[9px] tracking-tight">
-                            {SHIFT_ASSIGNMENT_STATUS_LABELS[assignment.status]}
+                         <Badge variant={getShiftVariant(resolvedShift.status)} className="font-black uppercase text-[9px] tracking-tight">
+                            {SHIFT_ASSIGNMENT_STATUS_LABELS[resolvedShift.status]}
                          </Badge>
                       </div>
                       
                       <div className="pt-4 border-t border-slate-50 flex items-center justify-between">
                          <div className="flex items-center gap-2">
                             <Building2 className="w-4 h-4 text-slate-400" />
-                            <span className="text-[11px] font-bold text-slate-500">{branch?.name || 'Branch Terminal'}</span>
+                            <span className="text-[11px] font-bold text-slate-500">{branch?.name || 'สาขา/ศูนย์ปฏิบัติงาน'}</span>
                          </div>
-                         <button className="text-[10px] font-black text-primary-600 uppercase tracking-widest">Details</button>
+                         <span className="text-[10px] font-black text-primary-600 uppercase tracking-widest">
+                           {resolvedShift.source === 'assignment' ? 'มอบหมายโดยตรง' : 'ค่าเริ่มต้นสาขา'}
+                         </span>
                       </div>
                     </div>
                   );
@@ -237,8 +257,10 @@ export default function EmployeeSchedulePage() {
            {daysInMonthList.map((day) => {
              const dateStr = format(day, 'yyyy-MM-dd');
              const assignment = myAssignments.find((a) => a.work_date === dateStr);
+             const resolvedShift = getResolvedShift(dateStr);
              const isToday = isSameDay(day, new Date());
-             const branch = assignment?.branch_id ? branchStore.getBranchById(assignment.branch_id) : null;
+             const branchId = assignment?.branch_id || resolvedShift?.branch_id || currentUser.branch_id;
+             const branch = branchId ? branchStore.getBranchById(branchId) : null;
 
              return (
                <Card
@@ -257,24 +279,24 @@ export default function EmployeeSchedulePage() {
                    </div>
 
                    <div className="flex-1 p-5 min-w-0">
-                     {assignment ? (
+                     {resolvedShift ? (
                        <div className="h-full flex flex-col justify-between">
                          <div className="flex items-center justify-between gap-3">
                            <h3 className="text-sm font-black text-slate-900 truncate">
-                             {assignment.shift_name}
+                             {resolvedShift.shift_name}
                            </h3>
                            <Badge
-                             variant={getShiftVariant(assignment.status)}
+                             variant={getShiftVariant(resolvedShift.status)}
                              className="px-2 py-0.5 text-[9px] font-black uppercase tracking-tight"
                            >
-                             {SHIFT_ASSIGNMENT_STATUS_LABELS[assignment.status]}
+                             {SHIFT_ASSIGNMENT_STATUS_LABELS[resolvedShift.status]}
                            </Badge>
                          </div>
 
                          <div className="flex items-center justify-between text-slate-400">
                            <div className="flex items-center gap-1.5">
                              <Clock className="w-3.5 h-3.5 text-primary-400" />
-                             <span className="text-[11px] font-black text-slate-600">{assignment.start_time} - {assignment.end_time}</span>
+                             <span className="text-[11px] font-black text-slate-600">{resolvedShift.start_time} - {resolvedShift.end_time}</span>
                            </div>
                            {branch && (
                              <div className="flex items-center gap-1 text-[10px] font-bold">
@@ -285,8 +307,8 @@ export default function EmployeeSchedulePage() {
                        </div>
                      ) : (
                        <div className="h-full flex flex-col justify-center">
-                         <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1">Unassigned</p>
-                         <p className="text-[11px] font-bold text-slate-400">No shift currently logged</p>
+                         <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1">ยังไม่มอบหมาย</p>
+                         <p className="text-[11px] font-bold text-slate-400">ยังไม่มีข้อมูลกะการทำงาน</p>
                        </div>
                      )}
                    </div>

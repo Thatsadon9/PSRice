@@ -1,6 +1,8 @@
+import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
+import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
-import type { UserRole } from '@/lib/types';
+import type { User, UserRole } from '@/lib/types';
 
 interface CreateUserRequest {
   email: string;
@@ -11,9 +13,33 @@ interface CreateUserRequest {
   team_id?: string | null;
 }
 
-const supabaseAdmin = (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY)
-  ? createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+const supabaseAdmin = supabaseUrl && process.env.SUPABASE_SERVICE_ROLE_KEY
+  ? createClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY)
   : null;
+
+async function createRequestClient() {
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return null;
+  }
+
+  const cookieStore = await cookies();
+
+  return createServerClient(supabaseUrl, supabaseAnonKey, {
+    cookies: {
+      getAll() {
+        return cookieStore.getAll();
+      },
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value, options }) => {
+          cookieStore.set(name, value, options);
+        });
+      },
+    },
+  });
+}
 
 export async function POST(request: Request) {
   try {
@@ -21,49 +47,121 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Supabase admin client is not configured' }, { status: 500 });
     }
 
-    const { email, password, full_name, role, branch_id, team_id } = (await request.json()) as CreateUserRequest;
+    const requestClient = await createRequestClient();
 
-    if (!email || !password || !full_name) {
+    if (!requestClient) {
+      return NextResponse.json({ error: 'Supabase request client is not configured' }, { status: 500 });
+    }
+
+    const {
+      data: { user: sessionUser },
+      error: authError,
+    } = await requestClient.auth.getUser();
+
+    if (authError || !sessionUser) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { data: requester, error: requesterError } = await supabaseAdmin
+      .from('users')
+      .select('*')
+      .eq('id', sessionUser.id)
+      .single();
+
+    if (requesterError || !requester) {
+      return NextResponse.json({ error: 'Requester profile not found' }, { status: 403 });
+    }
+
+    const actingUser = requester as User;
+
+    if (actingUser.status !== 'active' || (actingUser.role !== 'admin' && actingUser.role !== 'manager')) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    }
+
+    const payload = (await request.json()) as CreateUserRequest;
+    const email = payload.email?.trim().toLowerCase();
+    const password = payload.password?.trim();
+    const fullName = payload.full_name?.trim();
+    const requestedRole = payload.role || 'employee';
+    const requestedBranchId = payload.branch_id?.trim() || null;
+    const teamId = payload.team_id?.trim() || '';
+
+    if (!email || !password || !fullName) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    // 1. Create the user in Supabase Auth
-    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+    if (password.length < 8) {
+      return NextResponse.json({ error: 'Password must be at least 8 characters long' }, { status: 400 });
+    }
+
+    if (actingUser.role === 'manager' && requestedRole !== 'employee') {
+      return NextResponse.json({ error: 'Managers can only create employee accounts' }, { status: 403 });
+    }
+
+    if (actingUser.role === 'manager' && !actingUser.branch_id) {
+      return NextResponse.json({ error: 'Manager account is missing a branch assignment' }, { status: 400 });
+    }
+
+    if (actingUser.role === 'manager' && requestedBranchId && requestedBranchId !== actingUser.branch_id) {
+      return NextResponse.json({ error: 'Managers can only create users in their own branch' }, { status: 403 });
+    }
+
+    const finalBranchId = actingUser.role === 'manager' ? actingUser.branch_id : requestedBranchId;
+
+    if (requestedRole !== 'admin' && !finalBranchId) {
+      return NextResponse.json({ error: 'Branch is required for manager and employee accounts' }, { status: 400 });
+    }
+
+    const { data: authData, error: createAuthError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
-      email_confirm: true, // Automatically confirm the email
-      user_metadata: { full_name }
+      email_confirm: true,
+      user_metadata: {
+        full_name: fullName,
+        team_id: teamId,
+      },
     });
 
-    if (authError) {
-      return NextResponse.json({ error: authError.message }, { status: 500 });
+    if (createAuthError || !authData.user) {
+      return NextResponse.json({ error: createAuthError?.message || 'Unable to create auth user' }, { status: 500 });
     }
 
-    // 2. The Trigger `on_auth_user_created` will automatically create the record in `public.users`.
-    // However, because we might want to set the branch_id and team_id immediately, 
-    // we should update that record now.
-    
-    const { error: updateError } = await supabaseAdmin
+    const { error: profileError } = await supabaseAdmin
       .from('users')
-      .update({
-        role: role || 'employee',
-        branch_id: branch_id || null,
-        team_id: team_id || '',
-        full_name: full_name // Ensure fullname is set correctly in case of meta data delays
-      })
-      .eq('id', authData.user.id);
+      .upsert(
+        {
+          id: authData.user.id,
+          email,
+          full_name: fullName,
+          phone: '',
+          role: requestedRole,
+          branch_id: finalBranchId,
+          team_id: teamId,
+          status: 'active',
+        },
+        { onConflict: 'id' },
+      );
 
-    if (updateError) {
-      return NextResponse.json({ 
-        error: `Account created but profile update failed: ${updateError.message}` 
-      }, { status: 500 });
+    if (profileError) {
+      await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
+      return NextResponse.json(
+        { error: `Account created but profile update failed: ${profileError.message}` },
+        { status: 500 },
+      );
     }
 
-    return NextResponse.json({ 
-      success: true, 
-      user: authData.user 
-    }, { status: 200 });
-
+    return NextResponse.json(
+      {
+        success: true,
+        user: {
+          id: authData.user.id,
+          email,
+          role: requestedRole,
+          branch_id: finalBranchId,
+        },
+      },
+      { status: 200 },
+    );
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : 'เกิดข้อผิดพลาดภายในระบบ';
     console.error('Create user error:', err);

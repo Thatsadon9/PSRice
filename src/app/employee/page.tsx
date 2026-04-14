@@ -18,7 +18,7 @@ import {
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
-import { APPROVAL_STATUS_LABELS, SHIFT_ASSIGNMENT_STATUS_LABELS } from '@/lib/constants';
+import { SHIFT_ASSIGNMENT_STATUS_LABELS } from '@/lib/constants';
 import { formatThaiDate, getCurrentDateStr } from '@/lib/dateUtils';
 import { resolveShiftForUserDate } from '@/lib/hr';
 import { useAuthStore } from '@/store/authStore';
@@ -26,19 +26,6 @@ import { useAttendanceStore } from '@/store/attendanceStore';
 import { useHrStore } from '@/store/hrStore';
 import { useNotificationStore } from '@/store/notificationStore';
 import { useTaskStore } from '@/store/taskStore';
-
-function getRequestVariant(status: 'pending' | 'approved' | 'rejected' | 'cancelled') {
-  switch (status) {
-    case 'approved':
-      return 'success' as const;
-    case 'rejected':
-      return 'danger' as const;
-    case 'pending':
-      return 'warning' as const;
-    default:
-      return 'default' as const;
-  }
-}
 
 function getShiftVariant(status: 'scheduled' | 'day_off' | 'leave' | 'holiday') {
   switch (status) {
@@ -87,8 +74,6 @@ export default function EmployeeDashboard() {
   
   const myTasks = tasks.filter((task) => task.assigned_to === currentUser.id);
   const activeTasks = myTasks.filter((task) => ['pending', 'in_progress', 'rejected', 'overdue'].includes(task.status));
-  const completedTasksCount = myTasks.filter((task) => task.status === 'approved').length;
-  
   const myRequests = employeeRequests.filter((request) => request.user_id === currentUser.id);
   const pendingRequestsCount = myRequests.filter((request) => request.status === 'pending').length;
   const unreadNotifications = notifications.filter((n) => n.user_id === currentUser.id && !n.is_read).length;
@@ -110,7 +95,7 @@ export default function EmployeeDashboard() {
         <div className="relative z-10 flex flex-col gap-6">
           <div className="flex justify-between items-start">
             <div className="space-y-1">
-              <p className="text-[10px] font-black text-primary-400 uppercase tracking-[0.2em] leading-none mb-1">Worker Center</p>
+              <p className="text-[10px] font-black text-primary-400 uppercase tracking-[0.2em] leading-none mb-1">ศุนย์ปฏิบัติงานพนักงาน</p>
               <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
                 สวัสดี, {currentUser.full_name?.split(' ')[0]} <span className="animate-bounce">👋</span>
               </h1>
@@ -132,7 +117,7 @@ export default function EmployeeDashboard() {
                 <div className="p-1.5 bg-primary-500/20 rounded-lg">
                   <CalendarDays className="w-4 h-4 text-primary-400" />
                 </div>
-                <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Shift Today</span>
+                <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">กะการทำงานวันนี้</span>
               </div>
               <Badge variant={getShiftVariant(todayShift.status)} className="bg-white/10 text-white border-none text-[9px] font-black px-2">
                 {SHIFT_ASSIGNMENT_STATUS_LABELS[todayShift.status]}
@@ -165,21 +150,21 @@ export default function EmployeeDashboard() {
                </div>
                <div>
                  <h2 className="font-black text-slate-900 leading-none">บันทึกเวลาทำงาน</h2>
-                 <p className="text-[10px] font-black text-slate-400 uppercase mt-1 tracking-widest leading-none">Attendance Live</p>
+                 <p className="text-[10px] font-black text-slate-400 uppercase mt-1 tracking-widest leading-none">สถานะการเข้างานล่าสุด</p>
                </div>
             </div>
             <Badge variant={attendanceStatus === 'not_checked_in' ? 'default' : 'success'} className="px-3 py-1 font-black uppercase text-[10px]">
-               {attendanceStatus === 'not_checked_in' ? 'Offline' : 'Online'}
+               {attendanceStatus === 'not_checked_in' ? 'ออฟไลน์' : 'ออนไลน์'}
             </Badge>
          </div>
 
          <div className="grid grid-cols-2 gap-4 mb-5">
             <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100 space-y-1">
-               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Time In</p>
+               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">เวลาเข้างาน</p>
                <p className="text-xl font-black text-slate-900">{todayAttendance.checkIn ? new Date(todayAttendance.checkIn.created_at).toLocaleTimeString('th-TH').slice(0, 5) : '--:--'}</p>
             </div>
             <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100 space-y-1">
-               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Time Out</p>
+               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">เวลาออกงาน</p>
                <p className="text-xl font-black text-slate-900">{todayAttendance.checkOut ? new Date(todayAttendance.checkOut.created_at).toLocaleTimeString('th-TH').slice(0, 5) : '--:--'}</p>
             </div>
          </div>
@@ -220,7 +205,7 @@ export default function EmployeeDashboard() {
       <div className="space-y-4">
          <div className="flex items-center justify-between px-1">
             <h2 className="text-lg font-black text-slate-900">งานประจำวัน</h2>
-            <Link href="/employee/tasks" className="text-[10px] font-black text-primary-600 bg-primary-50 px-3 py-1.5 rounded-full uppercase tracking-widest">All Tasks</Link>
+            <Link href="/employee/tasks" className="text-[10px] font-black text-primary-600 bg-primary-50 px-3 py-1.5 rounded-full uppercase tracking-widest">งานทั้งหมด</Link>
          </div>
 
          <div className="space-y-3">
@@ -246,7 +231,7 @@ export default function EmployeeDashboard() {
                           <div className="space-y-1">
                             <p className="text-sm font-black text-slate-900 group-hover:text-primary-600 transition-colors line-clamp-1">{task.title || tmpl?.title}</p>
                             <div className="flex items-center gap-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                               <span className="flex items-center gap-1.5"><Clock className="w-3 h-3" /> {tmpl?.priority === 'high' ? 'High' : 'Normal'}</span>
+                               <span className="flex items-center gap-1.5"><Clock className="w-3 h-3" /> {tmpl?.priority === 'high' ? 'สูง' : 'ปกติ'}</span>
                                <span className="flex items-center gap-1.5 text-red-500 tracking-tight">กำหนด {formatThaiDate(task.due_date)}</span>
                             </div>
                           </div>
@@ -267,7 +252,7 @@ export default function EmployeeDashboard() {
       <div className="space-y-4">
         <div className="flex items-center justify-between px-1">
           <h2 className="text-lg font-black text-slate-900">ตารางงานถัดไป</h2>
-          <Link href="/employee/schedule" className="text-[10px] font-black text-primary-600 bg-primary-50 px-3 py-1.5 rounded-full uppercase tracking-widest">View Schedule</Link>
+          <Link href="/employee/schedule" className="text-[10px] font-black text-primary-600 bg-primary-50 px-3 py-1.5 rounded-full uppercase tracking-widest">ดูตารางงานทั้งหมด</Link>
         </div>
         <div className="space-y-2">
           {upcomingSchedule.slice(1).map((item) => (
@@ -301,7 +286,7 @@ export default function EmployeeDashboard() {
             </div>
             <div>
               <p className="font-black text-slate-900 leading-none">ศูนย์ส่งคำขอ / เบิก / ลา</p>
-              <p className="text-[10px] font-black text-slate-400 uppercase mt-2 tracking-widest">HR & Finance Requests</p>
+              <p className="text-[10px] font-black text-slate-400 uppercase mt-2 tracking-widest">ส่งคำขอ HR & การเงิน</p>
             </div>
           </div>
           <ChevronRight className="w-5 h-5 text-slate-300" />

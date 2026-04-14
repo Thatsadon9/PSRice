@@ -10,7 +10,6 @@ import {
   CheckCircle2,
   ClipboardList,
   Clock,
-  MailOpen,
   MapPin,
 } from 'lucide-react';
 import Badge from '@/components/ui/Badge';
@@ -102,13 +101,13 @@ export default function NotificationCenter({
           </Link>
           <div className="space-y-0.5">
              <h1 className="text-xl font-black text-slate-900 leading-none">{title}</h1>
-             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mt-1">Inbox & Alerts</p>
+             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mt-1">กล่องข้อความและการแจ้งเตือน</p>
           </div>
         </div>
 
         {unreadCount > 0 && (
           <Button variant="none" size="sm" onClick={handleMarkAllRead} className="bg-primary-50 text-primary-700 font-black text-[10px] uppercase tracking-widest hover:bg-primary-100 px-4">
-            Mark all read
+            อ่านทั้งหมด
           </Button>
         )}
       </div>
@@ -116,7 +115,7 @@ export default function NotificationCenter({
       {unreadCount > 0 && (
         <div className="px-1">
           <Badge variant="info" className="font-black text-[10px] px-3 py-1">
-            You have {unreadCount} unread message{unreadCount > 1 ? 's' : ''}
+            คุณมีข้อความใหม่ {unreadCount} รายการ
           </Badge>
         </div>
       )}
@@ -153,14 +152,14 @@ export default function NotificationCenter({
             </div>
           </div>
           <div>
-            <p className="text-lg font-black text-slate-900">All caught up!</p>
-            <p className="text-xs text-slate-400 font-bold mt-1">Your inbox is clear. We&apos;ll notify you <br />when something new arrives.</p>
+            <p className="text-lg font-black text-slate-900">ไม่มีการแจ้งเตือนใหม่</p>
+            <p className="text-xs text-slate-400 font-bold mt-1">กล่องข้อความของคุณว่างเปล่า เราจะแจ้งให้คุณทราบ<br />เมื่อมีสถานะหรือข้อมูลใหม่ๆ เข้ามา</p>
           </div>
         </div>
       ) : (
         <div className="space-y-4">
           <div className="px-1 flex items-center justify-between">
-            <h2 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Recent Activity</h2>
+            <h2 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">กิจกรรมล่าสุด</h2>
           </div>
           <div className="space-y-3">
             {notifications.slice(0, 20).map((notification) => (
@@ -207,7 +206,7 @@ export default function NotificationCenter({
                       </div>
                       {notification.link && (
                         <span className="text-[10px] font-black text-primary-600 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">
-                          View Details
+                          ดูรายละเอียด
                         </span>
                       )}
                     </div>
@@ -218,7 +217,7 @@ export default function NotificationCenter({
           </div>
           
           {notifications.length > 5 && (
-            <p className="text-center text-[10px] font-black text-slate-300 uppercase tracking-widest pt-4">End of notifications</p>
+            <p className="text-center text-[10px] font-black text-slate-300 uppercase tracking-widest pt-4">สิ้นสุดการแจ้งเตือน</p>
           )}
         </div>
       )}

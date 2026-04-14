@@ -38,7 +38,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useBranchStore } from '@/store/branchStore';
 import { useEmployeeStore } from '@/store/employeeStore';
 import { useHrStore } from '@/store/hrStore';
-import { getContrastTextColor, isLightColor } from '@/lib/colorUtils';
+import { getContrastTextColor } from '@/lib/colorUtils';
 
 type SlotKey = 'morning' | 'late' | 'full';
 
@@ -226,15 +226,6 @@ function getSelectionDateStrings(selection: SelectionState) {
     start: parseISO(selection.startDate),
     end: parseISO(selection.endDate),
   }).map((date) => format(date, 'yyyy-MM-dd'));
-}
-
-function getRangeLabel(startDate: Date, endDate: Date) {
-  const sameMonth = format(startDate, 'yyyy-MM') === format(endDate, 'yyyy-MM');
-  if (sameMonth) {
-    return format(startDate, 'MMMM yyyy', { locale: th });
-  }
-
-  return `${format(startDate, 'd MMM', { locale: th })} - ${format(endDate, 'd MMM yyyy', { locale: th })}`;
 }
 
 function findTemplateForSlot(templates: ShiftTemplate[], slot: SlotDefinition) {
@@ -1155,9 +1146,8 @@ export default function ManagerSchedulePage() {
                 </div>
                 
                 <div className="space-y-4">
-                  {SLOT_DEFINITIONS.map((slot, index) => {
+                  {SLOT_DEFINITIONS.map((slot) => {
                     const slotDraft = getConfigSlotDraft(configBranch.id, slot.key);
-                    const palette = getPalette(index);
                     if (!slotDraft) return null;
 
                     return (

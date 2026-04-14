@@ -231,7 +231,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Note: For Phase 3, we expect the user to have accounts in auth.users
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
-        password: password || '12345678', // Default fallback for demo transition
+        password: password || '', 
       });
 
       if (error || !data.user) {

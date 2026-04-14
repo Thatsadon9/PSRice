@@ -11,14 +11,12 @@ import {
   Search,
   ShieldCheck,
   TimerReset,
-  UserRound,
   UserMinus,
   Zap,
 } from 'lucide-react';
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
-import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
 import { useAuthStore } from '@/store/authStore';
 import { useAttendanceStore } from '@/store/attendanceStore';
@@ -215,7 +213,7 @@ export default function AttendanceMonitoringPage() {
           </div>
           <div>
             <h1 className="text-2xl font-black text-slate-900 leading-none">ติดตามการเข้างาน</h1>
-            <p className="text-sm text-slate-500 mt-2">ตรวจสอบสถานะรายวัน สาย ขาด และโอทีแบบ Real-time</p>
+            <p className="text-sm text-slate-500 mt-2">ตรวจสอบสถานะรายวัน สาย ขาด และโอทีแบบเรียลไทม์</p>
           </div>
         </div>
         
@@ -478,9 +476,9 @@ export default function AttendanceMonitoringPage() {
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {[
-              { label: 'บันทึกการมาสาย', desc: 'เริ่มนับจากเวลาเริ่มกะ + Grace Time ที่กำหนดในนโยบายสาขา', icon: Clock3, color: 'amber' },
-              { label: 'การออกก่อนเวลา', desc: 'นับเมื่อพนักงานเช็คเอาท์ก่อนเวลาเลิกกะ - Early Out Grace', icon: Zap, color: 'orange' },
-              { label: 'การคิดโอที', desc: 'คำนวณจากเวลาหลังเลิกกะที่เกินกว่า Minimum OT ของสาขานั้นๆ', icon: ShieldCheck, color: 'emerald' },
+              { label: 'บันทึกการมาสาย', desc: 'เริ่มนับจากเวลาเริ่มกะ + ระยะผ่อนผัน (Grace Time) ที่กำหนดในนโยบายสาขา', icon: Clock3, color: 'amber' },
+              { label: 'การออกก่อนเวลา', desc: 'นับเมื่อพนักงานเช็คเอาท์ก่อนเวลาเลิกกะ - ระยะผ่อนผันการออกก่อน (Early Out Grace)', icon: Zap, color: 'orange' },
+              { label: 'การคิดโอที', desc: 'คำนวณจากเวลาหลังเลิกกะที่เกินกว่าเกณฑ์โอทีขั้นต่ำ (Minimum OT) ของสาขานั้นๆ', icon: ShieldCheck, color: 'emerald' },
             ].map((item) => (
               <div key={item.label} className="p-4 rounded-2xl bg-slate-50 border border-slate-100 group">
                 <div className={`p-2 rounded-lg w-fit mb-3 transition-colors 
