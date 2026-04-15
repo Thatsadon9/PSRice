@@ -36,6 +36,49 @@ export async function uploadFile(
   }
 }
 
+export async function uploadPrivateFile(
+  bucket: string,
+  path: string,
+  file: Blob | File
+): Promise<string | null> {
+  try {
+    const { data, error } = await supabase.storage
+      .from(bucket)
+      .upload(path, file, {
+        cacheControl: '3600',
+        upsert: true,
+      });
+
+    if (error) {
+      console.error('Upload error:', error.message);
+      return null;
+    }
+
+    return data.path;
+  } catch (err) {
+    console.error('Failed to upload private file:', err);
+    return null;
+  }
+}
+
+export async function createSignedFileUrl(bucket: string, path: string, expiresIn = 3600): Promise<string | null> {
+  try {
+    const { data, error } = await supabase.storage
+      .from(bucket)
+      .createSignedUrl(path, expiresIn);
+
+    if (error) {
+      console.error('Signed URL error:', error.message);
+      return null;
+    }
+
+    return data.signedUrl;
+  } catch (err) {
+    console.error('Failed to create signed URL:', err);
+    return null;
+  }
+}
+
 /**
  * Utility to convert dataURL/base64 to Blob
  */

@@ -42,6 +42,13 @@ CREATE TABLE users (
   team_id TEXT,
   status user_status NOT NULL DEFAULT 'active',
   avatar_url TEXT,
+  address TEXT,
+  citizen_id TEXT,
+  citizen_id_card_path TEXT,
+  bank_name TEXT,
+  bank_account_name TEXT,
+  bank_account_number TEXT,
+  bank_book_path TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

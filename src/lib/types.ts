@@ -48,6 +48,13 @@ export interface User {
   team_id: string;
   status: UserStatus;
   avatar_url?: string;
+  address?: string | null;
+  citizen_id?: string | null;
+  citizen_id_card_path?: string | null;
+  bank_name?: string | null;
+  bank_account_name?: string | null;
+  bank_account_number?: string | null;
+  bank_book_path?: string | null;
   created_at: string;
 }
 

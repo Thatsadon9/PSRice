@@ -65,6 +65,7 @@ export interface DailyAttendanceSummary {
 }
 
 export interface PayrollSummary {
+  user_id: string;
   start_date: string;
   end_date: string;
   scheduled_days: number;
@@ -82,6 +83,8 @@ export interface PayrollSummary {
   late_deduction: number;
   absence_deduction: number;
   leave_deduction: number;
+  manual_bonus: number;
+  manual_deduction: number;
   net_pay: number;
   daily_summaries: DailyAttendanceSummary[];
 }
@@ -420,18 +423,21 @@ export function buildPayrollSummary(params: {
   assignments: ShiftAssignment[];
   branchPolicies: BranchAttendancePolicy[];
   requests?: EmployeeRequest[];
-  compensationProfile?: CompensationProfile | null;
-}) {
-  const {
-    user,
-    startDate,
-    endDate,
-    records,
-    assignments,
-    branchPolicies,
-    requests = [],
-    compensationProfile,
-  } = params;
+    requests?: EmployeeRequest[];
+    compensationProfile?: CompensationProfile | null;
+    manualAdjustments?: { bonus: number; deduction: number };
+  }) {
+    const {
+      user,
+      startDate,
+      endDate,
+      records,
+      assignments,
+      branchPolicies,
+      requests = [],
+      compensationProfile,
+      manualAdjustments = { bonus: 0, deduction: 0 },
+    } = params;
 
   const days = eachDayOfInterval({
     start: createLocalDateTime(startDate, '00:00'),
@@ -471,15 +477,20 @@ export function buildPayrollSummary(params: {
     ? (totalWorkedMinutes / 60) * baseRate
     : payType === 'monthly'
       ? baseRate
-      : scheduledDays * baseRate;
+      : workedDays * baseRate;
 
   const otPay = (totalOtMinutes / 60) * otRate;
   const lateDeduction = totalLateMinutes * lateDeductionRate;
   const absenceDeduction = absentDays * absenceDeductionRate;
   const leaveDeduction = leaveDays * leaveDeductionRate;
-  const netPay = grossPay + otPay - lateDeduction - absenceDeduction - leaveDeduction;
+  
+  const manualBonus = toNumberValue(manualAdjustments.bonus, 0);
+  const manualDeduction = toNumberValue(manualAdjustments.deduction, 0);
+
+  const netPay = grossPay + otPay + manualBonus - lateDeduction - absenceDeduction - leaveDeduction - manualDeduction;
 
   return {
+    user_id: user.id,
     start_date: startDate,
     end_date: endDate,
     scheduled_days: scheduledDays,
@@ -497,6 +508,8 @@ export function buildPayrollSummary(params: {
     late_deduction: lateDeduction,
     absence_deduction: absenceDeduction,
     leave_deduction: leaveDeduction,
+    manual_bonus: manualBonus,
+    manual_deduction: manualDeduction,
     net_pay: netPay,
     daily_summaries: dailySummaries,
   } satisfies PayrollSummary;

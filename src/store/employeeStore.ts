@@ -5,7 +5,7 @@
 
 import { create } from 'zustand';
 import type { User } from '@/lib/types';
-import { supabase } from '@/lib/supabase';
+import { getAccessToken, supabase } from '@/lib/supabase';
 
 interface EmployeeState {
   users: User[];
@@ -100,9 +100,13 @@ export const useEmployeeStore = create<EmployeeState>((set, get) => ({
     try {
       // If we have a password, we call our custom API to create both Auth and Profile
       if (password) {
+        const accessToken = await getAccessToken();
         const response = await fetch('/api/admin/create-user', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+          },
           body: JSON.stringify({ ...user, password })
         });
 

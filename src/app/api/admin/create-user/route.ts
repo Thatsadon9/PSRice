@@ -1,8 +1,6 @@
-import { createServerClient } from '@supabase/ssr';
-import { createClient } from '@supabase/supabase-js';
-import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import type { User, UserRole } from '@/lib/types';
+import { getAuthenticatedRequestContext, supabaseAdmin } from '@/lib/serverAuth';
 
 interface CreateUserRequest {
   email: string;
@@ -13,66 +11,19 @@ interface CreateUserRequest {
   team_id?: string | null;
 }
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-const supabaseAdmin = supabaseUrl && process.env.SUPABASE_SERVICE_ROLE_KEY
-  ? createClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY)
-  : null;
-
-async function createRequestClient() {
-  if (!supabaseUrl || !supabaseAnonKey) {
-    return null;
-  }
-
-  const cookieStore = await cookies();
-
-  return createServerClient(supabaseUrl, supabaseAnonKey, {
-    cookies: {
-      getAll() {
-        return cookieStore.getAll();
-      },
-      setAll(cookiesToSet) {
-        cookiesToSet.forEach(({ name, value, options }) => {
-          cookieStore.set(name, value, options);
-        });
-      },
-    },
-  });
-}
-
 export async function POST(request: Request) {
   try {
     if (!supabaseAdmin) {
       return NextResponse.json({ error: 'Supabase admin client is not configured' }, { status: 500 });
     }
 
-    const requestClient = await createRequestClient();
+    const requestContext = await getAuthenticatedRequestContext(request);
 
-    if (!requestClient) {
-      return NextResponse.json({ error: 'Supabase request client is not configured' }, { status: 500 });
-    }
-
-    const {
-      data: { user: sessionUser },
-      error: authError,
-    } = await requestClient.auth.getUser();
-
-    if (authError || !sessionUser) {
+    if (!requestContext) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data: requester, error: requesterError } = await supabaseAdmin
-      .from('users')
-      .select('*')
-      .eq('id', sessionUser.id)
-      .single();
-
-    if (requesterError || !requester) {
-      return NextResponse.json({ error: 'Requester profile not found' }, { status: 403 });
-    }
-
-    const actingUser = requester as User;
+    const actingUser = requestContext.profile as User;
 
     if (actingUser.status !== 'active' || (actingUser.role !== 'admin' && actingUser.role !== 'manager')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
