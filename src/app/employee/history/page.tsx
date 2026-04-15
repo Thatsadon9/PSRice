@@ -131,9 +131,11 @@ export default function HistoryPage() {
         {tabs.map(tab => (
           <button
             key={tab.id}
+            type="button"
             onClick={() => setManualActiveTab(tab.id as HistoryTab)}
             className={`
-              flex-1 py-3.5 px-2 rounded-[1.75rem] text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all
+              flex flex-1 items-center justify-center gap-2 rounded-[1.75rem] px-2 py-3.5 text-[10px] font-black uppercase tracking-widest transition-all
+              min-h-12 touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2
               ${activeTab === tab.id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}
             `}
           >

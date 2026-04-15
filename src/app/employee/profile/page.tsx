@@ -7,6 +7,7 @@ import {
   Building2,
   CalendarDays,
   Camera,
+  ChevronRight,
   ExternalLink,
   FileText,
   Landmark,
@@ -19,8 +20,7 @@ import {
   Upload,
   UserCircle,
   UserCog,
-  Edit3,
-  ChevronRight,
+  type LucideIcon,
 } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -65,7 +65,7 @@ function InfoRow({
 }: {
   label: string;
   value: string | null | undefined;
-  icon?: any;
+  icon?: LucideIcon;
 }) {
   return (
     <div className="flex flex-col gap-1 py-1">
@@ -407,6 +407,32 @@ export default function ProfilePage() {
             onChange={handleAvatarUpload}
             disabled={uploadingTarget === 'avatar'}
           />
+          <input
+            ref={citizenCardInputRef}
+            type="file"
+            accept="image/*,application/pdf"
+            className="hidden"
+            onChange={(event) => void handlePrivateDocumentUpload(
+              event,
+              'citizen_id_card_path',
+              'citizen-card',
+              'อัปโหลดบัตรประชาชนเรียบร้อย',
+            )}
+            disabled={uploadingTarget === 'citizen_id_card_path'}
+          />
+          <input
+            ref={bankBookInputRef}
+            type="file"
+            accept="image/*,application/pdf"
+            className="hidden"
+            onChange={(event) => void handlePrivateDocumentUpload(
+              event,
+              'bank_book_path',
+              'bank-book',
+              'อัปโหลดสมุดบัญชีธนาคารเรียบร้อย',
+            )}
+            disabled={uploadingTarget === 'bank_book_path'}
+          />
           <div>
             <h2 className="text-lg font-semibold text-slate-900">{displayName}</h2>
             <p className="text-sm text-slate-500">{ROLE_LABELS[currentUser.role]}</p>
@@ -523,7 +549,14 @@ export default function ProfilePage() {
                   <p className="text-sm font-semibold text-slate-900">{currentUser.citizen_id_card_path ? 'อัปโหลดแล้ว' : 'ยังไม่ได้อัปโหลด'}</p>
                </div>
                {currentUser.citizen_id_card_path && (
-                  <Button variant="ghost" size="sm" onClick={() => handleOpenDocument('citizen_id_card_path')}>เปิดดู</Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleOpenDocument('citizen_id_card_path')}
+                    disabled={openingDocument === 'citizen_id_card_path'}
+                  >
+                    เปิดดู
+                  </Button>
                )}
             </div>
             <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
@@ -532,7 +565,14 @@ export default function ProfilePage() {
                   <p className="text-sm font-semibold text-slate-900">{currentUser.bank_book_path ? 'อัปโหลดแล้ว' : 'ยังไม่ได้อัปโหลด'}</p>
                </div>
                {currentUser.bank_book_path && (
-                  <Button variant="ghost" size="sm" onClick={() => handleOpenDocument('bank_book_path')}>เปิดดู</Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleOpenDocument('bank_book_path')}
+                    disabled={openingDocument === 'bank_book_path'}
+                  >
+                    เปิดดู
+                  </Button>
                )}
             </div>
           </div>
@@ -827,6 +867,7 @@ export default function ProfilePage() {
                     variant="secondary"
                     onClick={() => handleOpenDocument('citizen_id_card_path')}
                     icon={<ExternalLink className="h-4 w-4" />}
+                    disabled={openingDocument === 'citizen_id_card_path'}
                   >
                     <span className="sr-only">เปิดดูบัตรประชาชน</span>
                   </Button>
@@ -856,6 +897,7 @@ export default function ProfilePage() {
                     variant="secondary"
                     onClick={() => handleOpenDocument('bank_book_path')}
                     icon={<ExternalLink className="h-4 w-4" />}
+                    disabled={openingDocument === 'bank_book_path'}
                   >
                     <span className="sr-only">เปิดดูสมุดบัญชีธนาคาร</span>
                   </Button>

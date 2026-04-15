@@ -187,9 +187,12 @@ export default function CheckInPage() {
 
   useEffect(() => {
     if (step === 'camera') {
-      void startCamera();
+      const timer = window.setTimeout(() => {
+        void startCamera();
+      }, 0);
 
       return () => {
+        window.clearTimeout(timer);
         stopCameraStream();
       };
     }

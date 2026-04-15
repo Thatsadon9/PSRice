@@ -1,5 +1,7 @@
-import type { Metadata, Viewport } from "next";
-import "./globals.css";
+import type { Metadata, Viewport } from 'next';
+import './globals.css';
+import AuthProvider from '@/components/providers/AuthProvider';
+import { ibmPlexSansThai, inter } from './fonts';
 
 export const metadata: Metadata = {
   title: "PS Rice — ระบบจัดการงานพนักงาน",
@@ -8,15 +10,11 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#064e3b",
-  width: "device-width",
+  themeColor: '#064e3b',
+  width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
-  viewportFit: "cover",
+  viewportFit: 'cover',
 };
-
-import AuthProvider from "@/components/providers/AuthProvider";
 
 export default function RootLayout({
   children,
@@ -24,7 +22,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="th">
+    <html lang="th" className={`${ibmPlexSansThai.variable} ${inter.variable}`}>
       <body className="min-h-dvh bg-slate-50 text-slate-900 antialiased">
         <AuthProvider>
           {children}

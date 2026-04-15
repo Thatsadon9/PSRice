@@ -135,14 +135,22 @@ export default function ManagerReviewPage() {
           <button
             type="button"
             onClick={() => setActiveTab('pending')}
-            className={`px-3 py-1.5 text-xs font-bold rounded ${activeTab === 'pending' ? 'bg-white text-primary-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            className={`
+              inline-flex min-h-10 items-center justify-center rounded-lg px-3 py-1.5 text-xs font-bold
+              touch-manipulation transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2
+              ${activeTab === 'pending' ? 'bg-white text-primary-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}
+            `}
           >
             รอดำเนินการ ({pendingSubmissions.length})
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('reviewed')}
-            className={`px-3 py-1.5 text-xs font-bold rounded ${activeTab === 'reviewed' ? 'bg-white text-primary-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            className={`
+              inline-flex min-h-10 items-center justify-center rounded-lg px-3 py-1.5 text-xs font-bold
+              touch-manipulation transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2
+              ${activeTab === 'reviewed' ? 'bg-white text-primary-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}
+            `}
           >
             ตรวจแล้ว ({reviewedSubmissions.length})
           </button>
@@ -259,6 +267,7 @@ export default function ManagerReviewPage() {
                     file_url: file.file_url,
                     file_type: file.file_type,
                   }))}
+                  allowDownload
                 />
               </div>
 

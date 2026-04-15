@@ -96,7 +96,7 @@ export default function NotificationCenter({
     <div className="space-y-6 animate-fade-in px-4 py-8 pb-24 max-w-lg mx-auto">
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <Link href={backHref} className="p-2.5 bg-white rounded-2xl shadow-sm border border-slate-100 hover:bg-slate-50 transition-all active:scale-95">
+          <Link href={backHref} className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-100 bg-white shadow-sm transition-all hover:bg-slate-50 active:scale-95">
             <ArrowLeft className="w-5 h-5 text-slate-600" />
           </Link>
           <div className="space-y-0.5">
@@ -168,7 +168,8 @@ export default function NotificationCenter({
                 type="button"
                 onClick={() => void handleNotificationClick(notification)}
                 className={`
-                  w-full p-4 rounded-[2rem] border text-left transition-all cursor-pointer relative overflow-hidden group
+                  group relative w-full overflow-hidden rounded-[2rem] border p-4 text-left transition-all cursor-pointer
+                  touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2
                   ${notification.is_read
                     ? 'bg-white border-slate-100 hover:border-slate-200'
                     : 'bg-white border-primary-200 shadow-xl shadow-primary-900/5 ring-1 ring-primary-50'

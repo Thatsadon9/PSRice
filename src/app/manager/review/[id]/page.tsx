@@ -158,6 +158,7 @@ export default function ReviewDetailPage({ params }: { params: Promise<{ id: str
                   file_url: file.file_url,
                   file_type: file.file_type,
                 }))}
+                allowDownload
               />
             </div>
 

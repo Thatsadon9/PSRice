@@ -36,22 +36,35 @@ export default function Card({
   padding = 'md',
   id,
 }: CardProps) {
-  const Component = onClick ? 'button' : 'div';
+  const sharedClassName = `
+    bg-white rounded-xl border border-slate-200
+    ${statusColor ? `border-l-4 ${statusBorderColors[statusColor]}` : ''}
+    ${paddingClasses[padding]}
+    ${interactive || onClick ? 'card-hover cursor-pointer' : ''}
+    ${className}
+  `;
+
+  if (onClick) {
+    return (
+      <button
+        id={id}
+        type="button"
+        onClick={onClick}
+        className={`
+          ${sharedClassName}
+          w-full text-left touch-manipulation
+          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2
+        `}
+      >
+        {children}
+      </button>
+    );
+  }
+
   return (
-    <Component
-      id={id}
-      onClick={onClick}
-      className={`
-        bg-white rounded-xl border border-slate-200
-        ${statusColor ? `border-l-4 ${statusBorderColors[statusColor]}` : ''}
-        ${paddingClasses[padding]}
-        ${interactive || onClick ? 'card-hover cursor-pointer' : ''}
-        ${onClick ? 'w-full text-left' : ''}
-        ${className}
-      `}
-    >
+    <div id={id} className={sharedClassName}>
       {children}
-    </Component>
+    </div>
   );
 }
 

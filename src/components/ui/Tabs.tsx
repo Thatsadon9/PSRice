@@ -30,10 +30,12 @@ export default function Tabs({
         {tabs.map(tab => (
           <button
             key={tab.id}
+            type="button"
             onClick={() => onChange(tab.id)}
             className={`
-              flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium
-              whitespace-nowrap transition-all duration-150
+              inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium
+              whitespace-nowrap touch-manipulation transition-all duration-150
+              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2
               ${activeTab === tab.id
                 ? 'bg-primary-800 text-white shadow-sm'
                 : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
@@ -61,11 +63,13 @@ export default function Tabs({
       {tabs.map(tab => (
         <button
           key={tab.id}
+          type="button"
           onClick={() => onChange(tab.id)}
           className={`
-            flex items-center gap-1.5 px-4 py-3 text-sm font-medium
-            whitespace-nowrap transition-all duration-150
+            inline-flex min-h-11 shrink-0 items-center gap-1.5 px-4 py-3 text-sm font-medium
+            whitespace-nowrap touch-manipulation transition-all duration-150
             border-b-2 -mb-px
+            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2
             ${activeTab === tab.id
               ? 'border-primary-800 text-primary-800'
               : 'border-transparent text-slate-500 hover:text-slate-700'

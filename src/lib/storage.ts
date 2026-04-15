@@ -79,6 +79,47 @@ export async function createSignedFileUrl(bucket: string, path: string, expiresI
   }
 }
 
+function getDownloadFilename(fileUrl: string, fallback = 'attachment') {
+  try {
+    const url = new URL(fileUrl);
+    const segment = url.pathname.split('/').filter(Boolean).pop();
+
+    if (!segment) {
+      return fallback;
+    }
+
+    return decodeURIComponent(segment);
+  } catch {
+    return fallback;
+  }
+}
+
+function triggerBlobDownload(blob: Blob, filename: string) {
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+
+  link.href = objectUrl;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+
+  URL.revokeObjectURL(objectUrl);
+}
+
+export async function downloadFileFromUrl(fileUrl: string, preferredFilename?: string): Promise<void> {
+  const response = await fetch(fileUrl);
+
+  if (!response.ok) {
+    throw new Error(`Download failed with status ${response.status}`);
+  }
+
+  const blob = await response.blob();
+  const filename = preferredFilename?.trim() || getDownloadFilename(fileUrl);
+
+  triggerBlobDownload(blob, filename);
+}
+
 /**
  * Utility to convert dataURL/base64 to Blob
  */

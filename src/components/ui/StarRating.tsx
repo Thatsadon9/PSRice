@@ -43,7 +43,8 @@ export default function StarRating({
           onClick={() => onChange?.(0)}
           disabled={disabled}
           className={`
-            rounded-full border px-2 py-0.5 text-[11px] font-bold transition-colors
+            inline-flex min-h-9 items-center justify-center rounded-full border px-2.5 py-1 text-[11px] font-bold transition-colors
+            touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2
             ${rating === 0 ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}
             ${disabled ? 'cursor-not-allowed opacity-50' : ''}
           `}
@@ -72,7 +73,11 @@ export default function StarRating({
               type="button"
               onClick={() => onChange?.(starValue)}
               disabled={disabled}
-              className={`transition-transform ${disabled ? 'cursor-not-allowed opacity-50' : 'hover:scale-110'}`}
+              className={`
+                inline-flex h-9 w-9 items-center justify-center rounded-xl transition-transform
+                touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2
+                ${disabled ? 'cursor-not-allowed opacity-50' : 'hover:scale-110'}
+              `}
               aria-label={`ให้คะแนน ${starValue} ดาว`}
             >
               <Star className={`${sizeClasses[size]} ${isActive ? 'fill-amber-400 text-amber-400' : 'text-slate-300'}`} />

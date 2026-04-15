@@ -35,27 +35,29 @@ export default function Header({ onMenuClick, showMenu = false }: HeaderProps) {
 
   return (
     <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-sm border-b border-slate-200 safe-top no-print">
-      <div className="flex items-center justify-between px-4 py-3 max-w-5xl mx-auto">
-        <div className="flex items-center gap-3">
+      <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
+        <div className="flex min-w-0 items-center gap-3">
           {showMenu && (
             <button
+              type="button"
               onClick={onMenuClick}
-              className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-600 lg:hidden"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-slate-600 transition-colors hover:bg-slate-100 lg:hidden"
+              aria-label="Open menu"
             >
               <Menu className="w-5 h-5" />
             </button>
           )}
           
           {/* PS Logo Branding */}
-          <Link href={homeHref} className="flex items-center gap-2 mr-1">
+          <Link href={homeHref} className="mr-1 flex min-w-0 items-center gap-2">
             <Image src="/icons/PS.png" alt="PS Rice" width={32} height={32} loading="eager" className="w-8 h-8 rounded-lg object-cover shadow-sm" />
-            <span className="font-black tracking-tight text-slate-800 hidden sm:block">PS Rice Wholesale</span>
+            <span className="hidden truncate font-black tracking-tight text-slate-800 sm:block">PS Rice Wholesale</span>
           </Link>
           
           <div className="hidden md:block border-l border-slate-200 h-6 mx-2"></div>
 
-          <div className="hidden sm:block">
-            <h2 className="text-sm font-semibold text-slate-900 leading-tight">
+          <div className="hidden min-w-0 sm:block">
+            <h2 className="truncate text-sm font-semibold text-slate-900 leading-tight">
               {currentUser.full_name}
             </h2>
             <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
@@ -64,26 +66,29 @@ export default function Header({ onMenuClick, showMenu = false }: HeaderProps) {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <Link 
             href={notificationsHref} 
-            className="relative p-2 rounded-lg hover:bg-slate-100 text-slate-600 transition-colors"
+            className="relative inline-flex h-11 w-11 items-center justify-center rounded-xl text-slate-600 transition-colors hover:bg-slate-100"
+            aria-label="Notifications"
           >
             <Bell className="w-5 h-5" />
             {unreadCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 w-4.5 h-4.5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+              <span className="absolute -right-1 -top-1 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
                 {unreadCount > 9 ? '9+' : unreadCount}
               </span>
             )}
           </Link>
 
           <button
+            type="button"
             onClick={async () => {
               const { logout } = useAuthStore.getState();
               await logout();
               window.location.href = '/login';
             }}
-            className="p-2 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-600 transition-all flex items-center gap-2"
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-3 text-slate-400 transition-all hover:bg-red-50 hover:text-red-600"
+            aria-label="Logout"
             title="ออกจากระบบ"
           >
             <LogOut className="w-5 h-5" />

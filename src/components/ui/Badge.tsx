@@ -29,8 +29,8 @@ const dotColors = {
 };
 
 const sizeClasses = {
-  sm: 'px-2 py-0.5 text-xs',
-  md: 'px-2.5 py-1 text-xs',
+  sm: 'min-h-6 px-2 py-0.5 text-xs',
+  md: 'min-h-7 px-2.5 py-1 text-xs',
 };
 
 export default function Badge({
@@ -43,7 +43,7 @@ export default function Badge({
   return (
     <span
       className={`
-        inline-flex items-center gap-1.5 font-medium rounded-full
+        inline-flex shrink-0 items-center gap-1.5 rounded-full font-medium leading-none whitespace-nowrap
         ${variantClasses[variant]}
         ${sizeClasses[size]}
         ${className}

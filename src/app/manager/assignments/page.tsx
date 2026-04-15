@@ -15,7 +15,7 @@ import Select from '@/components/ui/Select';
 import { 
   CalendarCheck, Plus, Calendar,
   Building2, ClipboardList, CheckCircle2,
-  User, AlertTriangle, Send, Camera, Zap, Clock, Users, TrendingUp
+  User, AlertTriangle, Send, Camera, Zap, Clock, Users
 } from 'lucide-react';
 import { formatThaiDate, getCurrentDateStr, isSameCalendarDate } from '@/lib/dateUtils';
 import type { Priority, ProofType, Task } from '@/lib/types';

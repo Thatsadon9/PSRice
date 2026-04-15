@@ -13,8 +13,7 @@ import { useEmployeeStore } from '@/store/employeeStore';
 import { useHrStore } from '@/store/hrStore';
 import { ATTENDANCE_STATUS_LABELS, COMPENSATION_TYPE_LABELS } from '@/lib/constants';
 import { format } from 'date-fns';
-import { th } from 'date-fns/locale';
-import { exportToCSV, exportToExcel } from '@/lib/export';
+import { exportToCSV } from '@/lib/export';
 import { buildPayrollSummary, formatMinutesAsHours, getMonthDateRange, toNumberValue } from '@/lib/hr';
 import type { CompensationProfile } from '@/lib/types';
 import { AlertTriangle, Calculator, ReceiptText, Save, WalletCards, DollarSign, TrendingUp, ArrowRight, Zap, Users, Search, Download, ChevronRight, PlusCircle, MinusCircle } from 'lucide-react';
@@ -42,14 +41,6 @@ function createDefaultForm(): CompensationFormState {
     absence_deduction_rate: 0,
     leave_deduction_rate: 0,
   };
-}
-
-function formatTime(dateStr: string) {
-  return new Date(dateStr).toLocaleTimeString('th-TH', { 
-    hour: '2-digit', 
-    minute: '2-digit',
-    hour12: false 
-  });
 }
 
 function formatCurrency(value: number) {
@@ -111,6 +102,15 @@ export default function PayrollPage() {
       const profile = getCompensationProfile(employee.id);
       const adj = manualAdjustments[employee.id] || { bonus: 0, deduction: 0 };
       const currentForm = activeEmployeeId === employee.id ? formDrafts[employee.id] : null;
+      const previewProfile: CompensationProfile | null = currentForm
+        ? {
+            user_id: employee.id,
+            ...currentForm,
+            id: 'preview',
+            created_at: '',
+            updated_at: '',
+          }
+        : null;
 
       return buildPayrollSummary({
         user: employee,
@@ -135,13 +135,7 @@ export default function PayrollPage() {
               absence_deduction_rate: currentForm?.absence_deduction_rate ?? profile.absence_deduction_rate,
               leave_deduction_rate: currentForm?.leave_deduction_rate ?? profile.leave_deduction_rate,
             }
-          : currentForm ? {
-             user_id: employee.id,
-             ...currentForm,
-             id: 'preview',
-             created_at: '',
-             updated_at: ''
-          } as any : null,
+          : previewProfile,
         manualAdjustments: adj,
       });
     });
@@ -257,14 +251,24 @@ export default function PayrollPage() {
           <div className="flex items-center gap-2 px-4 border-r border-slate-100 mr-2">
              <div className="flex bg-slate-100 p-1 rounded-full">
                 <button 
+                  type="button"
                   onClick={() => setViewMode('overview')}
-                  className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase transition-all ${viewMode === 'overview' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                  className={`
+                    inline-flex min-h-10 items-center justify-center rounded-full px-4 py-1.5 text-[10px] font-black uppercase transition-all
+                    touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2
+                    ${viewMode === 'overview' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}
+                  `}
                 >
                   <Users className="w-3.5 h-3.5 inline mr-1.5" /> ภาพรวมสาขา
                 </button>
                 <button 
+                  type="button"
                   onClick={() => setViewMode('detail')}
-                  className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase transition-all ${viewMode === 'detail' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                  className={`
+                    inline-flex min-h-10 items-center justify-center rounded-full px-4 py-1.5 text-[10px] font-black uppercase transition-all
+                    touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2
+                    ${viewMode === 'detail' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}
+                  `}
                 >
                   <Search className="w-3.5 h-3.5 inline mr-1.5" /> รายบุคคล
                 </button>

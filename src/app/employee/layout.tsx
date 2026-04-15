@@ -37,6 +37,12 @@ export default function EmployeeLayout({ children }: { children: React.ReactNode
       router.replace('/login');
       return;
     }
+
+    if (currentUser && currentUser.role !== 'employee') {
+      router.replace('/manager');
+      return;
+    }
+
     let isActive = true;
     const hydrate = async () => {
       setDataLoaded(false);
@@ -58,7 +64,7 @@ export default function EmployeeLayout({ children }: { children: React.ReactNode
     return () => {
       isActive = false;
     };
-  }, [isAuthenticated, router, fetchBranches, fetchEmployees, fetchTasks, fetchAttendance, fetchHrData, fetchNotifications, currentUser?.id]);
+  }, [currentUser, isAuthenticated, router, fetchBranches, fetchEmployees, fetchTasks, fetchAttendance, fetchHrData, fetchNotifications, currentUser?.id]);
 
   useEffect(() => {
     if (isAuthenticated && currentUser?.id && dataLoaded) {

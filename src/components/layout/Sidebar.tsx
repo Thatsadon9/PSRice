@@ -67,19 +67,21 @@ export default function Sidebar({ items, isOpen, onClose }: SidebarProps) {
         `}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-          <div className="flex items-center gap-2.5">
+        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+          <div className="flex min-w-0 items-center gap-2.5">
             <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center overflow-hidden border border-slate-200 shrink-0">
               <Image src="/icons/PS.png" alt="PS Rice Logo" width={40} height={40} loading="eager" className="w-full h-full object-cover" />
             </div>
-            <div>
-              <h1 className="text-sm font-bold text-slate-900">PS Rice Wholesale</h1>
+            <div className="min-w-0">
+              <h1 className="truncate text-sm font-bold text-slate-900">PS Rice Wholesale</h1>
               <p className="text-[10px] text-slate-500">ระบบจัดการงาน</p>
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 lg:hidden"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-slate-100 lg:hidden"
+            aria-label="Close menu"
           >
             <X className="w-5 h-5" />
           </button>
@@ -100,7 +102,7 @@ export default function Sidebar({ items, isOpen, onClose }: SidebarProps) {
                   href={item.href}
                   onClick={onClose}
                   className={`
-                    flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
+                    flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium touch-manipulation
                     transition-all duration-150
                     ${isActive
                       ? 'bg-primary-50 text-primary-800'
@@ -129,8 +131,9 @@ export default function Sidebar({ items, isOpen, onClose }: SidebarProps) {
         {/* Footer */}
         <div className="px-3 py-3 border-t border-slate-100 flex flex-col gap-3">
           <button 
+            type="button"
             onClick={handleLogout}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 transition-all duration-150"
+            className="flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-red-600 transition-all duration-150 hover:bg-red-50"
           >
             <LogOut className="w-[18px] h-[18px] flex-shrink-0" />
             ออกจากระบบ
