@@ -423,21 +423,20 @@ export function buildPayrollSummary(params: {
   assignments: ShiftAssignment[];
   branchPolicies: BranchAttendancePolicy[];
   requests?: EmployeeRequest[];
-    requests?: EmployeeRequest[];
-    compensationProfile?: CompensationProfile | null;
-    manualAdjustments?: { bonus: number; deduction: number };
-  }) {
-    const {
-      user,
-      startDate,
-      endDate,
-      records,
-      assignments,
-      branchPolicies,
-      requests = [],
-      compensationProfile,
-      manualAdjustments = { bonus: 0, deduction: 0 },
-    } = params;
+  compensationProfile?: CompensationProfile | null;
+  manualAdjustments?: { bonus: number; deduction: number };
+}) {
+  const {
+    user,
+    startDate,
+    endDate,
+    records,
+    assignments,
+    branchPolicies,
+    requests = [],
+    compensationProfile,
+    manualAdjustments = { bonus: 0, deduction: 0 },
+  } = params;
 
   const days = eachDayOfInterval({
     start: createLocalDateTime(startDate, '00:00'),

@@ -58,7 +58,15 @@ type UploadTarget = 'avatar' | 'citizen_id_card_path' | 'bank_book_path';
 type DocumentTarget = 'citizen_id_card_path' | 'bank_book_path';
 type EditTarget = 'personal' | 'bank' | 'documents' | 'password';
 
-function InfoRow({ label, value, icon: Icon }: { label: string; value: string; icon?: any }) {
+function InfoRow({
+  label,
+  value,
+  icon: Icon,
+}: {
+  label: string;
+  value: string | null | undefined;
+  icon?: any;
+}) {
   return (
     <div className="flex flex-col gap-1 py-1">
       <div className="flex items-center gap-2">
@@ -815,7 +823,13 @@ export default function ProfilePage() {
                   {uploadingTarget === 'citizen_id_card_path' ? 'กำลังอัปโหลด...' : 'อัปเดตไฟล์'}
                 </Button>
                 {form.citizen_id_card_path && (
-                  <Button variant="secondary" onClick={() => handleOpenDocument('citizen_id_card_path')} icon={<ExternalLink className="h-4 w-4" />} />
+                  <Button
+                    variant="secondary"
+                    onClick={() => handleOpenDocument('citizen_id_card_path')}
+                    icon={<ExternalLink className="h-4 w-4" />}
+                  >
+                    <span className="sr-only">เปิดดูบัตรประชาชน</span>
+                  </Button>
                 )}
               </div>
             </div>
@@ -838,7 +852,13 @@ export default function ProfilePage() {
                   {uploadingTarget === 'bank_book_path' ? 'กำลังอัปโหลด...' : 'อัปเดตไฟล์'}
                 </Button>
                 {form.bank_book_path && (
-                  <Button variant="secondary" onClick={() => handleOpenDocument('bank_book_path')} icon={<ExternalLink className="h-4 w-4" />} />
+                  <Button
+                    variant="secondary"
+                    onClick={() => handleOpenDocument('bank_book_path')}
+                    icon={<ExternalLink className="h-4 w-4" />}
+                  >
+                    <span className="sr-only">เปิดดูสมุดบัญชีธนาคาร</span>
+                  </Button>
                 )}
               </div>
             </div>

@@ -68,6 +68,7 @@ export default function PayrollPage() {
   const {
     branchPolicies,
     employeeRequests,
+    fetchInitialData,
     getCompensationProfile,
     schemaMessage,
     schemaReady,
@@ -276,7 +277,7 @@ export default function PayrollPage() {
             onClick={() => {
               // Implementation of recalculate - essentially just triggering a re-render/re-compute
               attendanceStore.fetchRecords();
-              hrStore.fetchInitialData();
+              void fetchInitialData();
             }}
           >
              <Calculator className="w-3.5 h-3.5 mr-2" /> คำนวณใหม่
