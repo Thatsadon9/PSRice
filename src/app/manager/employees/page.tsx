@@ -10,7 +10,7 @@ import Badge from '@/components/ui/Badge';
 import Modal from '@/components/ui/Modal';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
-import { UserPlus, Search, Edit2, Building2, Mail, Shield, User } from 'lucide-react';
+import { UserPlus, Search, Edit2, Trash2, Building2, Mail, Shield, User, AlertCircle } from 'lucide-react';
 import { ROLE_LABELS } from '@/lib/constants';
 import type { User as UserType, UserRole } from '@/lib/types';
 
@@ -38,6 +38,7 @@ export default function EmployeeManagementPage() {
   const users = useEmployeeStore((state) => state.users);
   const addUser = useEmployeeStore((state) => state.addUser);
   const updateUser = useEmployeeStore((state) => state.updateUser);
+  const deleteUser = useEmployeeStore((state) => state.deleteUser);
   const isLoading = useEmployeeStore((state) => state.isLoading);
   const branches = useBranchStore((state) => state.branches);
   const getBranchById = useBranchStore((state) => state.getBranchById);
@@ -46,6 +47,7 @@ export default function EmployeeManagementPage() {
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserType | null>(null);
+  const [userToDelete, setUserToDelete] = useState<UserType | null>(null);
   const [formError, setFormError] = useState('');
 
   const isAdmin = currentUser?.role === 'admin';
@@ -190,6 +192,17 @@ export default function EmployeeManagementPage() {
     handleCloseModal();
   };
 
+  const handleDeleteConfirm = async () => {
+    if (!userToDelete) return;
+
+    const success = await deleteUser(userToDelete.id);
+    if (success) {
+      setUserToDelete(null);
+    } else {
+      setFormError('ลบพนักงานไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
+    }
+  };
+
   if (!currentUser) {
     return null;
   }
@@ -284,15 +297,27 @@ export default function EmployeeManagementPage() {
                       </td>
                       <td className="px-6 py-4 text-right">
                         {canManage ? (
-                          <button
-                            onClick={() => handleOpenModal(employee)}
-                            className="p-1.5 text-slate-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
-                            aria-label={`Edit ${employee.full_name}`}
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={() => handleOpenModal(employee)}
+                              className="p-1.5 text-slate-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+                              title={`แก้ไขข้อมูล ${employee.full_name}`}
+                              aria-label={`Edit ${employee.full_name}`}
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => setUserToDelete(employee)}
+                              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                              title={`ลบพนักงาน ${employee.full_name}`}
+                              aria-label={`Delete ${employee.full_name}`}
+                              disabled={employee.id === currentUser.id}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         ) : (
-                          <div className="inline-flex p-1.5 text-slate-300" aria-hidden="true">
+                          <div className="inline-flex p-1.5 text-slate-300" aria-hidden="true" title="คุณไม่มีสิทธิ์จัดการพนักงานคนนี้">
                             <Shield className="w-4 h-4" />
                           </div>
                         )}
@@ -370,6 +395,50 @@ export default function EmployeeManagementPage() {
             </Button>
             <Button fullWidth onClick={handleSave} disabled={isLoading}>
               {editingUser ? 'บันทึกข้อมูล' : 'สร้างบัญชี'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        isOpen={!!userToDelete}
+        onClose={() => setUserToDelete(null)}
+        title="ยืนยันการลบพนักงาน"
+      >
+        <div className="space-y-4">
+          <div className="flex items-start gap-4 p-4 rounded-2xl bg-red-50 border border-red-100">
+            <div className="shrink-0 w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-600">
+              <AlertCircle className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-red-900 uppercase tracking-tight">การดำเนินการที่มีความเสี่ยง</p>
+              <p className="text-sm text-red-700 mt-0.5">
+                คุณกำลังจะลบพนักงาน <span className="font-bold underline">{userToDelete?.full_name}</span> ออกจากระบบอย่างถาวร
+              </p>
+            </div>
+          </div>
+
+          <p className="text-sm text-slate-600 px-1">
+            ข้อมูลบัญชีผู้ใช้ ประวัติการทำงาน และข้อมูลทั้งหมดของพนักงานคนนี้จะถูกลบออกจากระบบและไม่สามารถกู้คืนได้
+          </p>
+
+          <div className="flex gap-3 pt-4">
+            <Button 
+              variant="secondary" 
+              fullWidth 
+              onClick={() => setUserToDelete(null)}
+              disabled={isLoading}
+            >
+              ยกเลิก
+            </Button>
+            <Button 
+              variant="danger" 
+              fullWidth 
+              onClick={handleDeleteConfirm} 
+              loading={isLoading}
+            >
+              ยืนยันการลบถาวร
             </Button>
           </div>
         </div>

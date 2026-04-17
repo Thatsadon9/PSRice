@@ -18,6 +18,7 @@ interface EmployeeState {
   getEmployees: () => User[];
   addUser: (user: Omit<User, 'id' | 'created_at'>, password?: string) => Promise<boolean>;
   updateUser: (userId: string, updates: Partial<User>) => Promise<boolean>;
+  deleteUser: (userId: string) => Promise<boolean>;
 }
 
 function sortUsers(users: User[]) {
@@ -142,6 +143,34 @@ export const useEmployeeStore = create<EmployeeState>((set, get) => ({
       return true;
     } catch (err) {
       console.error('Update user error:', err);
+      set({ isLoading: false });
+      return false;
+    }
+  },
+
+  deleteUser: async (userId: string) => {
+    set({ isLoading: true });
+    try {
+      const accessToken = await getAccessToken();
+      const response = await fetch(`/api/admin/delete-user?id=${userId}`, {
+        method: 'DELETE',
+        headers: {
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+      });
+
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error);
+
+      // Local state update happens automatically via subscription, 
+      // but we can also manually filter for immediate feedback
+      set((state) => ({
+        users: state.users.filter((user) => user.id !== userId),
+        isLoading: false,
+      }));
+      return true;
+    } catch (err) {
+      console.error('Delete user error:', err);
       set({ isLoading: false });
       return false;
     }
