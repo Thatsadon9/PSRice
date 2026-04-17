@@ -232,7 +232,7 @@ export default function PayrollPage() {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in pb-20 max-w-[1600px] mx-auto">
+    <div className="space-y-6 animate-fade-in pb-20 max-w-[1600px] mx-auto overflow-hidden">
       {/* Header section with high-impact visuals */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-100 pb-8">
         <div className="space-y-2">
@@ -247,7 +247,7 @@ export default function PayrollPage() {
           </div>
         </div>
         
-        <div className="flex items-center gap-3 bg-white p-2 rounded-[2rem] border border-slate-100 shadow-sm self-start md:self-auto">
+        <div className="flex flex-wrap items-center gap-3 bg-white p-2 rounded-[2rem] md:rounded-full border border-slate-100 shadow-sm self-start md:self-auto">
           <div className="flex items-center gap-2 px-4 border-r border-slate-100 mr-2">
              <div className="flex bg-slate-100 p-1 rounded-full">
                 <button 
@@ -314,7 +314,7 @@ export default function PayrollPage() {
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
         
         {/* Left Column: Configuration Sidebar */}
-        <div className="xl:col-span-3 space-y-6 sticky top-24">
+        <div className="xl:col-span-3 space-y-6 sticky top-24 min-w-0">
           <Card className="rounded-[2.5rem] border-slate-100 shadow-sm p-6">
             <div className="flex items-center gap-3 mb-6">
                <div className="p-2.5 bg-primary-50 text-primary-600 rounded-xl">
@@ -371,7 +371,7 @@ export default function PayrollPage() {
         </div>
 
         {/* Right Column: Dashboard & Details */}
-        <div className="xl:col-span-9 space-y-8">
+        <div className="xl:col-span-9 space-y-8 min-w-0">
           
           {/* Dashboard Summary Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
