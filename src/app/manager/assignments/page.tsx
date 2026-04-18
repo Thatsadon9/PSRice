@@ -152,36 +152,36 @@ export default function AssignmentsPage() {
     <div className="space-y-8 animate-fade-in pb-20 max-w-[1600px] mx-auto">
       {/* Strategic Header */}
       <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-6 border-b border-slate-100 pb-8">
-        <div className="space-y-2">
-          <div className="flex items-center gap-4">
-             <div className="h-14 w-14 rounded-3xl bg-slate-900 flex items-center justify-center text-primary-400 shadow-2xl shadow-slate-200">
-                <ClipboardList className="w-7 h-7 fill-primary-400/20" />
+        <div className="space-y-4">
+          <div className="flex items-center gap-5">
+             <div className="h-16 w-16 rounded-[2rem] bg-slate-900 flex items-center justify-center text-primary-400 shadow-2xl shadow-slate-200 ring-4 ring-slate-50">
+                <ClipboardList className="w-8 h-8 fill-primary-400/20" />
              </div>
              <div>
-                <h1 className="text-3xl font-black text-slate-900 tracking-tight">ศูนย์กระจายงานพนักงาน</h1>
-                <p className="text-xs font-black text-slate-400 uppercase tracking-[0.3em] flex items-center gap-2">
-                   ระบบจัดการงานหลัก • <span className="text-emerald-500 flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" /> กำลังเชื่อมต่อ</span>
+                <h1 className="text-3xl font-black text-slate-900 tracking-tight leading-none mb-2">ศูนย์กระจายงานพนักงาน</h1>
+                <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.4em] flex items-center gap-2">
+                   Strategic Task Hub • <span className="text-emerald-500 flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]" /> Real-time Sync</span>
                 </p>
              </div>
           </div>
         </div>
         
         <div className="flex flex-wrap items-center gap-3 bg-white p-2 rounded-[2.5rem] border border-slate-100 shadow-sm">
-          <div className="hidden sm:flex items-center gap-4 px-6 border-r border-slate-100">
+          <div className="hidden sm:flex items-center gap-6 px-8 border-r border-slate-100">
              <div>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">สถานะคิวงาน</p>
-                <p className="text-sm font-black text-slate-900 flex items-center gap-2">
-                   {taskStore.tasks.filter(t => t.status === 'pending').length} <span className="text-[10px] text-amber-500 font-black uppercase">รอดำเนินการ</span>
+                <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest leading-none mb-2 text-right sm:text-left">สถานะคิวงาน</p>
+                <p className="text-base font-black text-slate-900 flex items-center gap-2">
+                   {taskStore.tasks.filter(t => t.status === 'pending').length} <span className="text-[10px] text-amber-500 font-black uppercase tracking-wider bg-amber-50 px-2 py-0.5 rounded-md border border-amber-100">Pending</span>
                 </p>
              </div>
-             <div className="h-8 w-px bg-slate-100 mx-2" />
+             <div className="h-10 w-px bg-slate-100 mx-2" />
              <div>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">สภาวะการทำงาน</p>
-                <div className="flex items-center gap-2">
-                   <div className="w-12 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                      <div className="h-full bg-primary-600 rounded-full" style={{ width: `${workloadIntensity}%` }} />
+                <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest leading-none mb-2">สภาวะการทำงาน</p>
+                <div className="flex items-center gap-3">
+                   <div className="w-16 h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200/50">
+                      <div className="h-full bg-primary-600 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.3)] transition-all duration-1000" style={{ width: `${workloadIntensity}%` }} />
                    </div>
-                   <span className="text-sm font-black text-slate-900">{workloadIntensity}%</span>
+                   <span className="text-sm font-black text-slate-900 bg-slate-100 px-2 py-0.5 rounded-lg">{workloadIntensity}%</span>
                 </div>
              </div>
           </div>
@@ -195,55 +195,76 @@ export default function AssignmentsPage() {
         {/* Left Aspect: Tactical Intelligence */}
         <div className="xl:col-span-3 space-y-6 lg:sticky lg:top-24">
            {/* Workload Pulse */}
-           <Card className="rounded-[2.5rem] border-slate-100 shadow-sm p-8 bg-slate-900 text-white relative overflow-hidden group">
-              <div className="absolute right-0 top-0 translate-x-1/2 -translate-y-1/2 h-32 w-32 bg-primary-500/10 rounded-full blur-3xl transition-transform group-hover:scale-150" />
-              <div className="relative z-10 space-y-6">
-                 <div className="bg-white/10 w-fit p-3 rounded-2xl border border-white/10">
-                    <Zap className="w-5 h-5 text-primary-400 fill-primary-400" />
-                 </div>
-                 <div>
-                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">สถานะการมอบหมายงาน</h3>
-                    <p className="text-3xl font-black tracking-tight">สภาวะการทำงานจริง</p>
-                 </div>
-                 <div className="space-y-4">
-                    <div className="space-y-1">
-                       <div className="flex justify-between text-[10px] font-black uppercase tracking-widest mb-1">
-                          <span>ภาระงานปัจจุบัน</span>
-                          <span className="text-primary-400">{workloadIntensity}%</span>
-                       </div>
-                       <div className="h-2 bg-white/5 rounded-full overflow-hidden border border-white/5">
-                          <div className="h-full bg-primary-500 rounded-full shadow-[0_0_8px_rgba(59,130,246,0.5)] transition-all duration-1000" style={{ width: `${workloadIntensity}%` }} />
-                       </div>
-                    </div>
-                    <p className="text-[11px] text-slate-400 font-medium leading-relaxed italic">
-                       &ldquo;ภาระงานปัจจุบันอยู่ในระดับ {workloadIntensity > 70 ? 'สูง' : workloadIntensity > 40 ? 'ปานกลาง' : 'ปกติ'} และกำลังติดตามงานสำคัญ.&rdquo;
-                    </p>
-                 </div>
-              </div>
+           <Card className="rounded-[2.5rem] border-none shadow-2xl p-8 !bg-slate-900 text-white relative overflow-hidden group">
+               <div className="absolute inset-0 bg-gradient-to-br from-primary-900/40 via-transparent to-transparent opacity-50 pointer-events-none" />
+               <div className="absolute -right-4 -top-4 translate-x-1/2 -translate-y-1/2 h-48 w-48 bg-primary-500/20 rounded-full blur-3xl transition-transform group-hover:scale-125 pointer-events-none" />
+               
+               <div className="relative z-10 space-y-8">
+                  <div className="bg-white/10 w-fit p-4 rounded-2xl border border-white/10 backdrop-blur-md shadow-inner">
+                     <Zap className="w-6 h-6 text-primary-400 fill-primary-400" />
+                  </div>
+                  
+                  <div>
+                     <h3 className="text-[11px] font-black text-primary-400 uppercase tracking-[0.25em] mb-2 flex items-center gap-2">
+                        <span className="h-1 w-4 bg-primary-500 rounded-full" /> Monitoring Status
+                     </h3>
+                     <p className="text-3xl font-black tracking-tight leading-tight">สภาวะการทำงานจริง</p>
+                  </div>
+                  
+                  <div className="space-y-6">
+                     <div className="space-y-3">
+                        <div className="flex justify-between items-end">
+                           <span className="text-[11px] font-black text-slate-300 uppercase tracking-widest">ภาระงานปัจจุบัน</span>
+                           <span className="text-xl font-black text-primary-400">{workloadIntensity}%</span>
+                        </div>
+                        <div className="h-3 bg-white/5 rounded-full overflow-hidden border border-white/10 p-0.5">
+                           <div className="h-full bg-gradient-to-r from-primary-600 to-primary-400 rounded-full shadow-[0_0_15px_rgba(16,185,129,0.4)] transition-all duration-1000 ease-out" style={{ width: `${workloadIntensity}%` }} />
+                        </div>
+                     </div>
+                     
+                     <div className="bg-white/5 rounded-3xl p-5 border border-white/5 backdrop-blur-sm">
+                        <p className="text-xs text-slate-300 font-medium leading-relaxed italic opacity-90">
+                           &ldquo;ระบบกำลังทำงานในระดับ {workloadIntensity > 70 ? 'สูงสุด' : workloadIntensity > 40 ? 'ปกติ' : 'เหมาะสม'} และกำลังรักษาความเร็วในการปฏิบัติงาน.&rdquo;
+                        </p>
+                     </div>
+                  </div>
+               </div>
            </Card>
 
            {/* Priority Snapshot */}
-           <Card className="rounded-[2.5rem] border-slate-100 shadow-sm p-8 bg-white space-y-6">
-              <div className="flex items-center gap-3">
-                 <div className="p-2.5 bg-slate-50 text-slate-400 rounded-xl">
-                    <CalendarCheck className="w-5 h-5" />
+           <Card className="rounded-[2.5rem] border-slate-100 shadow-xl shadow-slate-200/50 p-8 bg-white space-y-8">
+              <div className="flex items-center justify-between">
+                 <div className="flex items-center gap-3">
+                    <div className="p-3 bg-slate-100 text-slate-900 rounded-2xl">
+                       <CalendarCheck className="w-5 h-5" />
+                    </div>
+                    <h2 className="text-xs font-black text-slate-900 uppercase tracking-[0.2em]">สถิติปัจจุบัน</h2>
                  </div>
-                 <h2 className="text-sm font-black text-slate-900 uppercase tracking-widest">ภาพรวมสถิติ</h2>
+                 <div className="h-2 w-2 rounded-full bg-primary-500 animate-pulse" />
               </div>
               
-              <div className="grid grid-cols-1 gap-3">
-                 <div className="p-5 rounded-3xl bg-slate-50 border border-slate-100 group hover:border-primary-200 transition-all">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">งานเร่งด่วน</p>
-                    <div className="flex items-center justify-between">
-                       <p className="text-2xl font-black text-slate-900">{taskStore.tasks.filter(t => t.priority === 'critical' && t.status !== 'approved').length}</p>
-                       <div className={`h-2.5 w-2.5 rounded-full bg-red-500 ${taskStore.tasks.some(t => t.priority === 'critical' && t.status !== 'approved') ? 'animate-pulse' : ''}`} />
+              <div className="grid grid-cols-1 gap-4">
+                 <div className="p-6 rounded-[2rem] bg-slate-50 border border-slate-100 group hover:border-red-200 transition-all hover:bg-red-50/30">
+                    <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3 text-right">งานเร่งด่วนรอดำเนินการ</p>
+                    <div className="flex items-end justify-between leading-none">
+                       <p className="text-4xl font-black text-slate-900 tracking-tighter truncate">
+                          {taskStore.tasks.filter(t => t.priority === 'critical' && t.status !== 'approved').length}
+                       </p>
+                       <div className={`h-10 w-10 rounded-xl bg-red-100 text-red-600 flex items-center justify-center ${taskStore.tasks.some(t => t.priority === 'critical' && t.status !== 'approved') ? 'animate-bounce' : ''}`}>
+                          <AlertTriangle className="w-5 h-5 fill-red-600/20" />
+                       </div>
                     </div>
                  </div>
-                 <div className="p-5 rounded-3xl bg-slate-50 border border-slate-100">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">พนักงานที่ได้รับงาน</p>
-                    <div className="flex items-center justify-between">
-                       <p className="text-2xl font-black text-slate-900">{new Set(taskStore.tasks.filter(t => t.status !== 'approved').map(t => t.assigned_to)).size}</p>
-                       <Users className="w-5 h-5 text-slate-300" />
+                 
+                 <div className="p-6 rounded-[2rem] bg-slate-50 border border-slate-100 group hover:border-primary-200 transition-all hover:bg-primary-50/30">
+                    <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3 text-right">พนักงานที่กำลังทำงาน</p>
+                    <div className="flex items-end justify-between leading-none">
+                       <p className="text-4xl font-black text-slate-900 tracking-tighter truncate">
+                          {new Set(taskStore.tasks.filter(t => t.status !== 'approved').map(t => t.assigned_to)).size}
+                       </p>
+                       <div className="h-10 w-10 rounded-xl bg-primary-100 text-primary-600 flex items-center justify-center">
+                          <Users className="w-5 h-5 fill-primary-600/20" />
+                       </div>
                     </div>
                  </div>
               </div>
@@ -253,25 +274,29 @@ export default function AssignmentsPage() {
         {/* Right Aspect: Task Registry */}
         <div className="xl:col-span-9 space-y-8">
            <Card className="rounded-[3rem] border-slate-100 shadow-sm overflow-hidden p-0" padding="none">
-              <div className="p-8 border-b border-slate-100 bg-slate-50/30 flex items-center justify-between">
-                 <div>
-                    <h2 className="text-xl font-black text-slate-900 tracking-tight">บันทึกการมอบหมายงาน</h2>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-1">บันทึกการส่งงานแบบเรียลไทม์</p>
+              <div className="p-10 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">
+                 <div className="absolute top-0 right-0 w-64 h-64 bg-primary-100/30 rounded-full blur-[100px] -mr-32 -mt-32 pointer-events-none" />
+                 <div className="relative z-10">
+                    <h2 className="text-2xl font-black text-slate-900 tracking-tight leading-none mb-2">บันทึกการมอบหมายงาน</h2>
+                    <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em]">Task Distribution Registry • Real-time Monitoring</p>
                  </div>
-                 <div className="flex gap-2">
-                    <Badge variant="info" className="font-black text-[10px] uppercase">{taskStore.tasks.length} รายการ</Badge>
+                 <div className="flex items-center gap-3 relative z-10">
+                    <div className="h-10 px-4 bg-white border border-slate-200 rounded-2xl flex items-center justify-center shadow-sm">
+                       <span className="text-xs font-black text-slate-900">{taskStore.tasks.length}</span>
+                       <span className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">รายการ</span>
+                    </div>
                  </div>
               </div>
               
               <div className="overflow-x-auto">
                  <table className="w-full text-left min-w-[900px]">
                     <thead>
-                       <tr className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 bg-slate-50/50">
-                          <th className="px-8 py-5">ผู้รับผิดชอบ</th>
-                          <th className="px-6 py-5">รายละเอียด / หัวข้องาน</th>
-                          <th className="px-6 py-5">ข้อกำหนดหลักฐาน</th>
-                          <th className="px-6 py-5">กำหนดส่ง</th>
-                          <th className="px-8 py-5 text-right">สถานะงาน</th>
+                       <tr className="text-[11px] font-black uppercase tracking-[0.25em] text-slate-400 bg-slate-50/50 border-b border-slate-100">
+                          <th className="px-10 py-6">ผู้รับผิดชอบ</th>
+                          <th className="px-6 py-6">รายละเอียด / หัวข้องาน</th>
+                          <th className="px-6 py-6 text-center">หลักฐาน</th>
+                          <th className="px-6 py-6">กำหนดส่ง</th>
+                          <th className="px-10 py-6 text-right">สถานะ</th>
                        </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -281,14 +306,14 @@ export default function AssignmentsPage() {
                           
                           return (
                              <tr key={task.id} className="group hover:bg-slate-100/30 transition-all duration-300">
-                                <td className="px-8 py-6">
+                                <td className="px-8 py-8">
                                    <div className="flex items-center gap-4">
                                       <div className="relative">
                                          {emp?.avatar_url ? (
-                                           <img src={emp.avatar_url} alt="" className="w-11 h-11 rounded-2xl object-cover border-2 border-white shadow-sm ring-1 ring-slate-100" />
+                                           <img src={emp.avatar_url} alt="" className="w-12 h-12 rounded-2xl object-cover border-2 border-white shadow-sm ring-1 ring-slate-100" />
                                          ) : (
-                                           <div className="w-11 h-11 rounded-2xl bg-primary-100 flex items-center justify-center border-2 border-white shadow-sm ring-1 ring-slate-100 group-hover:bg-primary-600 transition-colors">
-                                             <User className="w-5 h-5 text-primary-600 group-hover:text-white transition-colors" />
+                                           <div className="w-12 h-12 rounded-2xl bg-primary-100 flex items-center justify-center border-2 border-white shadow-sm ring-1 ring-slate-100 group-hover:bg-primary-600 transition-colors">
+                                             <User className="w-6 h-6 text-primary-600 group-hover:text-white transition-colors" />
                                            </div>
                                          )}
                                          <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-lg bg-white p-0.5 border border-slate-100 shadow-sm">
@@ -301,52 +326,54 @@ export default function AssignmentsPage() {
                                       </div>
                                    </div>
                                 </td>
-                                <td className="px-6 py-6">
-                                   <div className="space-y-1">
-                                      <div className="flex items-center gap-3">
-                                         <span className="text-sm font-black text-slate-700 leading-none group-hover:text-primary-600 transition-colors">{task.title}</span>
+                                <td className="px-6 py-8">
+                                   <div className="space-y-2">
+                                      <div className="flex items-center gap-2">
+                                         <span className="text-sm font-black text-slate-800 tracking-tight leading-none transition-colors group-hover:text-primary-600">{task.title}</span>
                                          <div className={`
-                                            px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-tighter
-                                            ${task.priority === 'critical' ? 'bg-red-50 text-red-600 ring-1 ring-red-100 animate-pulse' : 
-                                              task.priority === 'high' ? 'bg-orange-50 text-orange-600 ring-1 ring-orange-100' : 
-                                              task.priority === 'medium' ? 'bg-primary-50 text-primary-600' : 'bg-slate-50 text-slate-400'}
+                                            px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-wider border shadow-sm
+                                            ${task.priority === 'critical' ? 'bg-red-50 text-red-600 border-red-100 animate-pulse' : 
+                                              task.priority === 'high' ? 'bg-orange-50 text-orange-600 border-orange-100' : 
+                                              task.priority === 'medium' ? 'bg-primary-50 text-primary-600 border-primary-100' : 
+                                              'bg-slate-50 text-slate-400 border-slate-100'}
                                          `}>
-                                            {task.priority === 'critical' ? 'เร่งด่วน' : 
-                                              task.priority === 'high' ? 'สูง' : 
-                                              task.priority === 'medium' ? 'ปกติ' : 'ต่ำ'}
+                                            {task.priority === 'critical' ? 'Urgent' : 
+                                              task.priority === 'high' ? 'High' : 
+                                              task.priority === 'medium' ? 'Normal' : 'Low'}
                                          </div>
                                       </div>
-                                      <p className="text-[11px] text-slate-400 line-clamp-1 truncate max-w-[200px]">{task.description}</p>
+                                      <p className="text-[11px] font-medium text-slate-400 line-clamp-1 leading-relaxed max-w-[250px]">{task.description}</p>
                                    </div>
                                 </td>
-                                <td className="px-6 py-6">
-                                   <div className="flex items-center gap-2 text-slate-400">
-                                      <div className="p-2 bg-slate-50 rounded-lg group-hover:bg-primary-50 group-hover:text-primary-600 transition-colors tooltip relative">
-                                         {task.proof_type_required === 'photo' ? <Camera className="w-4 h-4" /> : 
-                                          task.proof_type_required === 'video' ? <Zap className="w-4 h-4" /> : <ClipboardList className="w-4 h-4" />}
+                                <td className="px-6 py-8 text-center">
+                                   <div className="inline-flex items-center gap-2 p-2 bg-slate-50 rounded-2xl group-hover:bg-primary-50 transition-colors">
+                                      <div className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-400 group-hover:text-primary-600 group-hover:border-primary-100 transition-all shadow-sm">
+                                         {task.proof_type_required === 'photo' ? <Camera className="w-5 h-5" /> : 
+                                          task.proof_type_required === 'video' ? <Zap className="w-5 h-5" /> : <ClipboardList className="w-5 h-5" />}
                                       </div>
-                                      <span className="text-[10px] font-black uppercase tracking-widest">
-                                          {task.proof_type_required === 'photo' ? 'รูปภาพ' : 
-                                           task.proof_type_required === 'video' ? 'วิดีโอ' : 
-                                           task.proof_type_required === 'text' ? 'ข้อความ' : 'เช็คลิสต์'}
-                                       </span>
                                    </div>
                                 </td>
-                                <td className="px-6 py-6">
-                                   <div className="flex flex-col">
-                                      <div className="flex items-center gap-1.5">
-                                         <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                                         <span className={`text-xs font-black ${isDeadlineSoon ? 'text-red-500' : 'text-slate-600'}`}>
+                                <td className="px-6 py-8">
+                                   <div className="flex flex-col gap-1.5">
+                                      <div className="flex items-center gap-2">
+                                         <div className={`p-1 rounded-md ${isDeadlineSoon ? 'bg-red-50 text-red-500' : 'bg-slate-100 text-slate-500'}`}>
+                                            <Calendar className="w-3.5 h-3.5" />
+                                         </div>
+                                         <span className={`text-xs font-black tracking-tight ${isDeadlineSoon ? 'text-red-500' : 'text-slate-600'}`}>
                                             {formatThaiDate(task.due_date)}
                                          </span>
                                       </div>
-                                      {isDeadlineSoon && <span className="text-[9px] font-black uppercase text-red-400 mt-1">เลยกำหนด</span>}
+                                      {isDeadlineSoon && (
+                                         <span className="text-[9px] font-black uppercase text-red-500 bg-red-50 px-2.5 py-1 rounded-full w-fit border border-red-100 animate-pulse">
+                                            Overdue
+                                         </span>
+                                      )}
                                    </div>
                                 </td>
-                                <td className="px-8 py-6 text-right">
-                                   <Badge variant={task.status === 'approved' ? 'success' : task.status === 'pending' ? 'slate' : 'info'} className="font-black text-[9px] uppercase tracking-tighter py-1.5 px-4 shadow-sm">
-                                      {task.status === 'pending' ? 'รอดำเนินการ' : 
-                                       task.status === 'approved' ? 'เสร็จแล้ว' : 'กำลังทำ'}
+                                <td className="px-10 py-8 text-right">
+                                   <Badge variant={task.status === 'approved' ? 'success' : task.status === 'pending' ? 'slate' : 'info'} className="font-black text-[10px] uppercase tracking-wider py-2.5 px-6 shadow-sm border border-slate-50 whitespace-nowrap">
+                                      {task.status === 'pending' ? 'Waiting' : 
+                                       task.status === 'approved' ? 'Completed' : 'Processing'}
                                    </Badge>
                                 </td>
                              </tr>
@@ -373,7 +400,7 @@ export default function AssignmentsPage() {
                  <h2 className="text-xl font-black tracking-tight">มอบหมายงานใหม่</h2>
               </div>
               <p className="text-xs text-slate-400 font-medium leading-relaxed max-w-[280px]">
-                 ส่งคำสัังใหม่ให้พนักงานรายบุคคลหรือรายสาขา ระบบจะแจ้งเตือนพนักงานทันที
+                 ส่งคำสั่งใหม่ให้พนักงานรายบุคคลหรือรายสาขา ระบบจะแจ้งเตือนพนักงานทันที
               </p>
            </div>
         </div>

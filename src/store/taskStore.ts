@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase';
 import { uploadFile, dataURLtoBlob } from '@/lib/storage';
 import { getCurrentDateStr, isSameCalendarDate } from '@/lib/dateUtils';
 import { serializeReviewFeedback } from '@/lib/reviewFeedback';
+import { markReviewRequestNotificationsAsRead } from '@/lib/reviewHelpers';
 
 interface SubmissionUploadInput extends Omit<SubmissionFile, 'id' | 'created_at' | 'file_url'> {
   file_url?: string;
@@ -299,12 +300,22 @@ export const useTaskStore = create<TaskState>((set, get) => ({
   reviewSubmission: async (submissionId: string, status: ReviewStatus, comment: string, reviewedBy: string, rating?: number | null) => {
     const reviewedAt = new Date().toISOString();
     const reviewComment = serializeReviewFeedback(comment, rating);
-    await supabase.from('task_submissions').update({
+    const { error } = await supabase.from('task_submissions').update({
        review_status: status,
        review_comment: reviewComment,
        reviewed_by: reviewedBy,
        reviewed_at: reviewedAt
     }).eq('id', submissionId);
+
+    if (error) {
+      throw error;
+    }
+
+    try {
+      await markReviewRequestNotificationsAsRead(submissionId);
+    } catch (err) {
+      console.error('Failed to sync review request notifications:', err);
+    }
 
     set(state => ({
       submissions: state.submissions.map(s =>

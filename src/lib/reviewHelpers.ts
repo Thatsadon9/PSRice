@@ -4,6 +4,9 @@ import { supabase } from '@/lib/supabase';
 import type { Notification, ReviewStatus, TaskSubmission, User } from '@/lib/types';
 
 type NotificationInsert = Omit<Notification, 'id' | 'created_at'>;
+type ReviewSubmissionStatus = Pick<TaskSubmission, 'id' | 'review_status'>;
+
+const REVIEW_REQUEST_LINK_PREFIX = '/manager/review/';
 
 interface ReviewRequestNotificationOptions {
   submissionId: string;
@@ -27,6 +30,61 @@ export async function insertNotifications(notifications: NotificationInsert[]) {
   if (notifications.length === 0) return;
 
   const { error } = await supabase.from('notifications').insert(notifications);
+  if (error) {
+    throw error;
+  }
+}
+
+export function getReviewRequestSubmissionId(notification: Pick<Notification, 'type' | 'link'>) {
+  if (notification.type !== 'review' || !notification.link) {
+    return null;
+  }
+
+  let pathname = notification.link;
+
+  try {
+    pathname = new URL(notification.link, 'https://workflow-pro.local').pathname;
+  } catch {
+    pathname = notification.link.split('?')[0];
+  }
+
+  if (!pathname.startsWith(REVIEW_REQUEST_LINK_PREFIX)) {
+    return null;
+  }
+
+  const submissionId = pathname.slice(REVIEW_REQUEST_LINK_PREFIX.length).split('/')[0];
+  return submissionId || null;
+}
+
+export function isResolvedReviewRequestNotification(
+  notification: Pick<Notification, 'type' | 'link'>,
+  submissions: ReviewSubmissionStatus[],
+) {
+  const submissionId = getReviewRequestSubmissionId(notification);
+
+  if (!submissionId) {
+    return false;
+  }
+
+  const submission = submissions.find((item) => item.id === submissionId);
+  return Boolean(submission && submission.review_status !== 'pending');
+}
+
+export function isEffectivelyReadNotification(
+  notification: Pick<Notification, 'type' | 'link' | 'is_read'>,
+  submissions: ReviewSubmissionStatus[],
+) {
+  return notification.is_read || isResolvedReviewRequestNotification(notification, submissions);
+}
+
+export async function markReviewRequestNotificationsAsRead(submissionId: string) {
+  const { error } = await supabase
+    .from('notifications')
+    .update({ is_read: true })
+    .eq('type', 'review')
+    .eq('is_read', false)
+    .like('link', `${REVIEW_REQUEST_LINK_PREFIX}${submissionId}%`);
+
   if (error) {
     throw error;
   }

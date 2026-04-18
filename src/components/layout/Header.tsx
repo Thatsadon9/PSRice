@@ -4,9 +4,11 @@ import { useMemo } from 'react';
 import { Bell, Menu, LogOut } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { useNotificationStore } from '@/store/notificationStore';
+import { useTaskStore } from '@/store/taskStore';
 import Link from 'next/link';
 import Image from 'next/image';
 import { ROLE_LABELS } from '@/lib/constants';
+import { isEffectivelyReadNotification } from '@/lib/reviewHelpers';
 
 interface HeaderProps {
   onMenuClick?: () => void;
@@ -16,6 +18,7 @@ interface HeaderProps {
 export default function Header({ onMenuClick, showMenu = false }: HeaderProps) {
   const currentUser = useAuthStore((state) => state.currentUser);
   const notifications = useNotificationStore((state) => state.notifications);
+  const submissions = useTaskStore((state) => state.submissions);
   const currentUserId = currentUser?.id;
 
   const unreadCount = useMemo(() => {
@@ -24,9 +27,9 @@ export default function Header({ onMenuClick, showMenu = false }: HeaderProps) {
     }
 
     return notifications.filter((notification) => {
-      return notification.user_id === currentUserId && !notification.is_read;
+      return notification.user_id === currentUserId && !isEffectivelyReadNotification(notification, submissions);
     }).length;
-  }, [currentUserId, notifications]);
+  }, [currentUserId, notifications, submissions]);
 
   if (!currentUser) return null;
 

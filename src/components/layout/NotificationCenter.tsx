@@ -16,9 +16,14 @@ import Badge from '@/components/ui/Badge';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import { formatRelativeTime } from '@/lib/dateUtils';
+import {
+  isEffectivelyReadNotification,
+  isResolvedReviewRequestNotification,
+} from '@/lib/reviewHelpers';
 import type { Notification } from '@/lib/types';
 import { useAuthStore } from '@/store/authStore';
 import { useNotificationStore } from '@/store/notificationStore';
+import { useTaskStore } from '@/store/taskStore';
 
 interface NotificationCenterProps {
   backHref: string;
@@ -55,6 +60,7 @@ export default function NotificationCenter({
   const markAllAsRead = useNotificationStore((state) => state.markAllAsRead);
   const markAsRead = useNotificationStore((state) => state.markAsRead);
   const allNotifications = useNotificationStore((state) => state.notifications);
+  const submissions = useTaskStore((state) => state.submissions);
 
   const currentUserId = currentUser?.id;
 
@@ -67,14 +73,28 @@ export default function NotificationCenter({
   }, [allNotifications, currentUserId]);
 
   const unreadCount = useMemo(() => {
-    return notifications.filter((notification) => !notification.is_read).length;
-  }, [notifications]);
+    return notifications.filter((notification) => !isEffectivelyReadNotification(notification, submissions)).length;
+  }, [notifications, submissions]);
+
+  const resolvedUnreadReviewNotificationIds = useMemo(() => {
+    return notifications
+      .filter((notification) => {
+        return !notification.is_read && isResolvedReviewRequestNotification(notification, submissions);
+      })
+      .map((notification) => notification.id);
+  }, [notifications, submissions]);
 
   useEffect(() => {
     if (currentUserId) {
       void fetchNotifications(currentUserId);
     }
   }, [currentUserId, fetchNotifications]);
+
+  useEffect(() => {
+    resolvedUnreadReviewNotificationIds.forEach((notificationId) => {
+      void markAsRead(notificationId);
+    });
+  }, [markAsRead, resolvedUnreadReviewNotificationIds]);
 
   const handleMarkAllRead = async () => {
     if (currentUser?.id) {
@@ -162,7 +182,10 @@ export default function NotificationCenter({
             <h2 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">กิจกรรมล่าสุด</h2>
           </div>
           <div className="space-y-3">
-            {notifications.slice(0, 20).map((notification) => (
+            {notifications.slice(0, 20).map((notification) => {
+              const isRead = isEffectivelyReadNotification(notification, submissions);
+
+              return (
               <button
                 key={notification.id}
                 type="button"
@@ -170,14 +193,14 @@ export default function NotificationCenter({
                 className={`
                   group relative w-full overflow-hidden rounded-[2rem] border p-4 text-left transition-all cursor-pointer
                   touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2
-                  ${notification.is_read
+                  ${isRead
                     ? 'bg-white border-slate-100 hover:border-slate-200'
                     : 'bg-white border-primary-200 shadow-xl shadow-primary-900/5 ring-1 ring-primary-50'
                   }
                   hover:scale-[1.01] active:scale-[0.99]
                 `}
               >
-                {!notification.is_read && (
+                {!isRead && (
                   <div className="absolute top-0 right-0 w-12 h-12 bg-primary-600/5 rounded-bl-[2rem]" />
                 )}
 
@@ -185,19 +208,19 @@ export default function NotificationCenter({
                   <div
                     className={`
                       w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-110
-                      ${notification.is_read ? 'bg-slate-50 text-slate-400' : 'bg-primary-50 text-primary-600'}
+                      ${isRead ? 'bg-slate-50 text-slate-400' : 'bg-primary-50 text-primary-600'}
                     `}
                   >
                     {getNotificationIcon(notification.type)}
                   </div>
                   <div className="flex-1 min-w-0 py-1">
                     <div className="flex items-center justify-between gap-2">
-                       <h3 className={`text-sm font-black truncate ${notification.is_read ? 'text-slate-700' : 'text-slate-900'}`}>
+                       <h3 className={`text-sm font-black truncate ${isRead ? 'text-slate-700' : 'text-slate-900'}`}>
                          {notification.title}
                        </h3>
-                       {!notification.is_read && <div className="w-2 h-2 bg-primary-600 rounded-full shrink-0 animate-pulse" />}
+                       {!isRead && <div className="w-2 h-2 bg-primary-600 rounded-full shrink-0 animate-pulse" />}
                     </div>
-                    <p className={`text-xs mt-1 leading-relaxed line-clamp-2 ${notification.is_read ? 'text-slate-400 font-medium' : 'text-slate-600 font-bold'}`}>
+                    <p className={`text-xs mt-1 leading-relaxed line-clamp-2 ${isRead ? 'text-slate-400 font-medium' : 'text-slate-600 font-bold'}`}>
                       {notification.message}
                     </p>
                     <div className="flex items-center justify-between mt-3">
@@ -214,7 +237,8 @@ export default function NotificationCenter({
                   </div>
                 </div>
               </button>
-            ))}
+              );
+            })}
           </div>
           
           {notifications.length > 5 && (
