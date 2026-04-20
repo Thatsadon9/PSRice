@@ -351,6 +351,8 @@ export default function ManagerSchedulePage() {
   const users = useEmployeeStore((state) => state.users);
   const getBranchPolicy = useHrStore((state) => state.getBranchPolicy);
   const getShiftTemplatesByBranch = useHrStore((state) => state.getShiftTemplatesByBranch);
+  const branchPolicies = useHrStore((state) => state.branchPolicies);
+  const shiftTemplates = useHrStore((state) => state.shiftTemplates);
   const shiftAssignments = useHrStore((state) => state.shiftAssignments);
   const schemaReady = useHrStore((state) => state.schemaReady);
   const schemaMessage = useHrStore((state) => state.schemaMessage);
@@ -375,6 +377,7 @@ export default function ManagerSchedulePage() {
   const [savingConfigKey, setSavingConfigKey] = useState<string | null>(null);
   const [showConfig, setShowConfig] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [modalFilterBranchId, setModalFilterBranchId] = useState<string>('CURRENT');
 
   const visibleRange = useMemo(() => {
     const fallbackStart = today;
@@ -421,7 +424,7 @@ export default function ManagerSchedulePage() {
     });
 
     return map;
-  }, [branches, getBranchPolicy, getShiftTemplatesByBranch]);
+  }, [branches, getBranchPolicy, getShiftTemplatesByBranch, branchPolicies, shiftTemplates]);
 
   const userMap = useMemo(() => {
     return new Map(users.map((user) => [user.id, user]));
@@ -500,7 +503,14 @@ export default function ManagerSchedulePage() {
   const modalSlotConfig = activeSelection
     ? slotConfigByBranch.get(activeSelection.branchId)?.[activeSelection.slotKey] || null
     : null;
-  const modalEmployees = activeSelection ? branchEmployeesMap.get(activeSelection.branchId) || [] : [];
+  
+  const modalEmployees = useMemo(() => {
+    if (!activeSelection) return [];
+    if (modalFilterBranchId === 'ALL') return employees;
+    const branchToFilter = modalFilterBranchId === 'CURRENT' ? activeSelection.branchId : modalFilterBranchId;
+    return branchEmployeesMap.get(branchToFilter) || [];
+  }, [activeSelection, modalFilterBranchId, employees, branchEmployeesMap]);
+
   const modalDateStrings = useMemo(() => {
     return activeSelection ? getSelectionDateStrings(activeSelection) : [];
   }, [activeSelection]);
@@ -560,6 +570,7 @@ export default function ManagerSchedulePage() {
     setSelectedEmployeeIds([]);
     setActionError(null);
     setActionState(null);
+    setModalFilterBranchId('CURRENT');
   };
 
   const handleCellMouseDown = (branchId: string, slotKey: SlotKey, workDate: string) => {
@@ -722,7 +733,7 @@ export default function ManagerSchedulePage() {
     }
 
     setSavingConfigKey(`policy:${configBranch.id}`);
-    await upsertBranchPolicy(configBranch.id, {
+    const success = await upsertBranchPolicy(configBranch.id, {
       shift_start_time: normalizeTimeValue(configPolicyDraft.shift_start_time),
       shift_end_time: normalizeTimeValue(configPolicyDraft.shift_end_time),
       break_minutes: Number(configPolicyDraft.break_minutes || 0),
@@ -730,6 +741,15 @@ export default function ManagerSchedulePage() {
       early_out_grace_minutes: Number(configPolicyDraft.early_out_grace_minutes || 0),
       minimum_ot_minutes: Number(configPolicyDraft.minimum_ot_minutes || 0),
     });
+    
+    if (success) {
+      setPolicyDrafts((current) => {
+        const next = { ...current };
+        delete next[configBranch.id];
+        return next;
+      });
+    }
+    
     setSavingConfigKey(null);
   };
 
@@ -747,9 +767,11 @@ export default function ManagerSchedulePage() {
     const existingTemplate = findTemplateForSlot(branchTemplates, slot);
 
     setSavingConfigKey(`slot:${configBranch.id}:${slot.key}`);
+    
+    let success = false;
 
     if (existingTemplate) {
-      await updateShiftTemplate(existingTemplate.id, {
+      success = await updateShiftTemplate(existingTemplate.id, {
         name: slotDraft.name.trim() || slot.defaultName,
         code: slot.primaryCode,
         start_time: normalizeTimeValue(slotDraft.start_time),
@@ -762,7 +784,7 @@ export default function ManagerSchedulePage() {
         is_active: true,
       });
     } else {
-      await addShiftTemplate({
+      success = await addShiftTemplate({
         branch_id: configBranch.id,
         name: slotDraft.name.trim() || slot.defaultName,
         code: slot.primaryCode,
@@ -774,6 +796,14 @@ export default function ManagerSchedulePage() {
         early_out_grace_minutes: Number(slotDraft.early_out_grace_minutes || 0),
         minimum_ot_minutes: Number(slotDraft.minimum_ot_minutes || 0),
         is_active: true,
+      });
+    }
+
+    if (success) {
+      setSlotDrafts((current) => {
+        const next = { ...current };
+        delete next[`${configBranch.id}:${slot.key}`];
+        return next;
       });
     }
 
@@ -1274,12 +1304,23 @@ export default function ManagerSchedulePage() {
 
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-semibold text-slate-900">รายชื่อพนักงานในสาขานี้</p>
+                <p className="text-sm font-semibold text-slate-900">รายชื่อพนักงาน</p>
                 <p className="text-xs text-slate-500 mt-1">
                   เลือกคนที่ต้องการใส่เข้ากะหรือลบออกจากกะในช่วง {modalDateStrings.length} วัน
                 </p>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
+                <select
+                  value={modalFilterBranchId}
+                  onChange={(e) => setModalFilterBranchId(e.target.value)}
+                  className="rounded-lg border border-slate-200 bg-white py-2 pl-3 pr-8 text-xs font-semibold text-slate-700 shadow-sm focus:ring-2 focus:ring-primary-500 focus:outline-none"
+                >
+                  <option value="CURRENT">สาขานี้ ({modalBranch.name})</option>
+                  <option value="ALL">ทุกสาขา</option>
+                  {branches.filter(b => b.id !== activeSelection.branchId).map(b => (
+                    <option key={b.id} value={b.id}>{b.name}</option>
+                  ))}
+                </select>
                 <Button
                   variant="secondary"
                   size="sm"
@@ -1301,8 +1342,8 @@ export default function ManagerSchedulePage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[360px] overflow-y-auto pr-1">
               {modalEmployees.length === 0 && (
-                <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5 text-sm text-slate-500">
-                  ยังไม่มีพนักงานในสาขานี้
+                <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5 text-sm text-slate-500 col-span-full text-center">
+                  ไม่พบพนักงานในสาขาที่เลือก
                 </div>
               )}
 
@@ -1322,25 +1363,36 @@ export default function ManagerSchedulePage() {
                     }`}
                   >
                     <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-start gap-3">
+                      <div className="flex items-start gap-3 min-w-0 flex-1">
                         {employee.avatar_url ? (
                           <div
                             role="img"
                             aria-label={employee.full_name}
-                            className="h-11 w-11 rounded-full border-2 border-white bg-cover bg-center bg-no-repeat shadow-sm"
+                            className="h-11 w-11 rounded-full border-2 border-white bg-cover bg-center bg-no-repeat shadow-sm shrink-0"
                             style={{ backgroundImage: `url(${employee.avatar_url})` }}
                           />
                         ) : (
-                          <div className="flex h-11 w-11 items-center justify-center rounded-full border-2 border-white bg-slate-200 text-sm font-bold text-slate-700 shadow-sm">
+                          <div className="flex h-11 w-11 items-center justify-center rounded-full border-2 border-white bg-slate-200 text-sm font-bold text-slate-700 shadow-sm shrink-0">
                             {getUserInitials(employee.full_name)}
                           </div>
                         )}
-                        <div>
-                          <p className="text-sm font-semibold text-slate-900">{employee.full_name}</p>
-                          <p className="text-xs text-slate-500 mt-1">{employee.email}</p>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-slate-900 truncate" title={employee.full_name}>
+                            {employee.full_name}
+                          </p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <p className="text-xs text-slate-500 truncate" title={employee.email}>
+                              {employee.email}
+                            </p>
+                            {employee.branch_id !== activeSelection.branchId && (
+                              <span className="bg-amber-100 text-amber-700 text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase border border-amber-200 whitespace-nowrap shrink-0">
+                                สาขา: {branches.find(b => b.id === employee.branch_id)?.name || 'Unknown'}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
-                      <div className={`rounded-full px-2 py-1 text-[11px] font-semibold ${
+                      <div className={`rounded-full px-2 py-1 text-[11px] font-semibold shrink-0 ${
                         assignedDays > 0
                           ? 'bg-emerald-100 text-emerald-700'
                           : 'bg-slate-100 text-slate-500'

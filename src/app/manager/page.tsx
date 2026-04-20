@@ -16,6 +16,7 @@ import {
   ArrowRight,
   ArrowUpRight,
   CalendarCheck,
+  Camera,
   CheckCircle2,
   CheckSquare,
   Clock,
@@ -123,6 +124,9 @@ export default function ManagerDashboard() {
 
   if (!currentUser) return null;
 
+  const todayAttendance = attendanceStore.getTodayRecordForUser(currentUser.id);
+  const attendanceStatus = attendanceStore.getTodayStatus(currentUser.id);
+
   const stats = [
     {
       label: 'พนักงานปฏิบัติงานอยู่',
@@ -221,6 +225,44 @@ export default function ManagerDashboard() {
           </Link>
         ))}
       </div>
+
+      {/* Action Center - Check-in/out */}
+      <Card className="p-5 border-slate-100 shadow-xl shadow-slate-200/50 rounded-[2rem]">
+         <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-3">
+               <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl">
+                  <Zap className="w-5 h-5 fill-emerald-600" />
+               </div>
+               <div>
+                 <h2 className="font-black text-slate-900 leading-none">บันทึกเวลาทำงาน</h2>
+                 <p className="text-[10px] font-black text-slate-400 uppercase mt-1 tracking-widest leading-none">สถานะการเข้างานล่าสุด</p>
+               </div>
+            </div>
+            <Badge variant={attendanceStatus === 'not_checked_in' ? 'default' : 'success'} className="px-3 py-1 font-black uppercase text-[10px]">
+               {attendanceStatus === 'not_checked_in' ? 'ออฟไลน์' : 'ออนไลน์'}
+            </Badge>
+         </div>
+
+         <div className="grid grid-cols-2 gap-4 mb-5">
+            <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100 space-y-1">
+               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">เวลาเข้างาน</p>
+               <p className="text-xl font-black text-slate-900">{todayAttendance.checkIn ? new Date(todayAttendance.checkIn.created_at).toLocaleTimeString('th-TH').slice(0, 5) : '--:--'}</p>
+            </div>
+            <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100 space-y-1">
+               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">เวลาออกงาน</p>
+               <p className="text-xl font-black text-slate-900">{todayAttendance.checkOut ? new Date(todayAttendance.checkOut.created_at).toLocaleTimeString('th-TH').slice(0, 5) : '--:--'}</p>
+            </div>
+         </div>
+
+         {attendanceStatus !== 'checked_out' && (
+            <Link href="/manager/check-in">
+               <Button variant="none" fullWidth className="bg-emerald-600 text-white hover:bg-emerald-700 border-none h-14 rounded-2xl shadow-lg shadow-emerald-200 text-sm font-black gap-2 transition-all active:scale-[0.98]">
+                  <Camera className="w-5 h-5" />
+                  {attendanceStatus === 'not_checked_in' ? 'เช็กอินเข้าทำงาน (Scan)' : 'เช็กเอาต์ออกงาน'}
+               </Button>
+            </Link>
+         )}
+      </Card>
 
       {/* Main Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

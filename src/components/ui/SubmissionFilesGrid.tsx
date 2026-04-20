@@ -2,9 +2,10 @@
 /* eslint-disable @next/next/no-img-element */
 
 import { useState } from 'react';
-import { Download, FileText, Image as ImageIcon, Loader2, Video, XCircle } from 'lucide-react';
+import { Download, FileText, Image as ImageIcon, Loader2, Video, XCircle, ZoomIn } from 'lucide-react';
 import { downloadFileFromUrl } from '@/lib/storage';
 import type { FileType } from '@/lib/types';
+import Modal from '@/components/ui/Modal';
 
 export interface PreviewFile {
   id: string;
@@ -30,6 +31,7 @@ export default function SubmissionFilesGrid({
 }: SubmissionFilesGridProps) {
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [downloadError, setDownloadError] = useState('');
+  const [zoomedImage, setZoomedImage] = useState<string | null>(null);
 
   const handleDownload = async (file: PreviewFile) => {
     setDownloadError('');
@@ -55,9 +57,10 @@ export default function SubmissionFilesGrid({
   }
 
   return (
-    <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 ${className}`}>
-      {files.map((file) => {
-        const isVideo = file.file_type === 'video';
+    <>
+      <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 ${className}`}>
+        {files.map((file) => {
+          const isVideo = file.file_type === 'video';
         const isDownloading = downloadingId === file.id;
 
         return (
@@ -100,14 +103,17 @@ export default function SubmissionFilesGrid({
             </div>
 
             {!isVideo && (
-              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity pointer-events-none">
-                <div className="p-2 bg-white rounded-full text-slate-900 shadow-lg">
-                  <Download className="w-5 h-5" />
+              <div 
+                className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity cursor-pointer"
+                onClick={() => setZoomedImage(file.file_url)}
+              >
+                <div className="p-2 bg-white rounded-full text-slate-900 shadow-lg transition-transform hover:scale-110">
+                  <ZoomIn className="w-5 h-5" />
                 </div>
               </div>
             )}
 
-            <div className="absolute top-2 left-2 inline-flex items-center gap-1 rounded-full bg-black/60 px-2 py-1 text-[10px] font-bold text-white">
+            <div className="absolute top-2 left-2 pointer-events-none z-10 inline-flex items-center gap-1 rounded-full bg-black/60 px-2 py-1 text-[10px] font-bold text-white">
               {isVideo ? <Video className="w-3 h-3" /> : <ImageIcon className="w-3 h-3" />}
               {isVideo ? 'VIDEO' : 'IMAGE'}
             </div>
@@ -118,6 +124,19 @@ export default function SubmissionFilesGrid({
       {downloadError && (
         <p className="col-span-full text-xs font-medium text-red-600">{downloadError}</p>
       )}
-    </div>
+      </div>
+
+      <Modal isOpen={!!zoomedImage} onClose={() => setZoomedImage(null)} size="full" title="รูปภาพขนาดเต็ม">
+        {zoomedImage && (
+          <div className="flex items-center justify-center bg-black/5 rounded-xl overflow-hidden min-h-[50vh] p-4">
+            <img 
+              src={zoomedImage} 
+              alt="Zoomed preview" 
+              className="max-w-full max-h-[75vh] object-contain rounded-lg shadow-md" 
+            />
+          </div>
+        )}
+      </Modal>
+    </>
   );
 }

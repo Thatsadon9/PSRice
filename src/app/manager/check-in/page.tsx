@@ -59,8 +59,16 @@ export default function CheckInPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
+  const branch = currentUser ? branchStore.getBranchById(currentUser.branch_id) : null;
   const todayDate = getCurrentDateStr();
-  
+  const todayStatus = currentUser ? attendanceStore.getTodayStatus(currentUser.id) : 'not_checked_in';
+  const todayRecord = currentUser
+    ? attendanceStore.getTodayRecordForUser(currentUser.id)
+    : { checkIn: undefined, checkOut: undefined };
+  const isCheckOut = todayStatus === 'checked_in' || todayStatus === 'late';
+  const isCheckIn = !isCheckOut;
+  const alreadyDone = todayStatus === 'checked_out';
+
   const todayShift = useMemo(() => {
     if (!currentUser) {
       return null;
@@ -73,19 +81,6 @@ export default function CheckInPage() {
       branchPolicies,
     });
   }, [branchPolicies, currentUser, shiftAssignments, todayDate]);
-
-  const activeBranchId = todayShift?.branch_id ?? currentUser?.branch_id;
-  const branch = activeBranchId ? branchStore.getBranchById(activeBranchId) : null;
-  const homeBranch = currentUser ? branchStore.getBranchById(currentUser.branch_id) : null;
-  const isCrossBranch = todayShift && todayShift.branch_id && todayShift.branch_id !== currentUser?.branch_id;
-
-  const todayStatus = currentUser ? attendanceStore.getTodayStatus(currentUser.id) : 'not_checked_in';
-  const todayRecord = currentUser
-    ? attendanceStore.getTodayRecordForUser(currentUser.id)
-    : { checkIn: undefined, checkOut: undefined };
-  const isCheckOut = todayStatus === 'checked_in' || todayStatus === 'late';
-  const isCheckIn = !isCheckOut;
-  const alreadyDone = todayStatus === 'checked_out';
 
   const shiftStartAt = todayShift ? createLocalDateTime(todayDate, todayShift.start_time) : null;
   const shiftLateThreshold = useMemo(() => {
@@ -323,16 +318,9 @@ export default function CheckInPage() {
                   </p>
                 </div>
               </div>
-              <div className="flex flex-col items-end gap-1.5">
-                <Badge variant={todayShift.source === 'assignment' ? 'success' : 'info'} className="font-black uppercase text-[9px] tracking-tight">
-                  {todayShift.source === 'assignment' ? 'ซิงก์แล้ว' : 'ค่าเริ่มต้น'}
-                </Badge>
-                {isCrossBranch && (
-                  <Badge variant="warning" className="font-black uppercase text-[9px] tracking-tight bg-amber-100 text-amber-700">
-                    ปฏิบัติงานต่างสาขา
-                  </Badge>
-                )}
-              </div>
+              <Badge variant={todayShift.source === 'assignment' ? 'success' : 'info'} className="font-black uppercase text-[9px] tracking-tight">
+                {todayShift.source === 'assignment' ? 'ซิงก์แล้ว' : 'ค่าเริ่มต้น'}
+              </Badge>
             </div>
           </Card>
         </div>
@@ -351,10 +339,10 @@ export default function CheckInPage() {
               เข้า: {todayRecord.checkIn ? formatTime(todayRecord.checkIn.created_at) : '--:--'} <span className="mx-2 text-slate-700">•</span> ออก: {todayRecord.checkOut ? formatTime(todayRecord.checkOut.created_at) : '--:--'}
             </p>
             <div className="mt-8 w-full flex gap-3">
-               <Button fullWidth variant="none" className="bg-white/5 border border-white/10 text-white font-black text-xs h-12 rounded-2xl hover:bg-white/10 transition-all uppercase tracking-widest" onClick={() => router.push('/employee')}>
+               <Button fullWidth variant="none" className="bg-white/5 border border-white/10 text-white font-black text-xs h-12 rounded-2xl hover:bg-white/10 transition-all uppercase tracking-widest" onClick={() => router.push('/manager')}>
                  🏠 หน้าแรก
                </Button>
-               <Button fullWidth variant="none" className="bg-primary-600 text-white font-black text-xs h-12 rounded-2xl shadow-lg shadow-primary-900/40 hover:bg-primary-500 transition-all uppercase tracking-widest" onClick={() => router.push('/employee/history?tab=attendance')}>
+               <Button fullWidth variant="none" className="bg-primary-600 text-white font-black text-xs h-12 rounded-2xl shadow-lg shadow-primary-900/40 hover:bg-primary-500 transition-all uppercase tracking-widest" onClick={() => router.push('/manager/attendance')}>
                  📜 ดูประวัติ
                </Button>
             </div>
@@ -588,7 +576,7 @@ export default function CheckInPage() {
              <div className="space-y-3">
                {[
                  { label: 'เวลาที่บันทึก', value: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) },
-                 { label: 'สาขา/ศูนย์ปฏิบัติงาน', value: branch?.name + (isCrossBranch ? ` (สาขาหลัก: ${homeBranch?.name})` : '') },
+                 { label: 'สาขา/ศูนย์ปฏิบัติงาน', value: branch?.name },
                  { label: 'กะงาน', value: todayShift?.shift_name || 'ทั่วไป' },
                  { label: 'ความแม่นยำ GPS', value: `${Math.round(gpsCoords?.accuracy || 0)} เมตร`, color: getAccuracyColor(getAccuracyLevel(gpsCoords?.accuracy || 0)) },
                ].map((item, idx) => (
@@ -664,7 +652,7 @@ export default function CheckInPage() {
                   <Button 
                      fullWidth 
                      variant="none" 
-                     onClick={() => router.push('/employee')}
+                     onClick={() => router.push('/manager')}
                      className="h-14 rounded-2xl bg-slate-900 text-white font-black text-xs uppercase tracking-widest hover:bg-slate-800 hover:shadow-xl transition-all"
                   >
                     กลับสู่แดชบอร์ด
