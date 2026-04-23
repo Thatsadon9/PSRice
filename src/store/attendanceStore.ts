@@ -7,8 +7,42 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { AttendanceRecord, AttendanceStatus } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
-import { uploadFile, dataURLtoBlob } from '@/lib/storage';
 import { getCurrentDateStr } from '@/lib/dateUtils';
+import { format } from 'date-fns';
+
+/** Extract a human-readable message from any Supabase / JS error. */
+function extractErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === 'object' && err !== null && 'message' in err) {
+    return String((err as { message: unknown }).message);
+  }
+  return 'Unknown error';
+}
+
+async function handleSessionExpired() {
+  try {
+    await supabase.auth.signOut({ scope: 'local' });
+  } catch { /* best-effort */ }
+  if (typeof window !== 'undefined') {
+    window.location.reload();
+  }
+}
+
+/**
+ * Build auth headers for the attendance API.
+ * Sends both cookies (automatic) and Bearer token (if available).
+ * The server-side handler accepts either method.
+ */
+async function buildAuthHeaders(): Promise<Record<string, string>> {
+  const headers: Record<string, string> = {};
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token) {
+      headers['Authorization'] = `Bearer ${session.access_token}`;
+    }
+  } catch { /* cookies will be the fallback */ }
+  return headers;
+}
 
 interface AttendanceState {
   records: AttendanceRecord[];
@@ -26,6 +60,15 @@ interface AttendanceState {
 
 function getToday(): string {
   return getCurrentDateStr();
+}
+
+/** Convert a UTC timestamp to a local date string (yyyy-MM-dd) for comparison. */
+function toLocalDate(utcTimestamp: string): string {
+  try {
+    return format(new Date(utcTimestamp), 'yyyy-MM-dd');
+  } catch {
+    return utcTimestamp.slice(0, 10);
+  }
 }
 
 function sortRecords(records: AttendanceRecord[]) {
@@ -48,83 +91,134 @@ export const useAttendanceStore = create<AttendanceState>()(
       fetchRecords: async () => {
         set({ isLoading: true, error: null });
         try {
-          const { data, error } = await supabase
-            .from('attendance_records')
-            .select('*')
-            .order('created_at', { ascending: false })
-            .limit(1000);
-            
-          if (error) throw error;
-          set({ records: sortRecords((data || []) as AttendanceRecord[]), isLoading: false });
+          const authHeaders = await buildAuthHeaders();
+          console.log('[Attendance] fetchRecords: hasAuth=', !!authHeaders['Authorization']);
+
+          const response = await fetch('/api/attendance', {
+            method: 'GET',
+            headers: authHeaders,
+            credentials: 'include',
+          });
+
+          console.log('[Attendance] fetchRecords: status=', response.status);
+
+          if (response.status === 401) {
+            console.warn('[Attendance] fetchRecords: 401 — not authenticated');
+            set({ isLoading: false });
+            return;
+          }
+
+          const result = await response.json();
+
+          if (!response.ok) {
+            throw new Error(result.error || 'ดึงข้อมูลไม่สำเร็จ');
+          }
+
+          console.log('[Attendance] fetchRecords: received', (result.records || []).length, 'records');
+          set({ records: sortRecords((result.records || []) as AttendanceRecord[]), isLoading: false });
         } catch (err) {
-          console.error('Failed to fetch attendance:', err);
-          set({ isLoading: false, error: err instanceof Error ? err.message : 'Unknown error' });
+          console.error('[Attendance] fetchRecords ERROR:', err);
+          set({ isLoading: false, error: extractErrorMessage(err) });
         }
       },
 
       subscribeToAttendanceUpdates: () => {
-        const channel = supabase
-          .channel('public:attendance-records')
-          .on(
-            'postgres_changes',
-            { event: '*', schema: 'public', table: 'attendance_records' },
-            (payload) => {
-              if (payload.eventType === 'DELETE') {
-                const deletedId = String(payload.old.id);
+        // Real-time subscription uses the anon client which may be blocked by RLS.
+        // Wrap in try-catch so it fails silently — the API route handles data freshness.
+        try {
+          const channel = supabase
+            .channel('public:attendance-records')
+            .on(
+              'postgres_changes',
+              { event: '*', schema: 'public', table: 'attendance_records' },
+              (payload) => {
+                if (payload.eventType === 'DELETE') {
+                  const deletedId = String(payload.old.id);
+                  set((state) => ({
+                    records: state.records.filter((record) => record.id !== deletedId),
+                  }));
+                  return;
+                }
+
+                const record = payload.new as AttendanceRecord;
                 set((state) => ({
-                  records: state.records.filter((record) => record.id !== deletedId),
+                  records: upsertRecord(state.records, record),
                 }));
-                return;
+              },
+            )
+            .subscribe((status) => {
+              if (status === 'CHANNEL_ERROR') {
+                console.warn('Attendance realtime subscription blocked by RLS, using API polling');
               }
+            });
 
-              const record = payload.new as AttendanceRecord;
-              set((state) => ({
-                records: upsertRecord(state.records, record),
-              }));
-            },
-          )
-          .subscribe();
-
-        return () => {
-          void supabase.removeChannel(channel);
-        };
+          return () => {
+            void supabase.removeChannel(channel);
+          };
+        } catch {
+          return () => {};
+        }
       },
 
       addRecord: async (record) => {
         set({ isLoading: true, error: null });
         try {
-          let finalPhotoUrl = record.photo_url;
-          
-          if (record.photo_url?.startsWith('data:')) {
-            const blob = dataURLtoBlob(record.photo_url);
-            const fileName = `${record.user_id}/${Date.now()}.jpg`;
-            const uploadedUrl = await uploadFile('proofs', `attendance/${fileName}`, blob);
-            if (uploadedUrl) {
-              finalPhotoUrl = uploadedUrl;
-            } else {
-              throw new Error('คัดลอกไฟล์รูปภาพไม่สำเร็จ (Upload failed)');
-            }
+          const authHeaders = await buildAuthHeaders();
+
+          if (!authHeaders['Authorization']) {
+            // No access token at all — user is definitely not logged in
+            await handleSessionExpired();
+            const msg = 'เซสชันหมดอายุ กำลังนำกลับไปหน้าเข้าสู่ระบบ...';
+            set({ isLoading: false, error: msg });
+            return { success: false, error: msg };
           }
 
-          const { data, error } = await supabase
-            .from('attendance_records')
-            .insert({ ...record, photo_url: finalPhotoUrl })
-            .select()
-            .single();
+          console.log('[Attendance] addRecord: sending POST, hasAuth=', !!authHeaders['Authorization']);
 
-          if (error) {
-            console.error('Supabase insert error details:', error);
-            throw error;
+          const response = await fetch('/api/attendance', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...authHeaders,
+            },
+            credentials: 'include',
+            body: JSON.stringify(record),
+          });
+
+          console.log('[Attendance] addRecord: status=', response.status);
+
+          if (response.status === 401) {
+            await handleSessionExpired();
+            const msg = 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่';
+            set({ isLoading: false, error: msg });
+            return { success: false, error: msg };
           }
 
-          set(state => ({ 
-            records: upsertRecord(state.records, data as AttendanceRecord), 
-            isLoading: false 
-          }));
+          const result = await response.json();
+          console.log('[Attendance] addRecord: response=', JSON.stringify(result).substring(0, 200));
+
+          if (!response.ok) {
+            const errorMsg = result.error || 'ไม่สามารถบันทึกข้อมูลได้';
+            console.error('[Attendance] addRecord API error:', result);
+            set({ isLoading: false, error: errorMsg });
+            return { success: false, error: errorMsg };
+          }
+
+          if (result.record) {
+            set(state => ({
+              records: upsertRecord(state.records, result.record as AttendanceRecord),
+              isLoading: false,
+            }));
+            console.log('[Attendance] addRecord: SUCCESS, record added to store');
+          } else {
+            set({ isLoading: false });
+            console.warn('[Attendance] addRecord: SUCCESS but no record in response');
+          }
+
           return { success: true };
         } catch (err) {
-          console.error('Add attendance error:', err);
-          const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+          console.error('[Attendance] addRecord ERROR:', err);
+          const errorMessage = extractErrorMessage(err);
           set({ isLoading: false, error: errorMessage });
           return { success: false, error: errorMessage };
         }
@@ -135,13 +229,13 @@ export const useAttendanceStore = create<AttendanceState>()(
       },
 
       getRecordsByDate: (date: string) => {
-        return get().records.filter(r => r.created_at.startsWith(date));
+        return get().records.filter(r => toLocalDate(r.created_at) === date);
       },
 
       getTodayRecordForUser: (userId: string) => {
         const today = getToday();
         const userRecords = get().records.filter(
-          r => r.user_id === userId && r.created_at?.startsWith(today)
+          r => r.user_id === userId && toLocalDate(r.created_at) === today
         );
         return {
           checkIn: userRecords.find(r => r.type === 'check_in'),
@@ -158,7 +252,7 @@ export const useAttendanceStore = create<AttendanceState>()(
 
       getAllTodayRecords: () => {
         const today = getToday();
-        return get().records.filter(r => r.created_at?.startsWith(today));
+        return get().records.filter(r => toLocalDate(r.created_at) === today);
       },
     }),
     {

@@ -71,6 +71,7 @@ CREATE TABLE attendance_records (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+
 -- Task Templates Table
 CREATE TABLE task_templates (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import AuthProvider from '@/components/providers/AuthProvider';
+import RemoveServiceWorker from '@/components/RemoveServiceWorker';
 import { ibmPlexSansThai, inter } from './fonts';
 
 export const metadata: Metadata = {
@@ -24,6 +25,7 @@ export default function RootLayout({
   return (
     <html lang="th" className={`${ibmPlexSansThai.variable} ${inter.variable}`}>
       <body className="min-h-dvh bg-slate-50 text-slate-900 antialiased">
+        <RemoveServiceWorker />
         <AuthProvider>
           {children}
         </AuthProvider>

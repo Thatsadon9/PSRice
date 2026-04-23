@@ -150,8 +150,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
               set({ isAuthenticated: true, isLoading: false });
             }
           }
+        } else if (event === 'INITIAL_SESSION' && !session) {
+          // No valid session on app start – ensure state is clean
+          set({ currentUser: null, isAuthenticated: false, isLoading: false });
         }
       });
+
+      // Periodically verify the session is still valid (catches silent refresh failures)
+      const SESSION_CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutes
+      setInterval(() => {
+        void (async () => {
+          const { data: { session: s }, error } = await supabase.auth.getSession();
+          if (error || !s) {
+            if (get().isAuthenticated) {
+              console.warn('Session expired or refresh failed, logging out');
+              await clearInvalidSession();
+              set({ currentUser: null, isAuthenticated: false, isLoading: false });
+            }
+          }
+        })();
+      }, SESSION_CHECK_INTERVAL);
     }
   },
 
