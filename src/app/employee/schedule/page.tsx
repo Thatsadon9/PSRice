@@ -30,6 +30,45 @@ import { SHIFT_ASSIGNMENT_STATUS_LABELS } from '@/lib/constants';
 import { resolveShiftForUserDate } from '@/lib/hr';
 import { ZoomIn, ZoomOut, Zap, Calendar as CalendarIcon } from 'lucide-react';
 
+function resolveShiftColor(
+  shiftName: string | null | undefined, 
+  templateId: string | null | undefined, 
+  branchId: string, 
+  hrStore: any
+): string | null {
+  if (templateId) {
+    const template = hrStore.shiftTemplates.find((t: any) => t.id === templateId);
+    if (template?.color) return template.color;
+  }
+
+  if (shiftName) {
+    const templates = hrStore.getShiftTemplatesByBranch(branchId) as any[];
+    let template = templates.find((t) => t.name.trim().toLowerCase() === shiftName.trim().toLowerCase());
+    
+    if (!template) {
+      const normalized = shiftName.trim().toLowerCase();
+      if (['เช้า', 'morning', 'am'].some((k) => normalized.includes(k))) {
+        template = templates.find((t) => (t.code || '').toUpperCase() === 'AM' || ['เช้า', 'morning', 'am'].some(k => t.name.toLowerCase().includes(k)));
+      } else if (['สาย', 'late', 'afternoon', 'pm'].some((k) => normalized.includes(k))) {
+        template = templates.find((t) => (t.code || '').toUpperCase() === 'LATE' || ['สาย', 'late', 'afternoon', 'pm'].some(k => t.name.toLowerCase().includes(k)));
+      } else if (['fd', 'full', 'full day', 'day', 'ปกติ'].some((k) => normalized.includes(k))) {
+        template = templates.find((t) => (t.code || '').toUpperCase() === 'DAY' || ['fd', 'full', 'day', 'ปกติ'].some(k => t.name.toLowerCase().includes(k)));
+      }
+    }
+
+    if (template?.color) return template.color;
+  }
+
+  if (!shiftName) return null;
+  const normalized = shiftName.trim().toLowerCase();
+  
+  if (['เช้า', 'morning', 'am'].some(k => normalized.includes(k))) return '#d97706';
+  if (['สาย', 'late', 'afternoon', 'pm'].some(k => normalized.includes(k))) return '#2563eb';
+  if (['fd', 'full', 'full day', 'day', 'ปกติ'].some(k => normalized.includes(k))) return '#0f766e';
+  
+  return null;
+}
+
 export default function EmployeeSchedulePage() {
   const { currentUser } = useAuthStore();
   const hrStore = useHrStore();
@@ -165,6 +204,10 @@ export default function EmployeeSchedulePage() {
                const isToday = isSameDay(day, new Date());
                const isSelected = isSameDay(day, selectedDate);
                const variant = resolvedShift ? getShiftVariant(resolvedShift.status) : null;
+               
+               const branchId = assignment?.branch_id || resolvedShift?.branch_id || currentUser.branch_id;
+               const shiftColor = resolveShiftColor(assignment?.shift_name || resolvedShift?.shift_name, assignment?.shift_template_id || resolvedShift?.shift_template_id, branchId, hrStore);
+               const customColor = resolvedShift?.status === 'scheduled' ? shiftColor : null;
 
                return (
                  <button
@@ -182,11 +225,16 @@ export default function EmployeeSchedulePage() {
                    <span className={`text-xs font-black ${isCurrentMonth ? 'text-slate-900' : 'text-slate-400'} ${isToday ? 'text-primary-600' : ''}`}>
                      {format(day, 'd')}
                    </span>
-                   {assignment && (
-                     <div className={`mt-1 h-1.5 w-1.5 rounded-full ${
-                       variant === 'success' ? 'bg-emerald-500' : 
-                       variant === 'danger' ? 'bg-red-500' : 'bg-slate-400'
-                     } ${assignment.status === 'scheduled' ? 'animate-pulse' : ''}`} />
+                   {(assignment || resolvedShift) && (
+                     <div 
+                       className={`mt-1 h-1.5 w-1.5 rounded-full ${
+                         !customColor ? (
+                           variant === 'success' ? 'bg-emerald-500' : 
+                           variant === 'danger' ? 'bg-red-500' : 'bg-slate-400'
+                         ) : ''
+                       } ${resolvedShift?.status === 'scheduled' ? 'animate-pulse' : ''}`}
+                       style={customColor ? { backgroundColor: customColor } : undefined}
+                     />
                    )}
                  </button>
                );
@@ -218,6 +266,9 @@ export default function EmployeeSchedulePage() {
                   const branchId = assignment?.branch_id || resolvedShift?.branch_id || currentUser.branch_id;
                   const branch = branchId ? branchStore.getBranchById(branchId) : null;
                   
+                  const shiftColor = resolveShiftColor(resolvedShift?.shift_name, resolvedShift?.shift_template_id, branchId, hrStore);
+                  const customColor = resolvedShift?.status === 'scheduled' ? shiftColor : null;
+                  
                   if (!resolvedShift) return (
                     <div className="py-6 text-center bg-slate-50/50 rounded-3xl border border-dashed border-slate-200">
                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">ไม่มีการลงกะงาน</p>
@@ -228,11 +279,18 @@ export default function EmployeeSchedulePage() {
                   return (
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
-                         <div className="flex items-center gap-2">
-                           <Clock className="w-4 h-4 text-primary-500" />
-                           <span className="text-sm font-black text-slate-900">{resolvedShift.start_time} - {resolvedShift.end_time}</span>
+                         <div>
+                           <h4 className="text-base font-black" style={{ color: customColor || '#0f172a' }}>{resolvedShift.shift_name}</h4>
+                           <div className="flex items-center gap-2 mt-1">
+                             <Clock className="w-4 h-4 text-primary-500" />
+                             <span className="text-sm font-black text-slate-900">{resolvedShift.start_time} - {resolvedShift.end_time}</span>
+                           </div>
                          </div>
-                         <Badge variant={getShiftVariant(resolvedShift.status)} className="font-black uppercase text-[9px] tracking-tight">
+                         <Badge 
+                           variant={!customColor ? getShiftVariant(resolvedShift.status) : undefined} 
+                           className="font-black uppercase text-[9px] tracking-tight"
+                           style={customColor ? { backgroundColor: `${customColor}20`, color: customColor } : undefined}
+                         >
                             {SHIFT_ASSIGNMENT_STATUS_LABELS[resolvedShift.status]}
                          </Badge>
                       </div>
@@ -261,6 +319,9 @@ export default function EmployeeSchedulePage() {
              const isToday = isSameDay(day, new Date());
              const branchId = assignment?.branch_id || resolvedShift?.branch_id || currentUser.branch_id;
              const branch = branchId ? branchStore.getBranchById(branchId) : null;
+             
+             const shiftColor = resolveShiftColor(resolvedShift?.shift_name, resolvedShift?.shift_template_id, branchId, hrStore);
+             const customColor = resolvedShift?.status === 'scheduled' ? shiftColor : null;
 
              return (
                <Card
@@ -282,12 +343,13 @@ export default function EmployeeSchedulePage() {
                      {resolvedShift ? (
                        <div className="h-full flex flex-col justify-between">
                          <div className="flex items-center justify-between gap-3">
-                           <h3 className="text-sm font-black text-slate-900 truncate">
+                           <h3 className="text-sm font-black truncate" style={{ color: customColor || '#0f172a' }}>
                              {resolvedShift.shift_name}
                            </h3>
                            <Badge
-                             variant={getShiftVariant(resolvedShift.status)}
+                             variant={!customColor ? getShiftVariant(resolvedShift.status) : undefined}
                              className="px-2 py-0.5 text-[9px] font-black uppercase tracking-tight"
+                             style={customColor ? { backgroundColor: `${customColor}20`, color: customColor } : undefined}
                            >
                              {SHIFT_ASSIGNMENT_STATUS_LABELS[resolvedShift.status]}
                            </Badge>

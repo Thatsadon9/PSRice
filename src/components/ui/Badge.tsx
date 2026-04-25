@@ -8,6 +8,7 @@ interface BadgeProps {
   size?: 'sm' | 'md';
   dot?: boolean;
   className?: string;
+  style?: React.CSSProperties;
 }
 
 const variantClasses = {
@@ -39,6 +40,7 @@ export default function Badge({
   size = 'sm',
   dot = false,
   className = '',
+  style,
 }: BadgeProps) {
   return (
     <span
@@ -48,6 +50,7 @@ export default function Badge({
         ${sizeClasses[size]}
         ${className}
       `}
+      style={style}
     >
       {dot && (
         <span className={`w-1.5 h-1.5 rounded-full ${dotColors[variant]}`} />

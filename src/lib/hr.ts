@@ -28,6 +28,7 @@ const DEFAULT_MINIMUM_OT_MINUTES = 30;
 
 export interface ResolvedShiftConfig {
   branch_id?: string | null;
+  shift_template_id?: string | null;
   work_date: string;
   shift_name: string;
   start_time: string;
@@ -189,6 +190,7 @@ export function resolveShiftForUserDate(params: {
   if (assignment) {
     return {
       branch_id: assignment.branch_id ?? user.branch_id,
+      shift_template_id: assignment.shift_template_id,
       work_date: assignment.work_date,
       shift_name: assignment.shift_name,
       start_time: normalizeTimeValue(assignment.start_time),
