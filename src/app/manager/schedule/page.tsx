@@ -378,6 +378,12 @@ export default function ManagerSchedulePage() {
   const [showConfig, setShowConfig] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [modalFilterBranchId, setModalFilterBranchId] = useState<string>('CURRENT');
+  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  const showNotification = (message: string, type: 'success' | 'error' = 'success') => {
+    setNotification({ message, type });
+    setTimeout(() => setNotification(null), 3000);
+  };
 
   const visibleRange = useMemo(() => {
     const fallbackStart = today;
@@ -654,6 +660,7 @@ export default function ManagerSchedulePage() {
       return;
     }
 
+    showNotification(`บันทึกกะให้พนักงาน ${selectedEmployeeIds.length} คนเรียบร้อยแล้ว`);
     resetSelection();
   };
 
@@ -690,6 +697,7 @@ export default function ManagerSchedulePage() {
       return;
     }
 
+    showNotification('ลบรายการกะที่เลือกเรียบร้อยแล้ว');
     resetSelection();
   };
 
@@ -743,6 +751,7 @@ export default function ManagerSchedulePage() {
     });
     
     if (success) {
+      showNotification(`บันทึกนโยบายเวลาหลักของ ${configBranch.name} เรียบร้อยแล้ว`);
       setPolicyDrafts((current) => {
         const next = { ...current };
         delete next[configBranch.id];
@@ -800,6 +809,7 @@ export default function ManagerSchedulePage() {
     }
 
     if (success) {
+      showNotification(`บันทึกรายละเอียด ${slot.modalLabel} เรียบร้อยแล้ว`);
       setSlotDrafts((current) => {
         const next = { ...current };
         delete next[`${configBranch.id}:${slot.key}`];
@@ -1434,6 +1444,31 @@ export default function ManagerSchedulePage() {
           </div>
         ) : null}
       </Modal>
+
+      {/* Beautiful Floating Notification */}
+      {notification && (
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] animate-slide-up">
+          <div className={`flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl border backdrop-blur-md ${
+            notification.type === 'success' 
+              ? 'bg-emerald-500/90 text-white border-emerald-400/50' 
+              : 'bg-red-500/90 text-white border-red-400/50'
+          }`}>
+            <div className="h-8 w-8 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+              {notification.type === 'success' ? (
+                <CheckSquare2 className="w-5 h-5 text-white" />
+              ) : (
+                <AlertTriangle className="w-5 h-5 text-white" />
+              )}
+            </div>
+            <div className="flex flex-col">
+              <p className="text-sm font-bold leading-none">
+                {notification.type === 'success' ? 'บันทึกสำเร็จ' : 'เกิดข้อผิดพลาด'}
+              </p>
+              <p className="text-xs text-white/90 mt-1 font-medium">{notification.message}</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

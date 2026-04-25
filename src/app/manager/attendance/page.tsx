@@ -188,8 +188,8 @@ export default function AttendanceMonitoringPage() {
       เวลาเข้า: row.summary.checkIn ? new Date(row.summary.checkIn.created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '-',
       เวลาออก: row.summary.checkOut ? new Date(row.summary.checkOut.created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '-',
       ชั่วโมงทำงาน: formatMinutesAsHours(row.summary.worked_minutes),
-      นาทีสาย: row.summary.late_minutes,
-      นาทีออกก่อน: row.summary.early_out_minutes,
+      ระยะเวลาสาย: formatMinutesAsHours(row.summary.late_minutes),
+      ระยะเวลาออกก่อน: formatMinutesAsHours(row.summary.early_out_minutes),
       ชั่วโมงโอที: formatMinutesAsHours(row.summary.ot_minutes),
       สถานะ: getSummaryLabel({
         scheduled: row.summary.scheduled,
@@ -428,12 +428,12 @@ export default function AttendanceMonitoringPage() {
                       <div className="flex flex-col items-center gap-1">
                         {summary.late_minutes > 0 && (
                           <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
-                            สาย {summary.late_minutes}น.
+                            สาย {formatMinutesAsHours(summary.late_minutes)}
                           </span>
                         )}
                         {summary.early_out_minutes > 0 && (
                           <span className="text-[10px] font-bold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full">
-                            ออกก่อน {summary.early_out_minutes}น.
+                            ออกก่อน {formatMinutesAsHours(summary.early_out_minutes)}
                           </span>
                         )}
                         {summary.late_minutes === 0 && summary.early_out_minutes === 0 && (

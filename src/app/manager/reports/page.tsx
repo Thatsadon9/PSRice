@@ -170,7 +170,7 @@ export default function ReportsPage() {
       จำนวนกะ: row.payrollSummary.scheduled_days,
       วันทำงานจริง: row.payrollSummary.worked_days,
       วันมาสาย: row.payrollSummary.late_days,
-      นาทีสายรวม: row.payrollSummary.total_late_minutes,
+      ระยะเวลาสายรวม: formatMinutesAsHours(row.payrollSummary.total_late_minutes),
       วันขาด: row.payrollSummary.absent_days,
       วันลา: row.payrollSummary.leave_days,
       ชั่วโมงทำงานรวม: formatMinutesAsHours(row.payrollSummary.total_worked_minutes),

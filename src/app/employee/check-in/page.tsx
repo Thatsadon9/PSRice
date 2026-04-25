@@ -14,7 +14,7 @@ import { useBranchStore } from '@/store/branchStore';
 import { useHrStore } from '@/store/hrStore';
 import { formatTime, getCurrentDateStr } from '@/lib/dateUtils';
 import { checkGeofence, formatDistance } from '@/lib/geofence';
-import { createLocalDateTime, resolveShiftForUserDate } from '@/lib/hr';
+import { createLocalDateTime, resolveShiftForUserDate, formatMinutesAsHours } from '@/lib/hr';
 import { getAccuracyColor, getAccuracyLabel, getAccuracyLevel, getDeviceInfo } from '@/lib/gps';
 import type { AttendanceRecord, GPSCoordinates } from '@/lib/types';
 import {
@@ -245,7 +245,7 @@ export default function CheckInPage() {
       notes: isCheckOut
         ? todayShift ? `เช็กเอาต์กะ ${todayShift.shift_name}` : ''
         : isLate
-          ? `เข้างานสาย ${lateMinutes} นาที`
+          ? `เข้างานสาย ${formatMinutesAsHours(lateMinutes)}`
           : todayShift
             ? `เช็กอินกะ ${todayShift.shift_name}`
             : '',
@@ -259,7 +259,7 @@ export default function CheckInPage() {
         isCheckOut
           ? 'เช็กเอาต์สำเร็จ'
           : isLate
-            ? `เช็กอินสำเร็จ (สาย ${lateMinutes} นาที)`
+            ? `เช็กอินสำเร็จ (สาย ${formatMinutesAsHours(lateMinutes)})`
             : 'เช็กอินสำเร็จ',
       );
     } else {

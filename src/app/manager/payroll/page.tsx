@@ -220,7 +220,7 @@ export default function PayrollPage() {
         'อัตราพื้นฐาน': s.gross_pay - s.ot_pay,
         'วันที่มาทำงาน': s.worked_days,
         'วันที่ขาด': s.absent_days,
-        'สาย (นาที)': s.total_late_minutes,
+        'ระยะเวลาสาย': formatMinutesAsHours(s.total_late_minutes),
         'ค่าล่วงเวลา (OT)': s.ot_pay,
         'โบนัสพิเศษ': s.manual_bonus,
         'รายการหักรวม': s.manual_deduction + s.late_deduction + s.absence_deduction + s.leave_deduction,
@@ -726,7 +726,7 @@ export default function PayrollPage() {
                                </td>
                                <td className="px-6 py-6">
                                   {summary.late_minutes > 0 ? (
-                                    <span className="text-xs font-black text-amber-600">สาย {summary.late_minutes} น.</span>
+                                    <span className="text-xs font-black text-amber-600">สาย {formatMinutesAsHours(summary.late_minutes)}</span>
                                   ) : <span className="text-xs font-bold text-slate-300">—</span>}
                                </td>
                                <td className="px-6 py-6 text-right px-8">
