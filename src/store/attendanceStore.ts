@@ -51,6 +51,18 @@ interface AttendanceState {
   fetchRecords: () => Promise<void>;
   subscribeToAttendanceUpdates: () => () => void;
   addRecord: (record: Omit<AttendanceRecord, 'id' | 'created_at' | 'server_timestamp'>) => Promise<{ success: boolean; error?: string }>;
+  updateAttendanceTimes: (
+    updates: Array<{ id: string; created_at: string }>,
+    note?: string,
+  ) => Promise<{ success: boolean; error?: string }>;
+  /** Admin/manager punch without GPS/photo; server sets timestamps from `createdAt`. */
+  addManagerManualPunch: (params: {
+    userId: string;
+    branchId: string;
+    type: 'check_in' | 'check_out';
+    createdAt: string;
+    note?: string;
+  }) => Promise<{ success: boolean; error?: string }>;
   getRecordsByUser: (userId: string) => AttendanceRecord[];
   getRecordsByDate: (date: string) => AttendanceRecord[];
   getTodayRecordForUser: (userId: string) => { checkIn?: AttendanceRecord; checkOut?: AttendanceRecord };
@@ -220,6 +232,97 @@ export const useAttendanceStore = create<AttendanceState>()(
           console.error('[Attendance] addRecord ERROR:', err);
           const errorMessage = extractErrorMessage(err);
           set({ isLoading: false, error: errorMessage });
+          return { success: false, error: errorMessage };
+        }
+      },
+
+      updateAttendanceTimes: async (updates, note) => {
+        if (!updates.length) {
+          return { success: false, error: 'ไม่มีการอัปเดต' };
+        }
+
+        try {
+          const authHeaders = await buildAuthHeaders();
+          const response = await fetch('/api/attendance', {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              ...authHeaders,
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+              updates,
+              ...(typeof note === 'string' && note.trim() ? { note: note.trim() } : {}),
+            }),
+          });
+
+          const result = (await response.json()) as {
+            records?: AttendanceRecord[];
+            error?: string;
+          };
+
+          if (!response.ok) {
+            return { success: false, error: result.error || 'แก้ไขเวลาไม่สำเร็จ' };
+          }
+
+          const refreshed = Array.isArray(result.records) ? result.records : [];
+
+          set((state) => ({
+            records: refreshed.reduce(
+              (acc, record) => upsertRecord(acc, record),
+              state.records,
+            ),
+            error: null,
+          }));
+
+          return { success: true };
+        } catch (err) {
+          const errorMessage = extractErrorMessage(err);
+          set({ error: errorMessage });
+          return { success: false, error: errorMessage };
+        }
+      },
+
+      addManagerManualPunch: async ({ userId, branchId, type, createdAt, note }) => {
+        try {
+          const authHeaders = await buildAuthHeaders();
+          const response = await fetch('/api/attendance', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...authHeaders,
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+              manager_manual: true,
+              user_id: userId,
+              branch_id: branchId,
+              type,
+              created_at: createdAt,
+              ...(typeof note === 'string' && note.trim() ? { notes: note.trim() } : {}),
+            }),
+          });
+
+          const result = (await response.json()) as {
+            record?: AttendanceRecord;
+            error?: string;
+          };
+
+          if (!response.ok) {
+            return { success: false, error: result.error || 'ไม่สามารถเพิ่มรายการได้' };
+          }
+
+          if (result.record) {
+            set((state) => ({
+              records: upsertRecord(state.records, result.record as AttendanceRecord),
+              error: null,
+            }));
+          }
+
+          return { success: true };
+        } catch (err) {
+          const errorMessage = extractErrorMessage(err);
+          set({ error: errorMessage });
           return { success: false, error: errorMessage };
         }
       },

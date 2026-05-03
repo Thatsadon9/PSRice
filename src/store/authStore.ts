@@ -243,7 +243,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   login: async (email: string, password?: string) => {
-    set({ isLoading: true });
+    // Avoid toggling AuthProvider's global `isLoading` (session bootstrap); it would unmount /login UI.
     try {
       // 1. Authenticate with Supabase Auth
       // Note: For Phase 3, we expect the user to have accounts in auth.users
@@ -253,8 +253,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
 
       if (error || !data.user) {
-        console.error('Auth error:', error?.message);
-        set({ isLoading: false });
         return {
           success: false,
           message: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง',
@@ -269,9 +267,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         .single();
 
       if (userError || !userData) {
-        console.error('User meta data missing');
         await clearInvalidSession();
-        set({ isLoading: false });
         return {
           success: false,
           message: 'ไม่พบบัญชีผู้ใช้ในระบบ',
@@ -294,9 +290,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isLoading: false 
       });
       return { success: true };
-    } catch (err) {
-      console.error(err);
-      set({ isLoading: false });
+    } catch {
       return {
         success: false,
         message: 'ไม่สามารถเข้าสู่ระบบได้ในขณะนี้',

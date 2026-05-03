@@ -4,22 +4,23 @@ import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Mail, Lock } from "lucide-react";
+import { Mail, Lock, AlertCircle } from "lucide-react";
 import { useAuthStore } from "@/store/authStore";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
+import Modal from "@/components/ui/Modal";
 
 export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuthStore();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const [authAlert, setAuthAlert] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault();
-    setError("");
+    setAuthAlert(null);
     setLoading(true);
 
     const result = await login(email, password);
@@ -28,7 +29,7 @@ export default function LoginPage() {
       const user = useAuthStore.getState().currentUser;
       router.push(user?.role === "employee" ? "/employee" : "/manager");
     } else {
-      setError(result.message || "อีเมลหรือรหัสผ่านไม่ถูกต้อง");
+      setAuthAlert(result.message || "อีเมลหรือรหัสผ่านไม่ถูกต้อง");
     }
 
     setLoading(false);
@@ -81,12 +82,6 @@ export default function LoginPage() {
               icon={<Lock className="w-4 h-4" />}
             />
 
-            {error && (
-              <div className="px-3 py-2 rounded-lg bg-red-50 border border-red-200">
-                <p className="text-sm text-red-700">{error}</p>
-              </div>
-            )}
-
             <Button id="btn-login" type="submit" fullWidth size="lg" loading={loading}>
               เข้าสู่ระบบ
             </Button>
@@ -118,6 +113,25 @@ export default function LoginPage() {
           ระบบนี้ใช้การยืนยันตัวตนแบบ Role-Based Access Control
         </p>
       </div>
+
+      <Modal
+        isOpen={!!authAlert}
+        onClose={() => setAuthAlert(null)}
+        title="เข้าสู่ระบบไม่สำเร็จ"
+        size="sm"
+      >
+        <div className="flex flex-col gap-4">
+          <div className="flex gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-600">
+              <AlertCircle className="h-5 w-5" aria-hidden />
+            </span>
+            <p className="text-sm text-slate-700 pt-2">{authAlert}</p>
+          </div>
+          <Button fullWidth type="button" onClick={() => setAuthAlert(null)}>
+            ตกลง
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 }

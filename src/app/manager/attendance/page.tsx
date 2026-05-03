@@ -8,6 +8,7 @@ import {
   Clock3,
   Download,
   Info,
+  Pencil,
   Search,
   ShieldCheck,
   TimerReset,
@@ -17,7 +18,9 @@ import {
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
+import Modal from '@/components/ui/Modal';
 import Select from '@/components/ui/Select';
+import Input from '@/components/ui/Input';
 import { useAuthStore } from '@/store/authStore';
 import { useAttendanceStore } from '@/store/attendanceStore';
 import { useBranchStore } from '@/store/branchStore';
@@ -27,8 +30,34 @@ import { exportToExcel } from '@/lib/export';
 import {
   calculateDailyAttendanceSummary,
   formatMinutesAsHours,
+  type DailyAttendanceSummary,
 } from '@/lib/hr';
+import type { User } from '@/lib/types';
 import { formatThaiDate, getCurrentDateStr } from '@/lib/dateUtils';
+
+function isoToDatetimeLocalValue(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) {
+    return '';
+  }
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** Build `yyyy-MM-ddTHH:mm` for datetime-local using shift time (`08:30` / `08:30:00`). */
+function shiftClockToDatetimeLocal(workDate: string, timeStr?: string): string {
+  const raw = (timeStr ?? '08:00').trim().split(':');
+  const h = Number.parseInt(raw[0] ?? '8', 10);
+  const m = Number.parseInt(raw[1] ?? '0', 10);
+  const hh = String(Number.isFinite(h) ? Math.min(23, Math.max(0, h)) : 8).padStart(2, '0');
+  const mm = String(Number.isFinite(m) ? Math.min(59, Math.max(0, m)) : 0).padStart(2, '0');
+  return `${workDate}T${hh}:${mm}`;
+}
+
+type EditTarget = {
+  employee: User;
+  summary: DailyAttendanceSummary;
+};
 
 function getSummaryVariant(params: {
   absent: boolean;
@@ -102,6 +131,8 @@ function getSummaryLabel(params: {
 export default function AttendanceMonitoringPage() {
   const { currentUser } = useAuthStore();
   const attendanceRecords = useAttendanceStore((state) => state.records);
+  const updateAttendanceTimes = useAttendanceStore((state) => state.updateAttendanceTimes);
+  const addManagerManualPunch = useAttendanceStore((state) => state.addManagerManualPunch);
   const branches = useBranchStore((state) => state.branches);
   const getBranchById = useBranchStore((state) => state.getBranchById);
   const users = useEmployeeStore((state) => state.users);
@@ -116,6 +147,155 @@ export default function AttendanceMonitoringPage() {
   const [selectedDate, setSelectedDate] = useState(getCurrentDateStr());
   const [selectedBranchId, setSelectedBranchId] = useState(currentUser?.role === 'manager' ? currentUser.branch_id : 'all');
   const [search, setSearch] = useState('');
+  const [editTarget, setEditTarget] = useState<EditTarget | null>(null);
+  const [checkInLocal, setCheckInLocal] = useState('');
+  const [checkOutLocal, setCheckOutLocal] = useState('');
+  const [correctionNote, setCorrectionNote] = useState('');
+  const [editError, setEditError] = useState('');
+  const [saveTimesLoading, setSaveTimesLoading] = useState(false);
+
+  const canCorrectAttendance =
+    currentUser?.role === 'admin' || currentUser?.role === 'manager';
+
+  function openCorrectionModal(employee: User, summary: DailyAttendanceSummary) {
+    setEditError('');
+    setCorrectionNote('');
+    setEditTarget({ employee, summary });
+    const workDate = summary.work_date || selectedDate;
+    setCheckInLocal(
+      summary.checkIn
+        ? isoToDatetimeLocalValue(summary.checkIn.created_at)
+        : shiftClockToDatetimeLocal(workDate, summary.shift?.start_time),
+    );
+    setCheckOutLocal(
+      summary.checkOut
+        ? isoToDatetimeLocalValue(summary.checkOut.created_at)
+        : shiftClockToDatetimeLocal(workDate, summary.shift?.end_time ?? summary.shift?.start_time ?? '17:30'),
+    );
+  }
+
+  function closeCorrectionModal() {
+    setEditTarget(null);
+    setEditError('');
+    setCorrectionNote('');
+    setCheckInLocal('');
+    setCheckOutLocal('');
+    setSaveTimesLoading(false);
+  }
+
+  async function submitCorrectionTimes() {
+    if (!editTarget) {
+      return;
+    }
+
+    const { employee, summary } = editTarget;
+    const note = correctionNote.trim() || undefined;
+
+    const hasIn = checkInLocal.trim().length > 0;
+    const hasOut = checkOutLocal.trim().length > 0;
+
+    if (summary.checkIn && !hasIn) {
+      setEditError('กรุณาระบุเวลาเข้างาน (มีรายการเดิมในระบบแล้ว — ว่างไม่ได้)');
+      return;
+    }
+
+    if (summary.checkOut && !hasOut) {
+      setEditError('กรุณาระบุเวลาออกงาน (มีรายการเดิมในระบบแล้ว — ว่างไม่ได้)');
+      return;
+    }
+
+    if (!summary.checkIn && !summary.checkOut && !hasIn && !hasOut) {
+      setEditError('กรุณาระบุเวลาเข้างานหรือออกอย่างน้อยหนึ่งอย่าง');
+      return;
+    }
+
+    let inMs = hasIn ? new Date(checkInLocal).getTime() : NaN;
+    let outMs = hasOut ? new Date(checkOutLocal).getTime() : NaN;
+
+    if (hasIn && Number.isNaN(inMs)) {
+      setEditError('เวลาเข้างานไม่ถูกต้อง');
+      return;
+    }
+
+    if (hasOut && Number.isNaN(outMs)) {
+      setEditError('เวลาออกงานไม่ถูกต้อง');
+      return;
+    }
+
+    if (hasIn && hasOut && outMs < inMs) {
+      setEditError('เวลาออกงานต้องอยู่หลังเวลาเข้างาน');
+      return;
+    }
+
+    const updates: Array<{ id: string; created_at: string }> = [];
+
+    if (summary.checkIn && hasIn) {
+      const orig = isoToDatetimeLocalValue(summary.checkIn.created_at);
+      if (checkInLocal !== orig) {
+        updates.push({ id: summary.checkIn.id, created_at: new Date(checkInLocal).toISOString() });
+      }
+    }
+
+    if (summary.checkOut && hasOut) {
+      const orig = isoToDatetimeLocalValue(summary.checkOut.created_at);
+      if (checkOutLocal !== orig) {
+        updates.push({ id: summary.checkOut.id, created_at: new Date(checkOutLocal).toISOString() });
+      }
+    }
+
+    const addCheckIn = !summary.checkIn && hasIn;
+    const addCheckOut = !summary.checkOut && hasOut;
+
+    if (!addCheckIn && !addCheckOut && updates.length === 0) {
+      setEditError('ยังไม่มีการเปลี่ยนแปลง');
+      return;
+    }
+
+    setEditError('');
+    setSaveTimesLoading(true);
+
+    if (addCheckIn) {
+      const rIn = await addManagerManualPunch({
+        userId: employee.id,
+        branchId: employee.branch_id,
+        type: 'check_in',
+        createdAt: new Date(checkInLocal).toISOString(),
+        note,
+      });
+      if (!rIn.success) {
+        setEditError(rIn.error || 'เพิ่มเวลาเข้างานไม่สำเร็จ');
+        setSaveTimesLoading(false);
+        return;
+      }
+    }
+
+    if (updates.length > 0) {
+      const rPatch = await updateAttendanceTimes(updates, note);
+      if (!rPatch.success) {
+        setEditError(rPatch.error || 'อัปเดตเวลาไม่สำเร็จ');
+        setSaveTimesLoading(false);
+        return;
+      }
+    }
+
+    if (addCheckOut) {
+      const rOut = await addManagerManualPunch({
+        userId: employee.id,
+        branchId: employee.branch_id,
+        type: 'check_out',
+        createdAt: new Date(checkOutLocal).toISOString(),
+        note,
+      });
+      if (!rOut.success) {
+        setEditError(rOut.error || 'เพิ่มเวลาออกงานไม่สำเร็จ');
+        setSaveTimesLoading(false);
+        return;
+      }
+    }
+
+    setSaveTimesLoading(false);
+    closeCorrectionModal();
+  }
 
   const activeBranchId = selectedBranchId === 'all' ? '' : selectedBranchId;
 
@@ -338,12 +518,15 @@ export default function AttendanceMonitoringPage() {
                 <th className="px-6 py-3 text-center">สาย / ออกก่อน</th>
                 <th className="px-6 py-3 text-center">โอที</th>
                 <th className="px-6 py-4 text-center">สถานะ</th>
+                {canCorrectAttendance ? (
+                  <th className="px-6 py-4 text-center w-[96px]">แก้ไข</th>
+                ) : null}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {employeeRows.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-6 py-20 text-center">
+                  <td colSpan={canCorrectAttendance ? 9 : 8} className="px-6 py-20 text-center">
                     <div className="flex flex-col items-center justify-center gap-3">
                       <div className="h-12 w-12 rounded-full bg-slate-50 flex items-center justify-center text-slate-300">
                         <Search className="w-6 h-6" />
@@ -454,6 +637,20 @@ export default function AttendanceMonitoringPage() {
                         {label}
                       </Badge>
                     </td>
+                    {canCorrectAttendance ? (
+                      <td className="px-6 py-4 text-center">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-9 px-2 text-primary-700 hover:bg-primary-50"
+                          icon={<Pencil className="w-4 h-4" />}
+                          ariaLabel={`แก้ไขหรือเพิ่มเวลาเข้าออก ${employee.full_name}`}
+                          title="แก้ไขหรือเพิ่มเวลาเข้า-ออก"
+                          onClick={() => openCorrectionModal(employee, summary)}
+                        />
+                      </td>
+                    ) : null}
                   </tr>
                 );
               })}
@@ -461,6 +658,95 @@ export default function AttendanceMonitoringPage() {
           </table>
         </div>
       </Card>
+
+      <Modal
+        isOpen={Boolean(editTarget)}
+        onClose={closeCorrectionModal}
+        title="แก้ไขหรือเพิ่มเวลาเข้างาน / ออกงาน"
+        size="sm"
+      >
+        {editTarget ? (
+          <div className="space-y-4">
+            <p className="text-sm text-slate-600">
+              <span className="font-semibold text-slate-900">{editTarget.employee.full_name}</span>
+              <span className="text-slate-400 mx-2">•</span>
+              {formatThaiDate(editTarget.summary.work_date || selectedDate)}
+            </p>
+            <p className="text-xs text-slate-500 leading-relaxed">
+              ผู้จัดการ/แอดมินปรับเวลารายการเดิมได้ และเพิ่มรายการใหม่เมื่อพนักงานยังไม่มีเช็คอิน/เอาต์ — ระบบจะบันทึกหมายเหตุจากผู้ดำเนินการอัตโนมัติ
+            </p>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-600 uppercase tracking-wide" htmlFor="edit-check-in-at">
+                เวลาเข้างาน{' '}
+                <span className="font-normal text-slate-400 normal-case">
+                  {editTarget.summary.checkIn ? '(มีในระบบ — ปรับได้)' : '(ยังไม่มี — ระบุเพื่อเพิ่ม)'}
+                </span>
+              </label>
+              <input
+                id="edit-check-in-at"
+                type="datetime-local"
+                value={checkInLocal}
+                onChange={(e) => setCheckInLocal(e.target.value)}
+                className="w-full min-h-11 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-600 uppercase tracking-wide" htmlFor="edit-check-out-at">
+                เวลาออกงาน{' '}
+                <span className="font-normal text-slate-400 normal-case">
+                  {editTarget.summary.checkOut ? '(มีในระบบ — ปรับได้)' : '(ยังไม่มี — ระบุเพื่อเพิ่ม)'}
+                </span>
+              </label>
+              {!editTarget.summary.checkOut ? (
+                <p className="text-[11px] text-slate-500">
+                  เวลาเริ่มต้นจากกะเดียวกับตาราง (หรือ 17:30) — แก้ได้ตามจริง
+                </p>
+              ) : null}
+              <input
+                id="edit-check-out-at"
+                type="datetime-local"
+                value={checkOutLocal}
+                onChange={(e) => setCheckOutLocal(e.target.value)}
+                className="w-full min-h-11 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              />
+            </div>
+
+            <Input
+              id="edit-correction-note"
+              label="หมายเหตุ (ไม่บังคับ)"
+              placeholder="เช่น ลืมเช็คอิน / แก้ตามบัตรเวลา"
+              value={correctionNote}
+              onChange={(e) => setCorrectionNote(e.target.value)}
+            />
+
+            {editError ? (
+              <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">{editError}</p>
+            ) : null}
+
+            <div className="flex gap-2 pt-1">
+              <Button
+                type="button"
+                variant="secondary"
+                fullWidth
+                onClick={closeCorrectionModal}
+                disabled={saveTimesLoading}
+              >
+                ยกเลิก
+              </Button>
+              <Button
+                type="button"
+                fullWidth
+                loading={saveTimesLoading}
+                onClick={() => void submitCorrectionTimes()}
+              >
+                บันทึก
+              </Button>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-2 border-slate-200 shadow-sm">
