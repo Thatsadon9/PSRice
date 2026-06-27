@@ -226,6 +226,7 @@ export interface Task {
   priority?: Priority;
   proof_type_required?: ProofType;
   reward_amount?: number | null;
+  requires_approval?: boolean;
   created_at: string;
 }
 

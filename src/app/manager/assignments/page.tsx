@@ -34,6 +34,7 @@ interface AssignmentFormData {
   target_id: string;
   due_date: string;
   reward_amount: string;
+  requires_approval: boolean;
 }
 
 type TaskDraft = Omit<Task, 'id' | 'created_at' | 'assigned_to' | 'due_date' | 'status'>;
@@ -59,6 +60,7 @@ export default function AssignmentsPage() {
     target_id: '',
     due_date: getCurrentDateStr(),
     reward_amount: '',
+    requires_approval: true,
   });
 
   const templates = taskStore.templates;
@@ -84,6 +86,7 @@ export default function AssignmentsPage() {
         proof_type_required: template.proof_type_required,
         checklist_state: template.checklist_json?.map(item => ({ ...item })),
         reward_amount: formData.reward_amount === '' ? template.reward_amount : Number(formData.reward_amount),
+        requires_approval: template.requires_approval,
       };
     } else {
       baseTaskData = {
@@ -92,6 +95,7 @@ export default function AssignmentsPage() {
         priority: formData.priority,
         proof_type_required: formData.proof_type_required,
         reward_amount: formData.reward_amount === '' ? undefined : Number(formData.reward_amount),
+        requires_approval: formData.requires_approval,
       };
     }
 
@@ -431,7 +435,7 @@ export default function AssignmentsPage() {
               </div>
             )}
 
-            <div className="pt-2">
+            <div className="pt-2 space-y-4">
               <Input 
                 label="จำนวนเงินพิเศษสำหรับงานนี้ (บาท) - ปล่อยว่างเพื่อใช้ค่ามาตรฐาน"
                 type="number"
@@ -439,6 +443,24 @@ export default function AssignmentsPage() {
                 value={formData.reward_amount}
                 onChange={(e) => setFormData({...formData, reward_amount: e.target.value})}
               />
+
+              {formData.mode === 'custom' && (
+                <div className="flex items-center gap-3 p-4 bg-slate-50 border border-slate-100 rounded-2xl">
+                  <div className="flex-1">
+                    <p className="text-sm font-black text-slate-900">รอตรวจสอบจากหัวหน้างาน</p>
+                    <p className="text-[10px] font-bold text-slate-400 mt-0.5">พนักงานส่งงานแล้วต้องให้แอดมินอนุมัติก่อนถึงจะเสร็จสิ้น</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      className="sr-only peer"
+                      checked={formData.requires_approval}
+                      onChange={(e) => setFormData({...formData, requires_approval: e.target.checked})}
+                    />
+                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-500"></div>
+                  </label>
+                </div>
+              )}
             </div>
 
             <div className="space-y-4 pt-4 border-t border-slate-50">

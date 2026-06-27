@@ -202,11 +202,13 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
     setSubmitError('');
     setSubmitting(true);
 
+    const needsApproval = task.requires_approval ?? template?.requires_approval ?? false;
+
     const submission = await taskStore.addSubmission({
       task_id: task.id,
       submitted_by: currentUser.id,
       note,
-      review_status: template?.requires_approval ? 'pending' : 'approved',
+      review_status: needsApproval ? 'pending' : 'approved',
     });
 
     if (!submission) {
@@ -224,7 +226,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
       });
     }
 
-    if (template?.requires_approval) {
+    if (needsApproval) {
       const recipients = getReviewRecipients(employeeStore.users, currentUser);
 
       await insertNotifications(
@@ -238,7 +240,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
       );
     }
 
-    await taskStore.updateTaskStatus(task.id, template?.requires_approval ? 'submitted' : 'approved');
+    await taskStore.updateTaskStatus(task.id, needsApproval ? 'submitted' : 'approved');
     proofUploads.forEach((upload) => {
       URL.revokeObjectURL(upload.previewUrl);
     });
