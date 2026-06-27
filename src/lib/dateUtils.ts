@@ -123,11 +123,22 @@ export function formatDuration(startTime: string, endTime: string): string {
 }
 
 export function getCurrentDateStr(): string {
-  return format(new Date(), 'yyyy-MM-dd');
+  return new Intl.DateTimeFormat('en-CA', { 
+    timeZone: 'Asia/Bangkok', 
+    year: 'numeric', 
+    month: '2-digit', 
+    day: '2-digit' 
+  }).format(new Date());
 }
 
 export function getCurrentTimeStr(): string {
-  return format(new Date(), 'HH:mm:ss');
+  return new Intl.DateTimeFormat('en-GB', { 
+    timeZone: 'Asia/Bangkok',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  }).format(new Date());
 }
 
 export function formatThaiFullDate(date: Date): string {

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAuthenticatedRequestContext, supabaseAdmin } from '@/lib/serverAuth';
+import { getCurrentDateStr } from '@/lib/dateUtils';
 
 /**
  * Convert a base64 data URL to a Buffer for server-side upload.
@@ -221,20 +222,18 @@ export async function POST(request: Request) {
     // Auto-complete check-in milestone if applicable
     if (data && body.type === 'check_in') {
       try {
-        const todayStr = new Date().toISOString().split('T')[0];
+        const todayStr = getCurrentDateStr();
         
         // Find the pending check-in task for today
         const { data: checkInTasks } = await supabaseAdmin
           .from('tasks')
-          .select('id, status, template_id, task_templates!inner(is_system, title)')
+          .select('id, status, template_id, title')
           .eq('assigned_to', userId)
           .eq('due_date', todayStr)
           .in('status', ['pending', 'in_progress']);
 
         const checkInTask = checkInTasks?.find(t => 
-          t.task_templates && 
-          (t.task_templates as any).is_system === true && 
-          (t.task_templates as any).title.includes('เช็คอิน')
+          t.title && t.title.includes('เช็คอิน')
         );
 
         if (checkInTask) {

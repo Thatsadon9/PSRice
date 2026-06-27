@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { getCurrentDateStr } from '@/lib/dateUtils';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
@@ -131,7 +132,7 @@ async function handleDailyTasks(targetBranchId: string | null = null) {
       branchUsersMap[user.branch_id].push(user.id);
     }
 
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getCurrentDateStr();
 
     // 3. Find if we already generated tasks for today
     // We fetch current tasks matching today's due date
