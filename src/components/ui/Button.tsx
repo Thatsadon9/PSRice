@@ -72,7 +72,7 @@ export default function Button({
       className={`
         inline-flex items-center justify-center font-medium leading-none select-none
         whitespace-nowrap touch-manipulation align-middle
-        transition-all duration-150 btn-press
+        transition-all duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] btn-press hover:-translate-y-[1px] hover:shadow-md
         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2
         disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:pointer-events-none
         ${variantClasses[variant]}

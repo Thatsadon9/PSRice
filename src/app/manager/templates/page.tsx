@@ -30,6 +30,7 @@ type TemplateFormData = {
   recurrence_rule: RecurrenceType;
   requires_approval: boolean;
   branch_id: string;
+  reward_amount: string;
 };
 
 function createEmptyTemplate(branchId: string): TemplateFormData {
@@ -41,6 +42,7 @@ function createEmptyTemplate(branchId: string): TemplateFormData {
     recurrence_rule: 'daily',
     requires_approval: true,
     branch_id: branchId,
+    reward_amount: '',
   };
 }
 
@@ -107,6 +109,7 @@ export default function TemplateManagementPage() {
         recurrence_rule: template.recurrence_rule,
         requires_approval: template.requires_approval,
         branch_id: template.branch_id,
+        reward_amount: template.reward_amount ? String(template.reward_amount) : '',
       });
       setChecklistItems(template.checklist_json?.map((item) => ({ id: item.id, label: item.label })) || []);
     } else {
@@ -153,6 +156,7 @@ export default function TemplateManagementPage() {
       ...formData,
       title,
       description,
+      reward_amount: formData.reward_amount === '' ? null : Number(formData.reward_amount),
       checklist_json: checklistItems.map((item) => ({
         id: item.id,
         label: item.label,
@@ -290,6 +294,14 @@ export default function TemplateManagementPage() {
             rows={3}
             value={formData.description}
             onChange={(event) => setFormData({ ...formData, description: event.target.value })}
+          />
+
+          <Input
+            label="จำนวนเงินรางวัล (บาท) - ปล่อยว่างเพื่อใช้ค่ามาตรฐาน"
+            type="number"
+            placeholder="เช่น 50, 100"
+            value={formData.reward_amount}
+            onChange={(event) => setFormData({ ...formData, reward_amount: event.target.value })}
           />
 
           <Select

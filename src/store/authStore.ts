@@ -9,21 +9,36 @@ import { AuthChangeEvent, Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 
 let authListenerRegistered = false;
+const AUTH_TIMEOUT_MS = 8000;
+
+function withTimeout<T>(promise: Promise<T>, label: string) {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      window.setTimeout(() => {
+        reject(new Error(`${label} timed out`));
+      }, AUTH_TIMEOUT_MS);
+    }),
+  ]);
+}
 
 async function clearInvalidSession() {
   try {
-    await supabase.auth.signOut({ scope: 'local' });
+    await withTimeout(supabase.auth.signOut({ scope: 'local' }), 'Supabase signOut');
   } catch (error) {
     console.warn('Failed to clear invalid local auth session', error);
   }
 }
 
 async function fetchUserProfile(userId: string) {
-  const { data, error } = await supabase
-    .from('users')
-    .select('*')
-    .eq('id', userId)
-    .single();
+  const { data, error } = await withTimeout<any>(
+    supabase
+      .from('users')
+      .select('*')
+      .eq('id', userId)
+      .single() as any,
+    'Fetch user profile',
+  );
 
   if (error || !data) {
     return null;
@@ -83,7 +98,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const {
         data: { session },
         error,
-      } = await supabase.auth.getSession();
+      } = await withTimeout(supabase.auth.getSession(), 'Supabase session restore');
 
       if (error) {
         if (error.message.toLowerCase().includes('refresh token')) {
@@ -290,10 +305,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isLoading: false 
       });
       return { success: true };
-    } catch {
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '';
+      const isNetworkError = message.toLowerCase().includes('failed to fetch');
+
       return {
         success: false,
-        message: 'ไม่สามารถเข้าสู่ระบบได้ในขณะนี้',
+        message: isNetworkError
+          ? 'ไม่สามารถเชื่อมต่อ Supabase ได้ กรุณาตรวจสอบ NEXT_PUBLIC_SUPABASE_URL และ NEXT_PUBLIC_SUPABASE_ANON_KEY ใน .env.local แล้วรีสตาร์ท dev server'
+          : 'ไม่สามารถเข้าสู่ระบบได้ในขณะนี้',
       };
     }
   },

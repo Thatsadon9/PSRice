@@ -122,16 +122,21 @@ body {
 
 /* Card hover effect */
 .card-hover {
-  transition: all 0.2s ease;
+  transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 .card-hover:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px -10px rgba(0, 0, 0, 0.1);
 }
 
 .card-hover:active {
-  transform: translateY(0);
+  transform: scale(0.98);
+}
+
+/* Global inputs transition */
+input, select, textarea {
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
 /* Bottom nav active indicator */

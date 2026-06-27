@@ -145,7 +145,7 @@ export const EMPLOYEE_NAV_ITEMS = [
   { label: 'หน้าแรก', href: '/employee', icon: 'LayoutDashboard' },
   { label: 'ลงเวลา', href: '/employee/check-in', icon: 'Clock' },
   { label: 'ตารางงาน', href: '/employee/schedule', icon: 'CalendarDays' },
-  { label: 'งาน', href: '/employee/tasks', icon: 'ClipboardList' },
+  { label: 'Milestone', href: '/employee/tasks', icon: 'Trophy' },
   { label: 'ประวัติ', href: '/employee/history', icon: 'History' },
   { label: 'โปรไฟล์', href: '/employee/profile', icon: 'UserCircle' },
 ];

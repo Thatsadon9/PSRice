@@ -39,6 +39,54 @@ async function handleDailyTasks(targetBranchId: string | null = null) {
   });
 
   try {
+    // 0. Ensure check-in templates exist for all branches
+    let branchPoliciesQuery = supabaseAdmin.from('branch_attendance_policies').select('branch_id, check_in_reward');
+    if (targetBranchId) {
+      branchPoliciesQuery = branchPoliciesQuery.eq('branch_id', targetBranchId);
+    }
+    const { data: policies, error: policiesError } = await branchPoliciesQuery;
+    if (policiesError) throw policiesError;
+
+    const policiesMap: Record<string, number> = {};
+    for (const policy of policies || []) {
+      policiesMap[policy.branch_id] = policy.check_in_reward ?? 50;
+    }
+
+    if (policies && policies.length > 0) {
+      // Find existing system check-in templates
+      const { data: existingSystemTemplates, error: sysTmplError } = await supabaseAdmin
+        .from('task_templates')
+        .select('id, branch_id')
+        .eq('is_system', true)
+        .like('title', '%เช็คอิน%');
+      
+      if (sysTmplError) throw sysTmplError;
+
+      const existingSysBranches = new Set((existingSystemTemplates || []).map(t => t.branch_id));
+      const newSystemTemplates = [];
+
+      for (const policy of policies) {
+        if (!existingSysBranches.has(policy.branch_id)) {
+          newSystemTemplates.push({
+            title: 'เช็คอินเข้างาน',
+            description: 'เช็คอินเข้างานประจำวันให้สำเร็จ',
+            priority: 'medium',
+            proof_type_required: 'any',
+            requires_approval: false,
+            recurrence_rule: 'daily',
+            branch_id: policy.branch_id,
+            is_system: true,
+            checklist_json: []
+          });
+        }
+      }
+
+      if (newSystemTemplates.length > 0) {
+        const { error: insertSysError } = await supabaseAdmin.from('task_templates').insert(newSystemTemplates);
+        if (insertSysError) console.error('Failed to insert system templates:', insertSysError);
+      }
+    }
+
     // 1. Fetch templates that are 'daily'
     let templateQuery = supabaseAdmin
       .from('task_templates')
@@ -110,6 +158,12 @@ async function handleDailyTasks(targetBranchId: string | null = null) {
         const signature = `${template.id}_${userId}`;
         if (!existingSet.has(signature)) {
           // This employee doesn't have this daily task yet
+          const isCheckInTask = template.is_system && template.title.includes('เช็คอิน');
+          let rewardAmount = template.reward_amount;
+          if (isCheckInTask && (rewardAmount === undefined || rewardAmount === null)) {
+            rewardAmount = policiesMap[branchId] ?? 50;
+          }
+
           newTasks.push({
             template_id: template.id,
             assigned_to: userId,
@@ -119,16 +173,19 @@ async function handleDailyTasks(targetBranchId: string | null = null) {
             proof_type_required: template.proof_type_required,
             checklist_state: template.checklist_json || [],
             due_date: todayStr,
-            status: 'pending'
+            status: 'pending',
+            reward_amount: rewardAmount
           });
 
-          newNotifications.push({
-            user_id: userId,
-            title: 'งานใหม่รายวัน',
-            message: `ระบบได้มอบหมายงานรายวัน "${template.title}" ให้คุณ (กำหนดส่ง: วันนี้)`,
-            type: 'task',
-            link: '/employee/tasks'
-          });
+          if (!isCheckInTask) {
+            newNotifications.push({
+              user_id: userId,
+              title: 'งานใหม่รายวัน',
+              message: `ระบบได้มอบหมายงานรายวัน "${template.title}" ให้คุณ (กำหนดส่ง: วันนี้)`,
+              type: 'task',
+              link: '/employee/tasks'
+            });
+          }
         }
       }
     }

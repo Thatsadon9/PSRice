@@ -77,6 +77,7 @@ export interface BranchAttendancePolicy {
   late_grace_minutes: number;
   early_out_grace_minutes: number;
   minimum_ot_minutes: number;
+  check_in_reward?: number;
   created_at: string;
   updated_at: string;
 }
@@ -201,6 +202,8 @@ export interface TaskTemplate {
   recurrence_rule: RecurrenceType;
   checklist_json: ChecklistItem[];
   branch_id: string;
+  is_system?: boolean;
+  reward_amount?: number | null;
   created_at: string;
 }
 
@@ -222,6 +225,7 @@ export interface Task {
   description?: string;
   priority?: Priority;
   proof_type_required?: ProofType;
+  reward_amount?: number | null;
   created_at: string;
 }
 

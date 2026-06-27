@@ -17,6 +17,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [authAlert, setAuthAlert] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showForgotModal, setShowForgotModal] = useState(false);
 
   const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -72,15 +73,26 @@ export default function LoginPage() {
               onChange={(event) => setEmail(event.target.value)}
               icon={<Mail className="w-4 h-4" />}
             />
-            <Input
-              id="login-password"
-              type="password"
-              label="รหัสผ่าน"
-              placeholder="กรอกรหัสผ่าน"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              icon={<Lock className="w-4 h-4" />}
-            />
+            <div>
+              <Input
+                id="login-password"
+                type="password"
+                label="รหัสผ่าน"
+                placeholder="กรอกรหัสผ่าน"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                icon={<Lock className="w-4 h-4" />}
+              />
+              <div className="flex justify-end mt-2">
+                <button 
+                  type="button" 
+                  onClick={() => setShowForgotModal(true)} 
+                  className="text-xs font-bold text-primary-600 hover:text-primary-700 transition-colors"
+                >
+                  ลืมรหัสผ่าน?
+                </button>
+              </div>
+            </div>
 
             <Button id="btn-login" type="submit" fullWidth size="lg" loading={loading}>
               เข้าสู่ระบบ
@@ -130,6 +142,18 @@ export default function LoginPage() {
           <Button fullWidth type="button" onClick={() => setAuthAlert(null)}>
             ตกลง
           </Button>
+        </div>
+      </Modal>
+
+      <Modal isOpen={showForgotModal} onClose={() => setShowForgotModal(false)} title="ลืมรหัสผ่าน">
+        <div className="space-y-4 py-4 text-center">
+          <div className="mx-auto w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 mb-2">
+            <Lock className="w-8 h-8" />
+          </div>
+          <p className="text-slate-700 text-sm leading-relaxed">
+            หากคุณลืมรหัสผ่าน หรือไม่สามารถเข้าสู่ระบบได้<br />กรุณาติดต่อ <strong className="text-primary-700">ผู้จัดการสาขา</strong> ของคุณเพื่อทำการรีเซ็ตรหัสผ่านใหม่
+          </p>
+          <Button fullWidth onClick={() => setShowForgotModal(false)} className="mt-4">เข้าใจแล้ว</Button>
         </div>
       </Modal>
     </div>

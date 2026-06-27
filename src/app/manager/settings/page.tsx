@@ -1,15 +1,42 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { 
-  Bell, Shield, Save, Smartphone, Globe
+  Bell, Shield, Save, Smartphone, Globe, Coins
 } from 'lucide-react';
+import { useAuthStore } from '@/store/authStore';
+import { useHrStore } from '@/store/hrStore';
 
 export default function SettingsPage() {
   const [appName, setAppName] = useState('PS Rice');
+  const currentUser = useAuthStore(state => state.currentUser);
+  const getBranchPolicy = useHrStore(state => state.getBranchPolicy);
+  const upsertBranchPolicy = useHrStore(state => state.upsertBranchPolicy);
+  
+  const [checkInReward, setCheckInReward] = useState('50');
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    if (currentUser?.branch_id) {
+      const policy = getBranchPolicy(currentUser.branch_id);
+      if (policy && policy.check_in_reward !== undefined) {
+        setCheckInReward(policy.check_in_reward.toString());
+      }
+    }
+  }, [currentUser, getBranchPolicy]);
+
+  const handleSave = async () => {
+    if (!currentUser?.branch_id) return;
+    setIsSaving(true);
+    await upsertBranchPolicy(currentUser.branch_id, {
+      check_in_reward: parseInt(checkInReward, 10) || 0
+    });
+    setIsSaving(false);
+    alert('บันทึกการตั้งค่าสำเร็จ');
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -40,6 +67,29 @@ export default function SettingsPage() {
 
             <Card>
                <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
+                  <Coins className="w-5 h-5 text-emerald-600" />
+                  ค่าตอบแทน Milestone
+               </h3>
+               <div className="space-y-4">
+                  <div className="flex items-center justify-between p-3 bg-emerald-50 rounded-lg border border-emerald-100">
+                     <div>
+                        <p className="text-sm font-semibold text-emerald-900">รางวัลเช็คอินเข้างาน (บาท/วัน)</p>
+                        <p className="text-xs text-emerald-700">พนักงานจะได้รับ Milestone นี้เมื่อเช็คอินสำเร็จ</p>
+                     </div>
+                     <div className="w-24">
+                        <Input 
+                           type="number" 
+                           value={checkInReward} 
+                           onChange={(e) => setCheckInReward(e.target.value)} 
+                           min="0"
+                        />
+                     </div>
+                  </div>
+               </div>
+            </Card>
+
+            <Card>
+               <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
                   <Shield className="w-5 h-5 text-primary-600" />
                   ความปลอดภัยและข้อกำหนด
                </h3>
@@ -62,7 +112,7 @@ export default function SettingsPage() {
             </Card>
             
             <div className="flex justify-end">
-               <Button icon={<Save className="w-4 h-4" />}>บันทึกการตั้งค่าทั้งหมด</Button>
+               <Button loading={isSaving} onClick={handleSave} icon={<Save className="w-4 h-4" />}>บันทึกการตั้งค่าทั้งหมด</Button>
             </div>
          </div>
 

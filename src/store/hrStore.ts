@@ -89,6 +89,7 @@ function mapBranchPolicy(record: Record<string, unknown>): BranchAttendancePolic
     late_grace_minutes: toNumberValue(record.late_grace_minutes, 15),
     early_out_grace_minutes: toNumberValue(record.early_out_grace_minutes, 0),
     minimum_ot_minutes: toNumberValue(record.minimum_ot_minutes, 30),
+    check_in_reward: toNumberValue(record.check_in_reward, 50),
     created_at: String(record.created_at || ''),
     updated_at: String(record.updated_at || record.created_at || ''),
   };

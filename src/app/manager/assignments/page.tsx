@@ -33,6 +33,7 @@ interface AssignmentFormData {
   target_type: AssignmentTarget;
   target_id: string;
   due_date: string;
+  reward_amount: string;
 }
 
 type TaskDraft = Omit<Task, 'id' | 'created_at' | 'assigned_to' | 'due_date' | 'status'>;
@@ -57,6 +58,7 @@ export default function AssignmentsPage() {
     target_type: 'employee',
     target_id: '',
     due_date: getCurrentDateStr(),
+    reward_amount: '',
   });
 
   const templates = taskStore.templates;
@@ -81,6 +83,7 @@ export default function AssignmentsPage() {
         priority: template.priority,
         proof_type_required: template.proof_type_required,
         checklist_state: template.checklist_json?.map(item => ({ ...item })),
+        reward_amount: formData.reward_amount === '' ? template.reward_amount : Number(formData.reward_amount),
       };
     } else {
       baseTaskData = {
@@ -88,6 +91,7 @@ export default function AssignmentsPage() {
         description: formData.description,
         priority: formData.priority,
         proof_type_required: formData.proof_type_required,
+        reward_amount: formData.reward_amount === '' ? undefined : Number(formData.reward_amount),
       };
     }
 
@@ -130,24 +134,6 @@ export default function AssignmentsPage() {
     }, 1500);
   };
 
-  // Helper for priority scaling
-  const getPriorityWeight = (priority: Priority) => {
-    switch(priority) {
-      case 'critical': return 4;
-      case 'high': return 3;
-      case 'medium': return 2;
-      case 'low': return 1;
-      default: return 0;
-    }
-  };
-
-  const workloadIntensity = useMemo(() => {
-    const todayTasks = taskStore.tasks.filter(t => isSameCalendarDate(t.due_date, getCurrentDateStr()));
-    const totalWeight = todayTasks.reduce((acc, t) => acc + getPriorityWeight(t.priority || 'medium'), 0);
-    const maxPossible = todayTasks.length * 4;
-    return maxPossible > 0 ? Math.round((totalWeight / maxPossible) * 100) : 0;
-  }, [taskStore.tasks]);
-
   return (
     <div className="space-y-8 animate-fade-in pb-20 max-w-[1600px] mx-auto">
       {/* Strategic Header */}
@@ -174,16 +160,7 @@ export default function AssignmentsPage() {
                    {taskStore.tasks.filter(t => t.status === 'pending').length} <span className="text-[10px] text-amber-500 font-black uppercase tracking-wider bg-amber-50 px-2 py-0.5 rounded-md border border-amber-100">Pending</span>
                 </p>
              </div>
-             <div className="h-10 w-px bg-slate-100 mx-2" />
-             <div>
-                <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest leading-none mb-2">สภาวะการทำงาน</p>
-                <div className="flex items-center gap-3">
-                   <div className="w-16 h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200/50">
-                      <div className="h-full bg-primary-600 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.3)] transition-all duration-1000" style={{ width: `${workloadIntensity}%` }} />
-                   </div>
-                   <span className="text-sm font-black text-slate-900 bg-slate-100 px-2 py-0.5 rounded-lg">{workloadIntensity}%</span>
-                </div>
-             </div>
+
           </div>
           <Button onClick={() => setIsModalOpen(true)} className="h-12 px-8 rounded-full shadow-xl shadow-primary-900/10 active:scale-95" icon={<Plus className="w-4 h-4 mr-2" />}>
             มอบหมายงานใหม่
@@ -194,42 +171,6 @@ export default function AssignmentsPage() {
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
         {/* Left Aspect: Tactical Intelligence */}
         <div className="xl:col-span-3 space-y-6 lg:sticky lg:top-24">
-           {/* Workload Pulse */}
-           <Card className="rounded-[2.5rem] border-none shadow-2xl p-8 !bg-slate-900 text-white relative overflow-hidden group">
-               <div className="absolute inset-0 bg-gradient-to-br from-primary-900/40 via-transparent to-transparent opacity-50 pointer-events-none" />
-               <div className="absolute -right-4 -top-4 translate-x-1/2 -translate-y-1/2 h-48 w-48 bg-primary-500/20 rounded-full blur-3xl transition-transform group-hover:scale-125 pointer-events-none" />
-               
-               <div className="relative z-10 space-y-8">
-                  <div className="bg-white/10 w-fit p-4 rounded-2xl border border-white/10 backdrop-blur-md shadow-inner">
-                     <Zap className="w-6 h-6 text-primary-400 fill-primary-400" />
-                  </div>
-                  
-                  <div>
-                     <h3 className="text-[11px] font-black text-primary-400 uppercase tracking-[0.25em] mb-2 flex items-center gap-2">
-                        <span className="h-1 w-4 bg-primary-500 rounded-full" /> Monitoring Status
-                     </h3>
-                     <p className="text-3xl font-black tracking-tight leading-tight">สภาวะการทำงานจริง</p>
-                  </div>
-                  
-                  <div className="space-y-6">
-                     <div className="space-y-3">
-                        <div className="flex justify-between items-end">
-                           <span className="text-[11px] font-black text-slate-300 uppercase tracking-widest">ภาระงานปัจจุบัน</span>
-                           <span className="text-xl font-black text-primary-400">{workloadIntensity}%</span>
-                        </div>
-                        <div className="h-3 bg-white/5 rounded-full overflow-hidden border border-white/10 p-0.5">
-                           <div className="h-full bg-gradient-to-r from-primary-600 to-primary-400 rounded-full shadow-[0_0_15px_rgba(16,185,129,0.4)] transition-all duration-1000 ease-out" style={{ width: `${workloadIntensity}%` }} />
-                        </div>
-                     </div>
-                     
-                     <div className="bg-white/5 rounded-3xl p-5 border border-white/5 backdrop-blur-sm">
-                        <p className="text-xs text-slate-300 font-medium leading-relaxed italic opacity-90">
-                           &ldquo;ระบบกำลังทำงานในระดับ {workloadIntensity > 70 ? 'สูงสุด' : workloadIntensity > 40 ? 'ปกติ' : 'เหมาะสม'} และกำลังรักษาความเร็วในการปฏิบัติงาน.&rdquo;
-                        </p>
-                     </div>
-                  </div>
-               </div>
-           </Card>
 
            {/* Priority Snapshot */}
            <Card className="rounded-[2.5rem] border-slate-100 shadow-xl shadow-slate-200/50 p-8 bg-white space-y-8">
@@ -440,7 +381,14 @@ export default function AssignmentsPage() {
                 label="ต้นแบบงานที่พร้อมใช้"
                 options={templates.map(t => ({ value: t.id, label: t.title }))}
                 value={formData.template_id}
-                onChange={(e) => setFormData({...formData, template_id: e.target.value})}
+                onChange={(e) => {
+                  const t = templates.find(temp => temp.id === e.target.value);
+                  setFormData({
+                    ...formData, 
+                    template_id: e.target.value,
+                    reward_amount: t?.reward_amount ? String(t.reward_amount) : ''
+                  });
+                }}
                 placeholder="เลือกจากต้นแบบงานที่มี"
               />
             ) : (
@@ -482,6 +430,16 @@ export default function AssignmentsPage() {
                 </div>
               </div>
             )}
+
+            <div className="pt-2">
+              <Input 
+                label="จำนวนเงินพิเศษสำหรับงานนี้ (บาท) - ปล่อยว่างเพื่อใช้ค่ามาตรฐาน"
+                type="number"
+                placeholder="เช่น 50, 100"
+                value={formData.reward_amount}
+                onChange={(e) => setFormData({...formData, reward_amount: e.target.value})}
+              />
+            </div>
 
             <div className="space-y-4 pt-4 border-t border-slate-50">
                <div className="space-y-2">

@@ -54,6 +54,7 @@ export default function CheckInPage() {
   const [submitting, setSubmitting] = useState(false);
   const [resultStatus, setResultStatus] = useState<'success' | 'error'>('success');
   const [resultMessage, setResultMessage] = useState('');
+  const [selectedBranchId, setSelectedBranchId] = useState<string>('');
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -74,10 +75,11 @@ export default function CheckInPage() {
     });
   }, [branchPolicies, currentUser, shiftAssignments, todayDate]);
 
-  const activeBranchId = todayShift?.branch_id ?? currentUser?.branch_id;
+  const defaultBranchId = todayShift?.branch_id ?? currentUser?.branch_id;
+  const activeBranchId = selectedBranchId || defaultBranchId;
   const branch = activeBranchId ? branchStore.getBranchById(activeBranchId) : null;
   const homeBranch = currentUser ? branchStore.getBranchById(currentUser.branch_id) : null;
-  const isCrossBranch = todayShift && todayShift.branch_id && todayShift.branch_id !== currentUser?.branch_id;
+  const isCrossBranch = activeBranchId !== currentUser?.branch_id;
 
   const todayStatus = currentUser ? attendanceStore.getTodayStatus(currentUser.id) : 'not_checked_in';
   const todayRecord = currentUser
@@ -377,6 +379,27 @@ export default function CheckInPage() {
               </div>
             </Card>
           )}
+
+          <div className="mb-2">
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 pl-2">สถานที่ลงเวลา</label>
+            <div className="relative">
+              <select
+                value={activeBranchId || ''}
+                onChange={(e) => {
+                  setSelectedBranchId(e.target.value);
+                  fetchGPS();
+                }}
+                className="w-full bg-white border-2 border-slate-100 rounded-[2rem] px-5 py-4 text-sm font-black text-slate-900 focus:outline-none focus:border-primary-500 focus:ring-4 focus:ring-primary-500/10 appearance-none shadow-sm transition-all"
+              >
+                {branchStore.branches.map(b => (
+                  <option key={b.id} value={b.id}>{b.name} {b.id === currentUser?.branch_id ? '(สาขาหลัก)' : ''}</option>
+                ))}
+              </select>
+              <div className="absolute inset-y-0 right-5 flex items-center pointer-events-none text-slate-400">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7"></path></svg>
+              </div>
+            </div>
+          </div>
 
           <div className="grid grid-cols-2 gap-4">
              <Card className="p-5 rounded-[2rem] border-slate-100 shadow-sm relative overflow-hidden group">

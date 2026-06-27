@@ -11,6 +11,7 @@ import { useNotificationStore } from '@/store/notificationStore';
 import { useHrStore } from '@/store/hrStore';
 import BottomNav from '@/components/layout/BottomNav';
 import Header from '@/components/layout/Header';
+import Skeleton from '@/components/ui/Skeleton';
 import { EMPLOYEE_NAV_ITEMS } from '@/lib/constants';
 
 export default function EmployeeLayout({ children }: { children: React.ReactNode }) {
@@ -100,8 +101,25 @@ export default function EmployeeLayout({ children }: { children: React.ReactNode
   ]);
 
   if (!isAuthenticated || !currentUser || !dataLoaded) return (
-    <div className="min-h-dvh flex items-center justify-center bg-slate-50">
-      <div className="w-8 h-8 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
+    <div className="min-h-dvh bg-slate-50 flex flex-col">
+      <div className="h-16 border-b border-slate-200 bg-white flex items-center px-4 justify-between">
+        <Skeleton className="h-8 w-24" />
+        <Skeleton className="h-10 w-10 rounded-full" />
+      </div>
+      <main className="flex-1 pb-20 max-w-lg mx-auto w-full p-4 space-y-6">
+        <div className="flex gap-4">
+          <Skeleton className="h-24 flex-1" />
+          <Skeleton className="h-24 flex-1" />
+        </div>
+        <Skeleton className="h-40 w-full" />
+        <Skeleton className="h-32 w-full" />
+      </main>
+      <div className="fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-200 flex justify-around items-center px-2">
+        <Skeleton className="h-10 w-10 rounded-full" />
+        <Skeleton className="h-10 w-10 rounded-full" />
+        <Skeleton className="h-10 w-10 rounded-full" />
+        <Skeleton className="h-10 w-10 rounded-full" />
+      </div>
     </div>
   );
 

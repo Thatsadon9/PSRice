@@ -11,6 +11,14 @@ export default function RemoveServiceWorker() {
         }
       });
     }
+
+    if ('caches' in window) {
+      caches.keys().then((cacheNames) => {
+        for (const cacheName of cacheNames) {
+          caches.delete(cacheName);
+        }
+      });
+    }
   }, []);
   return null;
 }

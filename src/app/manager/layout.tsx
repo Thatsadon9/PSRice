@@ -12,6 +12,7 @@ import { useHrStore } from '@/store/hrStore';
 import Sidebar from '@/components/layout/Sidebar';
 import Header from '@/components/layout/Header';
 import BottomNav from '@/components/layout/BottomNav';
+import Skeleton from '@/components/ui/Skeleton';
 import { MANAGER_NAV_ITEMS, MANAGER_MOBILE_NAV_ITEMS } from '@/lib/constants';
 
 export default function ManagerLayout({ children }: { children: React.ReactNode }) {
@@ -102,8 +103,33 @@ export default function ManagerLayout({ children }: { children: React.ReactNode 
   ]);
 
   if (!isAuthenticated || !currentUser || !dataLoaded) return (
-    <div className="min-h-dvh flex items-center justify-center bg-slate-50">
-      <div className="w-8 h-8 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
+    <div className="min-h-dvh flex bg-slate-50">
+      <div className="hidden lg:block w-64 border-r border-slate-200 bg-white p-6">
+        <Skeleton className="h-8 w-32 mb-8" />
+        <div className="space-y-4">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+        </div>
+      </div>
+      <div className="flex-1 flex flex-col min-w-0">
+        <div className="h-16 border-b border-slate-200 bg-white flex items-center px-4 lg:px-6 justify-between">
+          <Skeleton className="h-8 w-8 lg:hidden" />
+          <Skeleton className="h-8 w-24 hidden lg:block" />
+          <Skeleton className="h-10 w-10 rounded-full" />
+        </div>
+        <main className="flex-1 p-4 md:p-6 overflow-hidden">
+          <div className="space-y-6 max-w-5xl mx-auto w-full">
+            <Skeleton className="h-8 w-1/3" />
+            <Skeleton className="h-32 w-full" />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Skeleton className="h-24 w-full" />
+              <Skeleton className="h-24 w-full" />
+              <Skeleton className="h-24 w-full" />
+            </div>
+          </div>
+        </main>
+      </div>
     </div>
   );
 

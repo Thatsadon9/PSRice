@@ -13,6 +13,8 @@ import {
   ClipboardList,
   ReceiptText,
   Clock,
+  Coins,
+  Trophy,
   Zap,
 } from 'lucide-react';
 import Badge from '@/components/ui/Badge';
@@ -21,6 +23,13 @@ import Card from '@/components/ui/Card';
 import { SHIFT_ASSIGNMENT_STATUS_LABELS } from '@/lib/constants';
 import { formatThaiDate, getCurrentDateStr } from '@/lib/dateUtils';
 import { resolveShiftForUserDate } from '@/lib/hr';
+import {
+  formatThaiCurrency,
+  getMilestoneReward,
+  isMilestoneComplete,
+  sortMilestoneTasks,
+  isAttendanceTask,
+} from '@/lib/taskMilestones';
 import { useAuthStore } from '@/store/authStore';
 import { useAttendanceStore } from '@/store/attendanceStore';
 import { useHrStore } from '@/store/hrStore';
@@ -45,6 +54,7 @@ export default function EmployeeDashboard() {
   const currentUser = useAuthStore((state) => state.currentUser);
   const attendanceStore = useAttendanceStore();
   const tasks = useTaskStore((state) => state.tasks);
+  const templates = useTaskStore((state) => state.templates);
   const notifications = useNotificationStore((state) => state.notifications);
   const employeeRequests = useHrStore((state) => state.employeeRequests);
   const branchPolicies = useHrStore((state) => state.branchPolicies);
@@ -74,6 +84,17 @@ export default function EmployeeDashboard() {
   
   const myTasks = tasks.filter((task) => task.assigned_to === currentUser.id);
   const activeTasks = myTasks.filter((task) => ['pending', 'in_progress', 'rejected', 'overdue'].includes(task.status));
+  const milestoneTasks = sortMilestoneTasks(myTasks);
+  const completedMilestones = milestoneTasks.filter((task) => isMilestoneComplete(task.status));
+  const totalMilestoneReward = milestoneTasks.reduce((sum, task) => {
+    const template = task.template_id ? templates.find((item) => item.id === task.template_id) : null;
+    return sum + (isMilestoneComplete(task.status) ? getMilestoneReward(task, template) : 0);
+  }, 0);
+  const potentialMilestoneReward = milestoneTasks.reduce((sum, task) => {
+    const template = task.template_id ? templates.find((item) => item.id === task.template_id) : null;
+    return sum + getMilestoneReward(task, template);
+  }, 0);
+  const milestoneProgress = milestoneTasks.length > 0 ? Math.round((completedMilestones.length / milestoneTasks.length) * 100) : 100;
   const myRequests = employeeRequests.filter((request) => request.user_id === currentUser.id);
   const pendingRequestsCount = myRequests.filter((request) => request.status === 'pending').length;
   const unreadNotifications = notifications.filter((n) => n.user_id === currentUser.id && !n.is_read).length;
@@ -201,15 +222,43 @@ export default function EmployeeDashboard() {
          </Card>
       </div>
 
-      {/* Tasks Due Section */}
+      {/* Milestone Section */}
       <div className="space-y-4">
          <div className="flex items-center justify-between px-1">
-            <h2 className="text-lg font-black text-slate-900">งานประจำวัน</h2>
-            <Link href="/employee/tasks" className="text-[10px] font-black text-primary-600 bg-primary-50 px-3 py-1.5 rounded-full uppercase tracking-widest">งานทั้งหมด</Link>
+            <h2 className="text-lg font-black text-slate-900">Milestone</h2>
+            <Link href="/employee/tasks" className="text-[10px] font-black text-primary-600 bg-primary-50 px-3 py-1.5 rounded-full uppercase tracking-widest">ดูทั้งหมด</Link>
          </div>
 
-         <div className="space-y-3">
-            {activeTasks.length === 0 ? (
+         <Card className="p-5 border-slate-100 shadow-xl shadow-emerald-100/50 rounded-[2rem] overflow-hidden relative">
+            <div className="absolute top-0 right-0 w-40 h-40 bg-emerald-100/50 rounded-full blur-3xl -mr-20 -mt-20" />
+            <div className="relative z-10 space-y-5">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl">
+                    <Trophy className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">ยอดเงินสะสมจากงาน</p>
+                    <p className="text-2xl font-black text-slate-900 mt-1">{formatThaiCurrency(totalMilestoneReward)}</p>
+                    <p className="text-[10px] font-bold text-slate-400 mt-0.5">
+                      จากเป้าหมาย {formatThaiCurrency(potentialMilestoneReward)}
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-xl font-black text-emerald-600">{milestoneProgress}%</p>
+                  <p className="text-[10px] font-black text-slate-400 uppercase">Progress</p>
+                </div>
+              </div>
+
+              <div className="h-3 rounded-full bg-slate-100 overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-emerald-500 transition-all duration-500"
+                  style={{ width: `${milestoneProgress}%` }}
+                />
+              </div>
+
+              {milestoneTasks.length === 0 ? (
               <div className="text-center py-12 bg-slate-50 rounded-[2.5rem] border border-dashed border-slate-200">
                 <div className="p-4 bg-white rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-4 shadow-xl shadow-slate-200/50">
                   <CheckCircle2 className="w-10 h-10 text-emerald-500" />
@@ -218,35 +267,47 @@ export default function EmployeeDashboard() {
                 <p className="text-xs text-slate-400 font-bold mt-1">วันนี้คุณจัดการงานเสร็จครบถ้วนแล้ว</p>
               </div>
             ) : (
-              activeTasks.slice(0, 3).map(task => {
-                const tmpl = task.template_id ? useTaskStore.getState().getTemplateById(task.template_id) : null;
+              <div className="space-y-3">
+              {milestoneTasks.slice(0, 4).map((task, index) => {
+                const tmpl = task.template_id ? templates.find((item) => item.id === task.template_id) : null;
+                const isComplete = isMilestoneComplete(task.status);
+                const reward = getMilestoneReward(task, tmpl);
                 return (
-                  <Link key={task.id} href={`/employee/tasks/${task.id}`}>
-                    <Card interactive className="p-4 border-slate-100 rounded-3xl hover:border-primary-100 group">
-                      <div className="flex items-center justify-between gap-4">
-                        <div className="flex items-center gap-4 flex-1">
-                          <div className="h-12 w-12 rounded-2xl bg-slate-50 flex items-center justify-center text-primary-600 font-black group-hover:bg-primary-50 transition-colors shrink-0">
-                            {tmpl?.title?.charAt(0) || 'T'}
+                  <Link key={task.id} href={!isComplete && isAttendanceTask(task, tmpl) ? '/employee/check-in' : `/employee/tasks/${task.id}`}>
+                    <div className="group flex items-center gap-3 rounded-3xl border border-slate-100 bg-white p-3 hover:border-emerald-200 hover:bg-emerald-50/30 transition-all">
+                      <div className="relative flex flex-col items-center self-stretch">
+                        <div className={`h-11 w-11 rounded-full flex items-center justify-center text-sm font-black shadow-sm transition-all ${
+                          isComplete ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-500'
+                        }`}>
+                          {isComplete ? <CheckCircle2 className="w-5 h-5" /> : (isAttendanceTask(task, tmpl) ? <Clock className="w-5 h-5" /> : index + 1)}
+                        </div>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-sm font-black text-slate-900 group-hover:text-emerald-700 transition-colors line-clamp-1">{task.title || tmpl?.title}</p>
+                            <p className="text-[10px] font-bold text-slate-400 mt-1">กำหนด {formatThaiDate(task.due_date)}</p>
                           </div>
-                          <div className="space-y-1">
-                            <p className="text-sm font-black text-slate-900 group-hover:text-primary-600 transition-colors line-clamp-1">{task.title || tmpl?.title}</p>
-                            <div className="flex items-center gap-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                               <span className="flex items-center gap-1.5"><Clock className="w-3 h-3" /> {tmpl?.priority === 'high' ? 'สูง' : 'ปกติ'}</span>
-                               <span className="flex items-center gap-1.5 text-red-500 tracking-tight">กำหนด {formatThaiDate(task.due_date)}</span>
+                          <div className={`shrink-0 rounded-2xl px-3 py-2 text-right ${
+                            isComplete ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-50 text-slate-500'
+                          }`}>
+                            <div className="flex items-center gap-1 text-xs font-black">
+                              <Coins className="w-3.5 h-3.5" />
+                              {formatThaiCurrency(reward)}
                             </div>
                           </div>
                         </div>
-                        <div className="h-8 w-8 rounded-full bg-slate-50 flex items-center justify-center group-hover:bg-primary-500 group-hover:text-white transition-all">
-                          <ChevronRight className="w-4 h-4" />
-                        </div>
                       </div>
-                    </Card>
+                      <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-emerald-500" />
+                    </div>
                   </Link>
                 );
-              })
+              })}
+              </div>
             )}
+            </div>
+         </Card>
          </div>
-      </div>
 
       {/* Upcoming Shifts Section */}
       <div className="space-y-4">

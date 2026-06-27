@@ -218,6 +218,47 @@ export async function POST(request: Request) {
       );
     }
 
+    // Auto-complete check-in milestone if applicable
+    if (data && body.type === 'check_in') {
+      try {
+        const todayStr = new Date().toISOString().split('T')[0];
+        
+        // Find the pending check-in task for today
+        const { data: checkInTasks } = await supabaseAdmin
+          .from('tasks')
+          .select('id, status, template_id, task_templates!inner(is_system, title)')
+          .eq('assigned_to', userId)
+          .eq('due_date', todayStr)
+          .in('status', ['pending', 'in_progress']);
+
+        const checkInTask = checkInTasks?.find(t => 
+          t.task_templates && 
+          (t.task_templates as any).is_system === true && 
+          (t.task_templates as any).title.includes('เช็คอิน')
+        );
+
+        if (checkInTask) {
+          // Update task to approved
+          await supabaseAdmin
+            .from('tasks')
+            .update({ status: 'approved' })
+            .eq('id', checkInTask.id);
+
+          // Create a submission
+          await supabaseAdmin
+            .from('task_submissions')
+            .insert({
+              task_id: checkInTask.id,
+              submitted_by: userId,
+              note: 'เช็คอินอัตโนมัติจากระบบ',
+              review_status: 'approved'
+            });
+        }
+      } catch (err) {
+        console.error('Auto-complete check-in task error:', err);
+      }
+    }
+
     return NextResponse.json({ success: true, record: data }, { status: 201 });
   } catch (error) {
     console.error('Attendance API error:', error);
