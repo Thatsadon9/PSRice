@@ -23,6 +23,7 @@ export default function BranchManagementPage() {
     latitude: 13.7563,
     longitude: 100.5018,
     geofence_radius_meters: 100,
+    admin_only: false,
   });
 
   const handleOpenModal = (branch?: Branch) => {
@@ -34,6 +35,7 @@ export default function BranchManagementPage() {
         latitude: branch.latitude,
         longitude: branch.longitude,
         geofence_radius_meters: branch.geofence_radius_meters,
+        admin_only: branch.admin_only || false,
       });
     } else {
       setEditingBranch(null);
@@ -43,6 +45,7 @@ export default function BranchManagementPage() {
         latitude: 13.7563,
         longitude: 100.5018,
         geofence_radius_meters: 100,
+        admin_only: false,
       });
     }
     setIsModalOpen(true);
@@ -97,7 +100,12 @@ export default function BranchManagementPage() {
                 </div>
               </div>
               
-              <h3 className="font-bold text-slate-900 mb-1">{branch.name}</h3>
+              <div className="flex items-center gap-2 mb-1">
+                <h3 className="font-bold text-slate-900">{branch.name}</h3>
+                {branch.admin_only && (
+                  <span className="bg-amber-100 text-amber-700 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-tight">Admin Only</span>
+                )}
+              </div>
               <p className="text-xs text-slate-500 mb-4 h-8 line-clamp-2">{branch.address}</p>
               
               <div className="space-y-3 pt-4 border-t border-slate-100 mt-auto">
@@ -165,6 +173,22 @@ export default function BranchManagementPage() {
             <p className="text-[10px] text-slate-500 leading-relaxed">
               พนักงานจะต้องอยู่ภายในรัศมี {formData.geofence_radius_meters} เมตรรอบจุดที่กำหนด เพื่อทำการเช็กอินผ่านแอปพลิเคชันได้
             </p>
+          </div>
+
+          <div className="flex items-center gap-3 p-4 bg-slate-50 border border-slate-100 rounded-2xl">
+            <div className="flex-1">
+              <p className="text-sm font-black text-slate-900">กำหนดเป็นสาขาเฉพาะ Admin</p>
+              <p className="text-[10px] font-bold text-slate-400 mt-0.5">ซ่อนสาขานี้จากพนักงานทั่วไป (พนักงานจะไม่สามารถเลือกเช็คอินได้)</p>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input 
+                type="checkbox" 
+                className="sr-only peer"
+                checked={formData.admin_only}
+                onChange={(e) => setFormData({...formData, admin_only: e.target.checked})}
+              />
+              <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-500"></div>
+            </label>
           </div>
           
           <div className="flex gap-3 pt-4">

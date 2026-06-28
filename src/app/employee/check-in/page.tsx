@@ -391,7 +391,9 @@ export default function CheckInPage() {
                 }}
                 className="w-full bg-white border-2 border-slate-100 rounded-[2rem] px-5 py-4 text-sm font-black text-slate-900 focus:outline-none focus:border-primary-500 focus:ring-4 focus:ring-primary-500/10 appearance-none shadow-sm transition-all"
               >
-                {branchStore.branches.map(b => (
+                {branchStore.branches
+                  .filter(b => currentUser?.role === 'admin' || !b.admin_only)
+                  .map(b => (
                   <option key={b.id} value={b.id}>{b.name} {b.id === currentUser?.branch_id ? '(สาขาหลัก)' : ''}</option>
                 ))}
               </select>

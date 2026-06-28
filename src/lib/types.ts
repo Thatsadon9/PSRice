@@ -65,6 +65,7 @@ export interface Branch {
   latitude: number;
   longitude: number;
   geofence_radius_meters: number;
+  admin_only?: boolean;
   created_at: string;
 }
 
