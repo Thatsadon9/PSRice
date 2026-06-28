@@ -10,7 +10,7 @@ import Badge from '@/components/ui/Badge';
 import Modal from '@/components/ui/Modal';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
-import { UserPlus, Search, Edit2, Trash2, Building2, Mail, Shield, User, AlertCircle } from 'lucide-react';
+import { UserPlus, Search, Edit2, Trash2, Building2, Mail, Shield, User, AlertCircle, UserMinus } from 'lucide-react';
 import { ROLE_LABELS } from '@/lib/constants';
 import type { User as UserType, UserRole } from '@/lib/types';
 
@@ -21,6 +21,7 @@ type EmployeeFormData = {
   branch_id: string;
   team_id: string;
   password: string;
+  status: 'active' | 'inactive';
 };
 
 function createEmptyFormData(branchId: string): EmployeeFormData {
@@ -31,6 +32,7 @@ function createEmptyFormData(branchId: string): EmployeeFormData {
     branch_id: branchId,
     team_id: '',
     password: '',
+    status: 'active',
   };
 }
 
@@ -94,6 +96,9 @@ export default function EmployeeManagementPage() {
     });
   }, [scopedEmployees, search]);
 
+  const activeEmployees = useMemo(() => filteredEmployees.filter(u => u.status !== 'inactive'), [filteredEmployees]);
+  const inactiveEmployees = useMemo(() => filteredEmployees.filter(u => u.status === 'inactive'), [filteredEmployees]);
+
   const branchOptions = accessibleBranches.map((branch) => ({ value: branch.id, label: branch.name }));
   const roleOptions = (isAdmin ? ['admin', 'manager', 'employee'] : ['employee']).map((role) => ({
     value: role,
@@ -118,6 +123,7 @@ export default function EmployeeManagementPage() {
         branch_id: isAdmin ? user.branch_id || defaultBranchId : currentUser?.branch_id || user.branch_id || defaultBranchId,
         team_id: user.team_id || '',
         password: '',
+        status: user.status || 'active',
       });
     } else {
       setEditingUser(null);
@@ -167,6 +173,7 @@ export default function EmployeeManagementPage() {
         role: nextRole,
         branch_id: nextBranchId,
         team_id: teamId,
+        status: formData.status,
       });
     } else {
       success = await addUser(
@@ -245,14 +252,14 @@ export default function EmployeeManagementPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredEmployees.length === 0 ? (
+              {activeEmployees.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="px-6 py-12 text-center text-sm text-slate-500">
-                    ไม่พบข้อมูลพนักงานตามเงื่อนไขที่ค้นหา
+                    ไม่พบข้อมูลพนักงานที่ทำงานอยู่ตามเงื่อนไขที่ค้นหา
                   </td>
                 </tr>
               ) : (
-                filteredEmployees.map((employee) => {
+                activeEmployees.map((employee) => {
                   const branch = employee.branch_id ? getBranchById(employee.branch_id) : null;
                   const canManage = isAdmin || (employee.role === 'employee' && employee.branch_id === currentUser.branch_id);
 
@@ -331,6 +338,104 @@ export default function EmployeeManagementPage() {
         </div>
       </Card>
 
+      {inactiveEmployees.length > 0 && (
+        <Card padding="none" className="overflow-hidden opacity-75 mt-8">
+          <div className="p-4 border-b border-slate-100 bg-slate-100/50">
+            <h2 className="text-lg font-bold text-slate-700 flex items-center gap-2">
+              <UserMinus className="w-5 h-5 text-slate-400" />
+              พนักงานที่ไม่ได้ทำงานแล้ว
+            </h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="bg-slate-50 text-slate-500 text-xs font-semibold uppercase tracking-wider">
+                  <th className="px-6 py-3">พนักงาน</th>
+                  <th className="px-6 py-3">บทบาท</th>
+                  <th className="px-6 py-3">สาขา</th>
+                  <th className="px-6 py-3 text-right">จัดการ</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {inactiveEmployees.map((employee) => {
+                  const branch = employee.branch_id ? getBranchById(employee.branch_id) : null;
+                  const canManage = isAdmin || (employee.role === 'employee' && employee.branch_id === currentUser.branch_id);
+
+                  return (
+                    <tr
+                      key={employee.id}
+                      className={`hover:bg-slate-50 transition-colors group ${!canManage ? 'opacity-70' : ''}`}
+                    >
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 font-bold text-xs shrink-0 overflow-hidden grayscale">
+                            {employee.avatar_url ? (
+                              <div
+                                role="img"
+                                aria-label={employee.full_name}
+                                className="h-full w-full bg-cover bg-center bg-no-repeat"
+                                style={{ backgroundImage: `url(${employee.avatar_url})` }}
+                              />
+                            ) : (
+                              employee.full_name.charAt(0)
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-slate-500 line-through">{employee.full_name}</p>
+                            <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
+                              <Mail className="w-3 h-3" /> {employee.email}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <Badge variant="default" className="grayscale opacity-70">
+                          {employee.role === 'admin' ? <Shield className="w-3 h-3 mr-1" /> : <User className="w-3 h-3 mr-1" />}
+                          {ROLE_LABELS[employee.role]}
+                        </Badge>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-sm text-slate-400 flex items-center gap-1.5">
+                          <Building2 className="w-4 h-4 text-slate-300" />
+                          {branch?.name || 'ไม่ระบุ'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        {canManage ? (
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={() => handleOpenModal(employee)}
+                              className="p-1.5 text-slate-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+                              title={`แก้ไขข้อมูล ${employee.full_name}`}
+                              aria-label={`Edit ${employee.full_name}`}
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => setUserToDelete(employee)}
+                              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                              title={`ลบพนักงาน ${employee.full_name}`}
+                              aria-label={`Delete ${employee.full_name}`}
+                              disabled={employee.id === currentUser.id}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="inline-flex p-1.5 text-slate-300" aria-hidden="true" title="คุณไม่มีสิทธิ์จัดการพนักงานคนนี้">
+                            <Shield className="w-4 h-4" />
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
       <Modal
         isOpen={isModalOpen}
         onClose={handleCloseModal}
@@ -381,6 +486,24 @@ export default function EmployeeManagementPage() {
               value={formData.password}
               onChange={(event) => setFormData({ ...formData, password: event.target.value })}
             />
+          )}
+
+          {editingUser && (
+            <div className="flex items-center gap-3 p-4 bg-slate-50 border border-slate-100 rounded-2xl mt-4">
+              <div className="flex-1">
+                <p className="text-sm font-black text-slate-900">สถานะการทำงาน</p>
+                <p className="text-[10px] font-bold text-slate-400 mt-0.5">พนักงานยังปฏิบัติงานอยู่หรือไม่</p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  className="sr-only peer"
+                  checked={formData.status === 'active'}
+                  onChange={(e) => setFormData({...formData, status: e.target.checked ? 'active' : 'inactive'})}
+                />
+                <div className="w-11 h-6 bg-red-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-500"></div>
+              </label>
+            </div>
           )}
 
           {formError && (
