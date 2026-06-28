@@ -337,7 +337,7 @@ export default function ManagerDashboard() {
                 const isComplete = isMilestoneComplete(task.status);
                 const reward = getMilestoneReward(task, tmpl);
                 return (
-                  <Link key={task.id} href={!isComplete && isAttendanceTask(task, tmpl) ? '/employee/check-in' : `/employee/tasks/${task.id}`}>
+                  <Link key={task.id} href={!isComplete && isAttendanceTask(task, tmpl) ? '/manager/check-in' : `/employee/tasks/${task.id}`}>
                     <div className="group flex items-center gap-3 rounded-3xl border border-slate-100 bg-white p-3 hover:border-emerald-200 hover:bg-emerald-50/30 transition-all">
                       <div className="relative flex flex-col items-center self-stretch">
                         <div className={`h-11 w-11 rounded-full flex items-center justify-center text-sm font-black shadow-sm transition-all ${
