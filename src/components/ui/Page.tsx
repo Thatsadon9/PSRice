@@ -96,7 +96,7 @@ export function StatTile({ label, value, helper, icon, tone = 'slate' }: StatTil
           {helper && <p className="mt-1 text-xs text-slate-500">{helper}</p>}
         </div>
         {icon && (
-          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${statToneClasses[tone]}`}>
+          <div aria-hidden="true" className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${statToneClasses[tone]}`}>
             {icon}
           </div>
         )}
