@@ -7,6 +7,20 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
 export const dynamic = 'force-dynamic';
 
+const DEFAULT_CHECK_IN_REWARD = 50;
+const CHECK_IN_TITLE_KEYWORD = '\u0e40\u0e0a\u0e47\u0e04\u0e2d\u0e34\u0e19';
+
+function normalizeRewardAmount(value: unknown, fallback = DEFAULT_CHECK_IN_REWARD) {
+  const parsed =
+    typeof value === 'number'
+      ? value
+      : typeof value === 'string'
+        ? Number.parseInt(value, 10)
+        : Number.NaN;
+
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const branchId = searchParams.get('branch_id');
@@ -18,7 +32,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     branchId = body.branch_id;
-  } catch (e) {
+  } catch {
     // If no body or not JSON, check query params as fallback
     const { searchParams } = new URL(request.url);
     branchId = searchParams.get('branch_id');
@@ -40,8 +54,19 @@ async function handleDailyTasks(targetBranchId: string | null = null) {
   });
 
   try {
+    const { data: defaultRewardSetting, error: defaultRewardError } = await supabaseAdmin
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'default_check_in_reward')
+      .maybeSingle();
+    if (defaultRewardError) throw defaultRewardError;
+
+    const defaultCheckInReward = normalizeRewardAmount(defaultRewardSetting?.value);
+
     // 0. Ensure check-in templates exist for all branches
-    let branchPoliciesQuery = supabaseAdmin.from('branch_attendance_policies').select('branch_id, check_in_reward');
+    let branchPoliciesQuery = supabaseAdmin
+      .from('branch_attendance_policies')
+      .select('branch_id, check_in_reward, use_default_check_in_reward');
     if (targetBranchId) {
       branchPoliciesQuery = branchPoliciesQuery.eq('branch_id', targetBranchId);
     }
@@ -50,7 +75,10 @@ async function handleDailyTasks(targetBranchId: string | null = null) {
 
     const policiesMap: Record<string, number> = {};
     for (const policy of policies || []) {
-      policiesMap[policy.branch_id] = policy.check_in_reward ?? 50;
+      const usesDefaultReward = policy.use_default_check_in_reward !== false;
+      policiesMap[policy.branch_id] = usesDefaultReward
+        ? defaultCheckInReward
+        : normalizeRewardAmount(policy.check_in_reward, defaultCheckInReward);
     }
 
     if (policies && policies.length > 0) {
@@ -59,7 +87,7 @@ async function handleDailyTasks(targetBranchId: string | null = null) {
         .from('task_templates')
         .select('id, branch_id')
         .eq('is_system', true)
-        .like('title', '%เช็คอิน%');
+        .like('title', `%${CHECK_IN_TITLE_KEYWORD}%`);
       
       if (sysTmplError) throw sysTmplError;
 
@@ -77,6 +105,7 @@ async function handleDailyTasks(targetBranchId: string | null = null) {
             recurrence_rule: 'daily',
             branch_id: policy.branch_id,
             is_system: true,
+            reward_amount: policiesMap[policy.branch_id] ?? defaultCheckInReward,
             checklist_json: []
           });
         }
@@ -134,6 +163,27 @@ async function handleDailyTasks(targetBranchId: string | null = null) {
 
     const todayStr = getCurrentDateStr();
 
+    let syncedExistingCheckInTasks = 0;
+    for (const [branchId, userIds] of Object.entries(branchUsersMap)) {
+      if (userIds.length === 0) {
+        continue;
+      }
+
+      const { count, error: syncCheckInError } = await supabaseAdmin
+        .from('tasks')
+        .update(
+          { reward_amount: policiesMap[branchId] ?? defaultCheckInReward },
+          { count: 'exact' },
+        )
+        .like('title', `%${CHECK_IN_TITLE_KEYWORD}%`)
+        .eq('status', 'pending')
+        .eq('due_date', todayStr)
+        .in('assigned_to', userIds);
+
+      if (syncCheckInError) throw syncCheckInError;
+      syncedExistingCheckInTasks += count ?? 0;
+    }
+
     // 3. Find if we already generated tasks for today
     // We fetch current tasks matching today's due date
     const { data: existingTasks, error: existingTasksError } = await supabaseAdmin
@@ -159,11 +209,10 @@ async function handleDailyTasks(targetBranchId: string | null = null) {
         const signature = `${template.id}_${userId}`;
         if (!existingSet.has(signature)) {
           // This employee doesn't have this daily task yet
-          const isCheckInTask = template.is_system && template.title.includes('เช็คอิน');
-          let rewardAmount = template.reward_amount;
-          if (isCheckInTask && (rewardAmount === undefined || rewardAmount === null)) {
-            rewardAmount = policiesMap[branchId] ?? 50;
-          }
+          const isCheckInTask = template.is_system && template.title.includes(CHECK_IN_TITLE_KEYWORD);
+          const rewardAmount = isCheckInTask
+            ? policiesMap[branchId] ?? defaultCheckInReward
+            : template.reward_amount;
 
           newTasks.push({
             template_id: template.id,
@@ -210,12 +259,14 @@ async function handleDailyTasks(targetBranchId: string | null = null) {
 
       return NextResponse.json({ 
         message: 'Successfully generated daily tasks', 
-        created: newTasks.length 
+        created: newTasks.length,
+        synced: syncedExistingCheckInTasks,
       });
     } else {
       return NextResponse.json({ 
         message: 'All daily tasks were already generated for today', 
-        created: 0 
+        created: 0,
+        synced: syncedExistingCheckInTasks,
       });
     }
 

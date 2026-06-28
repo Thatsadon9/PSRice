@@ -303,6 +303,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     const { error } = await supabase.from('task_submissions').update({
        review_status: status,
        review_comment: reviewComment,
+       review_rating: rating ?? null,
        reviewed_by: reviewedBy,
        reviewed_at: reviewedAt
     }).eq('id', submissionId);

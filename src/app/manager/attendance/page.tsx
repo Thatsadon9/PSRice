@@ -60,6 +60,8 @@ type EditTarget = {
   summary: DailyAttendanceSummary;
 };
 
+const CHECK_IN_TITLE_KEYWORD = '\u0e40\u0e0a\u0e47\u0e04\u0e2d\u0e34\u0e19';
+
 function getSummaryVariant(params: {
   absent: boolean;
   leaveDay: boolean;
@@ -145,7 +147,8 @@ function InteractiveRow({ employee, summary, canCorrect, openCorrectionModal, ch
 
   const handleClick = (e: React.MouseEvent) => {
     if (!canCorrect) return;
-    if (window.matchMedia('(hover: hover)').matches || (e.nativeEvent as any).pointerType === 'mouse') {
+    const nativeEvent = e.nativeEvent as MouseEvent & { pointerType?: string };
+    if (window.matchMedia('(hover: hover)').matches || nativeEvent.pointerType === 'mouse') {
       openCorrectionModal(employee, summary);
     }
   };
@@ -196,7 +199,12 @@ export default function AttendanceMonitoringPage() {
   const [editError, setEditError] = useState('');
   const [saveTimesLoading, setSaveTimesLoading] = useState(false);
   
-  const globalRewardAmount = parseInt(appSettings?.default_check_in_reward || '50', 10);
+  const defaultCheckInReward = appSettings.default_check_in_reward;
+  const parsedGlobalReward =
+    typeof defaultCheckInReward === 'number'
+      ? defaultCheckInReward
+      : Number.parseInt(typeof defaultCheckInReward === 'string' ? defaultCheckInReward : '50', 10);
+  const globalRewardAmount = Number.isFinite(parsedGlobalReward) ? parsedGlobalReward : 50;
   
   const [checkInReward, setCheckInReward] = useState(globalRewardAmount.toString());
   const [useDefaultReward, setUseDefaultReward] = useState(true);
@@ -236,33 +244,53 @@ export default function AttendanceMonitoringPage() {
       const today = getCurrentDateStr();
       const defaultBranchIds = branchPolicies.filter(p => p.use_default_check_in_reward !== false).map(p => p.branch_id);
       if (defaultBranchIds.length > 0) {
+          await supabase
+            .from('branch_attendance_policies')
+            .update({ check_in_reward: amount })
+            .in('branch_id', defaultBranchIds);
+
+          await supabase
+            .from('task_templates')
+            .update({ reward_amount: amount })
+            .eq('is_system', true)
+            .like('title', `%${CHECK_IN_TITLE_KEYWORD}%`)
+            .in('branch_id', defaultBranchIds);
+
           const userIds = users.filter(u => defaultBranchIds.includes(u.branch_id)).map(u => u.id);
           if (userIds.length > 0) {
              await supabase
                .from('tasks')
                .update({ reward_amount: amount })
-               .like('title', '%เช็คอิน%')
+               .like('title', `%${CHECK_IN_TITLE_KEYWORD}%`)
                .eq('status', 'pending')
                .eq('due_date', today)
-               .in('user_id', userIds);
+               .in('assigned_to', userIds);
           }
       }
     } else if (selectedBranchId) {
+      const effectiveAmount = isDefault ? globalRewardAmount : amount;
       await upsertBranchPolicy(selectedBranchId, { 
-         check_in_reward: isDefault ? undefined : amount,
+         check_in_reward: effectiveAmount,
          use_default_check_in_reward: isDefault
       });
+
+      await supabase
+        .from('task_templates')
+        .update({ reward_amount: effectiveAmount })
+        .eq('is_system', true)
+        .eq('branch_id', selectedBranchId)
+        .like('title', `%${CHECK_IN_TITLE_KEYWORD}%`);
       
       const today = getCurrentDateStr();
       const userIds = users.filter(u => u.branch_id === selectedBranchId).map(u => u.id);
       if (userIds.length > 0) {
          await supabase
            .from('tasks')
-           .update({ reward_amount: isDefault ? globalRewardAmount : amount })
-           .like('title', '%เช็คอิน%')
+           .update({ reward_amount: effectiveAmount })
+           .like('title', `%${CHECK_IN_TITLE_KEYWORD}%`)
            .eq('status', 'pending')
            .eq('due_date', today)
-           .in('user_id', userIds);
+           .in('assigned_to', userIds);
       }
     }
       
@@ -345,8 +373,8 @@ export default function AttendanceMonitoringPage() {
       return;
     }
 
-    let inMs = hasIn ? new Date(checkInLocal).getTime() : NaN;
-    let outMs = hasOut ? new Date(checkOutLocal).getTime() : NaN;
+    const inMs = hasIn ? new Date(checkInLocal).getTime() : NaN;
+    const outMs = hasOut ? new Date(checkOutLocal).getTime() : NaN;
 
     if (hasIn && Number.isNaN(inMs)) {
       setEditError('เวลาเข้างานไม่ถูกต้อง');

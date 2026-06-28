@@ -14,6 +14,14 @@ import type {
 import { supabase } from '@/lib/supabase';
 import { normalizeTimeValue, toNumberValue } from '@/lib/hr';
 
+type AppSettingValue =
+  | string
+  | number
+  | boolean
+  | null
+  | AppSettingValue[]
+  | { [key: string]: AppSettingValue };
+
 interface HrState {
   branchPolicies: BranchAttendancePolicy[];
   shiftTemplates: ShiftTemplate[];
@@ -21,12 +29,12 @@ interface HrState {
   compensationProfiles: CompensationProfile[];
   employeeRequests: EmployeeRequest[];
   registrationRequests: RegistrationRequest[];
-  appSettings: Record<string, any>;
+  appSettings: Record<string, AppSettingValue>;
   isLoading: boolean;
   schemaReady: boolean;
   schemaMessage: string | null;
   fetchInitialData: () => Promise<void>;
-  updateGlobalSetting: (key: string, value: any) => Promise<boolean>;
+  updateGlobalSetting: (key: string, value: AppSettingValue) => Promise<boolean>;
   subscribeToHrUpdates: () => () => void;
   getBranchPolicy: (branchId?: string | null) => BranchAttendancePolicy | undefined;
   upsertBranchPolicy: (
@@ -225,6 +233,7 @@ export const useHrStore = create<HrState>((set, get) => ({
   compensationProfiles: [],
   employeeRequests: [],
   registrationRequests: [],
+  appSettings: {},
   isLoading: false,
   schemaReady: true,
   schemaMessage: null,
@@ -274,9 +283,9 @@ export const useHrStore = create<HrState>((set, get) => ({
       });
     }
 
-    const parsedSettings: Record<string, any> = {};
+    const parsedSettings: Record<string, AppSettingValue> = {};
     if (appSettingsResult.data) {
-      appSettingsResult.data.forEach((row: any) => {
+      (appSettingsResult.data as Array<{ key: string; value: AppSettingValue }>).forEach((row) => {
         parsedSettings[row.key] = row.value;
       });
     }
@@ -297,7 +306,7 @@ export const useHrStore = create<HrState>((set, get) => ({
     });
   },
 
-  updateGlobalSetting: async (key: string, value: any) => {
+  updateGlobalSetting: async (key: string, value: AppSettingValue) => {
     const { error } = await supabase
       .from('app_settings')
       .upsert({ key, value, updated_at: new Date().toISOString() });
