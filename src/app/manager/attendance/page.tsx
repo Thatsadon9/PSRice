@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef } from 'react';
 import {
   AlertTriangle,
   CalendarCheck,
@@ -126,6 +126,43 @@ function getSummaryLabel(params: {
   }
 
   return 'รอบันทึกเวลา';
+}
+
+function InteractiveRow({ employee, summary, canCorrect, openCorrectionModal, children }: { employee: User, summary: DailyAttendanceSummary, canCorrect: boolean, openCorrectionModal: (employee: User, summary: DailyAttendanceSummary) => void, children: React.ReactNode }) {
+  const timeoutRef = useRef<NodeJS.Timeout>(undefined);
+
+  const handleTouchStart = () => {
+    if (!canCorrect) return;
+    timeoutRef.current = setTimeout(() => {
+      openCorrectionModal(employee, summary);
+    }, 500);
+  };
+
+  const clearTouch = () => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+  };
+
+  const handleClick = (e: React.MouseEvent) => {
+    if (!canCorrect) return;
+    if (window.matchMedia('(hover: hover)').matches || (e.nativeEvent as any).pointerType === 'mouse') {
+      openCorrectionModal(employee, summary);
+    }
+  };
+
+  return (
+    <tr 
+      key={employee.id} 
+      className="group hover:bg-slate-50/80 transition-colors cursor-pointer"
+      onClick={handleClick}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={clearTouch}
+      onTouchMove={clearTouch}
+      onTouchCancel={clearTouch}
+      style={{ WebkitTouchCallout: 'none', userSelect: 'none' }}
+    >
+      {children}
+    </tr>
+  );
 }
 
 export default function AttendanceMonitoringPage() {
@@ -557,7 +594,13 @@ export default function AttendanceMonitoringPage() {
                 });
 
                 return (
-                  <tr key={employee.id} className="group hover:bg-slate-50/80 transition-colors">
+                  <InteractiveRow 
+                    key={employee.id}
+                    employee={employee}
+                    summary={summary}
+                    canCorrect={canCorrectAttendance}
+                    openCorrectionModal={openCorrectionModal}
+                  >
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         {employee.avatar_url ? (
@@ -651,7 +694,7 @@ export default function AttendanceMonitoringPage() {
                         />
                       </td>
                     ) : null}
-                  </tr>
+                  </InteractiveRow>
                 );
               })}
             </tbody>
