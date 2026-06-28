@@ -8,7 +8,7 @@ import { getPendingReviewCountForUser } from '@/lib/reviewHelpers';
 
 export default function ManagerNotificationsPage() {
   const { currentUser } = useAuthStore();
-  const users = useEmployeeStore((state) => state.users);
+  const users = useEmployeeStore((state) => state.users).filter(u => u.status !== 'inactive');
   const submissions = useTaskStore((state) => state.submissions);
   const pendingReviewCount = getPendingReviewCountForUser(submissions, currentUser, users);
 

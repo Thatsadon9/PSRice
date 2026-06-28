@@ -348,7 +348,7 @@ function getSlotKeyForAssignment(
 export default function ManagerSchedulePage() {
   const currentUser = useAuthStore((state) => state.currentUser);
   const branches = useBranchStore((state) => state.branches);
-  const users = useEmployeeStore((state) => state.users);
+  const users = useEmployeeStore((state) => state.users).filter(u => u.status !== 'inactive');
   const getBranchPolicy = useHrStore((state) => state.getBranchPolicy);
   const getShiftTemplatesByBranch = useHrStore((state) => state.getShiftTemplatesByBranch);
   const branchPolicies = useHrStore((state) => state.branchPolicies);

@@ -64,7 +64,7 @@ export default function ManagerDashboard() {
     const submissions = getPendingReviewSubmissionsForUser(
       taskStore.submissions,
       currentUser,
-      employeeStore.users,
+      employeeStore.getEmployees(),
     );
 
     const pendingRequests = employeeRequests.filter(req => 
@@ -73,7 +73,7 @@ export default function ManagerDashboard() {
     );
 
     const activeBranchId = currentUser.branch_id || branchStore.branches[0]?.id;
-    const branchEmployees = employeeStore.users.filter(u => u.branch_id === activeBranchId && u.role === 'employee');
+    const branchEmployees = employeeStore.getEmployees().filter(u => u.branch_id === activeBranchId);
     
     // 2. Currently Working Now
     const todayRecords = attendanceStore.getAllTodayRecords();

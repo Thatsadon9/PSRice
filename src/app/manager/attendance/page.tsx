@@ -172,7 +172,7 @@ export default function AttendanceMonitoringPage() {
   const addManagerManualPunch = useAttendanceStore((state) => state.addManagerManualPunch);
   const branches = useBranchStore((state) => state.branches);
   const getBranchById = useBranchStore((state) => state.getBranchById);
-  const users = useEmployeeStore((state) => state.users);
+  const users = useEmployeeStore((state) => state.users).filter(u => u.status !== 'inactive');
   const {
     branchPolicies,
     employeeRequests,

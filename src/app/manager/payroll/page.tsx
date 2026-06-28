@@ -79,7 +79,7 @@ export default function PayrollPage() {
   const [searchQuery, setSearchQuery] = useState('');
 
   const activeBranchId = selectedBranchId || currentUser?.branch_id || branchStore.branches[0]?.id || '';
-  const branchEmployees = employeeStore.users.filter((user) => user.role === 'employee' && (!activeBranchId || user.branch_id === activeBranchId));
+  const branchEmployees = employeeStore.getEmployees().filter((user) => !activeBranchId || user.branch_id === activeBranchId);
   const activeEmployeeId = selectedEmployeeId && branchEmployees.some((user) => user.id === selectedEmployeeId)
     ? selectedEmployeeId
     : branchEmployees[0]?.id || '';

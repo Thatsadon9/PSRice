@@ -13,9 +13,9 @@ interface EmployeeState {
   fetchUsers: () => Promise<void>;
   subscribeToUserUpdates: () => () => void;
   getUserById: (id: string) => User | undefined;
-  getUsersByBranch: (branchId: string) => User[];
-  getUsersByRole: (role: string) => User[];
-  getEmployees: () => User[];
+  getUsersByBranch: (branchId: string, includeInactive?: boolean) => User[];
+  getUsersByRole: (role: string, includeInactive?: boolean) => User[];
+  getEmployees: (includeInactive?: boolean) => User[];
   addUser: (user: Omit<User, 'id' | 'created_at'>, password?: string) => Promise<boolean>;
   updateUser: (userId: string, updates: Partial<User>) => Promise<boolean>;
   deleteUser: (userId: string) => Promise<boolean>;
@@ -84,16 +84,16 @@ export const useEmployeeStore = create<EmployeeState>((set, get) => ({
     return get().users.find(u => u.id === id);
   },
 
-  getUsersByBranch: (branchId: string) => {
-    return get().users.filter(u => u.branch_id === branchId);
+  getUsersByBranch: (branchId: string, includeInactive = false) => {
+    return get().users.filter(u => u.branch_id === branchId && (includeInactive || u.status !== 'inactive'));
   },
 
-  getUsersByRole: (role: string) => {
-    return get().users.filter(u => u.role === role);
+  getUsersByRole: (role: string, includeInactive = false) => {
+    return get().users.filter(u => u.role === role && (includeInactive || u.status !== 'inactive'));
   },
 
-  getEmployees: () => {
-    return get().users.filter(u => u.role === 'employee');
+  getEmployees: (includeInactive = false) => {
+    return get().users.filter(u => u.role === 'employee' && (includeInactive || u.status !== 'inactive'));
   },
 
   addUser: async (user: Omit<User, 'id' | 'created_at'>, password?: string) => {

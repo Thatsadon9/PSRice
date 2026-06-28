@@ -48,12 +48,12 @@ export default function ManagerReviewPage() {
   const pendingSubmissions = getPendingReviewSubmissionsForUser(
     taskStore.submissions,
     currentUser,
-    employeeStore.users,
+    employeeStore.users.filter(u => u.status !== 'inactive'),
   );
   const reviewedSubmissions = getReviewedSubmissionsForUser(
     taskStore.submissions,
     currentUser,
-    employeeStore.users,
+    employeeStore.users.filter(u => u.status !== 'inactive'),
   );
   const visibleSubmissions = activeTab === 'pending' ? pendingSubmissions : reviewedSubmissions;
 

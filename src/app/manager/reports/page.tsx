@@ -49,7 +49,7 @@ export default function ReportsPage() {
   const attendanceRecords = useAttendanceStore((state) => state.records);
   const branches = useBranchStore((state) => state.branches);
   const getBranchById = useBranchStore((state) => state.getBranchById);
-  const users = useEmployeeStore((state) => state.users);
+  const users = useEmployeeStore((state) => state.users).filter(u => u.status !== 'inactive');
   const tasks = useTaskStore((state) => state.tasks);
   const getTaskById = useTaskStore((state) => state.getTaskById);
   const submissions = useTaskStore((state) => state.submissions);

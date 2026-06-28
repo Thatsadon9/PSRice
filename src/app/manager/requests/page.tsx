@@ -43,7 +43,7 @@ export default function ManagerRequestsPage() {
   const { currentUser } = useAuthStore();
   const branches = useBranchStore((state) => state.branches);
   const getBranchById = useBranchStore((state) => state.getBranchById);
-  const users = useEmployeeStore((state) => state.users);
+  const users = useEmployeeStore((state) => state.users).filter(u => u.status !== 'inactive');
   const fetchUsers = useEmployeeStore((state) => state.fetchUsers);
   const employeeRequests = useHrStore((state) => state.employeeRequests);
   const registrationRequests = useHrStore((state) => state.registrationRequests);
