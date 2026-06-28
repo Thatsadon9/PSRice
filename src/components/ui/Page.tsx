@@ -1,8 +1,5 @@
-'use client';
-
 import { type ReactNode } from 'react';
 import { Inbox } from 'lucide-react';
-import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 
 type PageProps = {
@@ -111,24 +108,19 @@ export function StatTile({ label, value, helper, icon, tone = 'slate' }: StatTil
 type EmptyStateProps = {
   title: string;
   description?: string;
-  actionLabel?: string;
-  onAction?: () => void;
+  action?: ReactNode;
   icon?: ReactNode;
 };
 
-export function EmptyState({ title, description, actionLabel, onAction, icon }: EmptyStateProps) {
+export function EmptyState({ title, description, action, icon }: EmptyStateProps) {
   return (
     <Card className="flex flex-col items-center justify-center px-5 py-12 text-center">
-      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-slate-400">
+      <div aria-hidden="true" className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-slate-400">
         {icon || <Inbox className="h-6 w-6" />}
       </div>
       <h3 className="text-base font-semibold text-slate-950">{title}</h3>
       {description && <p className="mt-1 max-w-sm text-sm leading-6 text-slate-500">{description}</p>}
-      {actionLabel && onAction && (
-        <Button className="mt-5" onClick={onAction}>
-          {actionLabel}
-        </Button>
-      )}
+      {action && <div className="mt-5">{action}</div>}
     </Card>
   );
 }
