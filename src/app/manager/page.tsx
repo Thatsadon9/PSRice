@@ -137,7 +137,8 @@ export default function ManagerDashboard() {
   const attendanceStatus = attendanceStore.getTodayStatus(currentUser.id);
 
   const myTasks = taskStore.tasks.filter((task) => task.assigned_to === currentUser.id);
-  const milestoneTasks = sortMilestoneTasks(myTasks);
+  const todayTasks = taskStore.getTodayTasksByUser(currentUser.id);
+  const milestoneTasks = sortMilestoneTasks(todayTasks);
   const completedMilestones = milestoneTasks.filter((task) => isMilestoneComplete(task.status));
   const totalMilestoneReward = milestoneTasks.reduce((sum, task) => {
     const template = task.template_id ? taskStore.templates.find((item) => item.id === task.template_id) : null;

@@ -84,7 +84,8 @@ export default function EmployeeDashboard() {
   
   const myTasks = tasks.filter((task) => task.assigned_to === currentUser.id);
   const activeTasks = myTasks.filter((task) => ['pending', 'in_progress', 'rejected', 'overdue'].includes(task.status));
-  const milestoneTasks = sortMilestoneTasks(myTasks);
+  const todayTasks = useTaskStore.getState().getTodayTasksByUser(currentUser.id);
+  const milestoneTasks = sortMilestoneTasks(todayTasks);
   const completedMilestones = milestoneTasks.filter((task) => isMilestoneComplete(task.status));
   const totalMilestoneReward = milestoneTasks.reduce((sum, task) => {
     const template = task.template_id ? templates.find((item) => item.id === task.template_id) : null;
