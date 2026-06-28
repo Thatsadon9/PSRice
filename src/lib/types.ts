@@ -79,7 +79,14 @@ export interface BranchAttendancePolicy {
   early_out_grace_minutes: number;
   minimum_ot_minutes: number;
   check_in_reward?: number;
+  use_default_check_in_reward: boolean;
   created_at: string;
+  updated_at: string;
+}
+
+export interface AppSetting {
+  key: string;
+  value: any;
   updated_at: string;
 }
 

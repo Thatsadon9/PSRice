@@ -21,10 +21,12 @@ interface HrState {
   compensationProfiles: CompensationProfile[];
   employeeRequests: EmployeeRequest[];
   registrationRequests: RegistrationRequest[];
+  appSettings: Record<string, any>;
   isLoading: boolean;
   schemaReady: boolean;
   schemaMessage: string | null;
   fetchInitialData: () => Promise<void>;
+  updateGlobalSetting: (key: string, value: any) => Promise<boolean>;
   subscribeToHrUpdates: () => () => void;
   getBranchPolicy: (branchId?: string | null) => BranchAttendancePolicy | undefined;
   upsertBranchPolicy: (
@@ -90,6 +92,7 @@ function mapBranchPolicy(record: Record<string, unknown>): BranchAttendancePolic
     early_out_grace_minutes: toNumberValue(record.early_out_grace_minutes, 0),
     minimum_ot_minutes: toNumberValue(record.minimum_ot_minutes, 30),
     check_in_reward: toNumberValue(record.check_in_reward, 50),
+    use_default_check_in_reward: record.use_default_check_in_reward !== undefined ? Boolean(record.use_default_check_in_reward) : true,
     created_at: String(record.created_at || ''),
     updated_at: String(record.updated_at || record.created_at || ''),
   };
@@ -236,6 +239,7 @@ export const useHrStore = create<HrState>((set, get) => ({
       compensationResult,
       employeeRequestResult,
       registrationRequestResult,
+      appSettingsResult,
     ] = await Promise.all([
       supabase.from('branch_attendance_policies').select('*').order('created_at', { ascending: false }),
       supabase.from('shift_templates').select('*').order('created_at', { ascending: false }),
@@ -243,6 +247,7 @@ export const useHrStore = create<HrState>((set, get) => ({
       supabase.from('compensation_profiles').select('*').order('created_at', { ascending: false }),
       supabase.from('employee_requests').select('*').order('created_at', { ascending: false }),
       supabase.from('registration_requests').select('*').order('created_at', { ascending: false }),
+      supabase.from('app_settings').select('*'),
     ]);
 
     const missingSchema = [
@@ -269,6 +274,13 @@ export const useHrStore = create<HrState>((set, get) => ({
       });
     }
 
+    const parsedSettings: Record<string, any> = {};
+    if (appSettingsResult.data) {
+      appSettingsResult.data.forEach((row: any) => {
+        parsedSettings[row.key] = row.value;
+      });
+    }
+
     set({
       branchPolicies: branchPolicyResult.data ? sortByDateDesc((branchPolicyResult.data as Record<string, unknown>[]).map(mapBranchPolicy)) : [],
       shiftTemplates: shiftTemplateResult.data ? sortByDateDesc((shiftTemplateResult.data as Record<string, unknown>[]).map(mapShiftTemplate)) : [],
@@ -276,12 +288,29 @@ export const useHrStore = create<HrState>((set, get) => ({
       compensationProfiles: compensationResult.data ? sortByDateDesc((compensationResult.data as Record<string, unknown>[]).map(mapCompensationProfile)) : [],
       employeeRequests: employeeRequestResult.data ? sortByDateDesc((employeeRequestResult.data as Record<string, unknown>[]).map(mapEmployeeRequest)) : [],
       registrationRequests: registrationRequestResult.data ? sortByDateDesc((registrationRequestResult.data as Record<string, unknown>[]).map(mapRegistrationRequest)) : [],
+      appSettings: parsedSettings,
       isLoading: false,
       schemaReady: !missingSchema,
       schemaMessage: missingSchema
         ? 'ยังไม่พบตาราง HR เพิ่มเติมใน Supabase กรุณารัน SQL migration รอบใหม่ก่อน'
         : null,
     });
+  },
+
+  updateGlobalSetting: async (key: string, value: any) => {
+    const { error } = await supabase
+      .from('app_settings')
+      .upsert({ key, value, updated_at: new Date().toISOString() });
+    
+    if (error) {
+      console.error('Failed to update global setting:', error);
+      return false;
+    }
+    
+    set((state) => ({
+      appSettings: { ...state.appSettings, [key]: value }
+    }));
+    return true;
   },
 
   subscribeToHrUpdates: () => {

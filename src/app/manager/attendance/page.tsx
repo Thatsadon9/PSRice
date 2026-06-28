@@ -182,6 +182,8 @@ export default function AttendanceMonitoringPage() {
     shiftAssignments,
     getBranchPolicy,
     upsertBranchPolicy,
+    appSettings,
+    updateGlobalSetting,
   } = useHrStore();
 
   const [selectedDate, setSelectedDate] = useState(getCurrentDateStr());
@@ -194,39 +196,75 @@ export default function AttendanceMonitoringPage() {
   const [editError, setEditError] = useState('');
   const [saveTimesLoading, setSaveTimesLoading] = useState(false);
   
-  const [checkInReward, setCheckInReward] = useState('50');
+  const globalRewardAmount = parseInt(appSettings?.default_check_in_reward || '50', 10);
+  
+  const [checkInReward, setCheckInReward] = useState(globalRewardAmount.toString());
+  const [useDefaultReward, setUseDefaultReward] = useState(true);
   const [rewardUpdating, setRewardUpdating] = useState(false);
   const rewardTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Sync checkInReward when branch changes
   useEffect(() => {
-    if (selectedBranchId && selectedBranchId !== 'all') {
+    if (selectedBranchId === 'all') {
+      setCheckInReward(globalRewardAmount.toString());
+      setUseDefaultReward(true);
+    } else if (selectedBranchId) {
       const policy = getBranchPolicy(selectedBranchId);
-      if (policy && policy.check_in_reward !== undefined) {
-        setCheckInReward(policy.check_in_reward.toString());
+      if (policy) {
+        setUseDefaultReward(policy.use_default_check_in_reward ?? true);
+        if (policy.use_default_check_in_reward !== false) {
+           setCheckInReward(globalRewardAmount.toString());
+        } else {
+           setCheckInReward((policy.check_in_reward ?? globalRewardAmount).toString());
+        }
       } else {
-        setCheckInReward('50');
+        setUseDefaultReward(true);
+        setCheckInReward(globalRewardAmount.toString());
       }
     }
-  }, [selectedBranchId, getBranchPolicy]);
+  }, [selectedBranchId, getBranchPolicy, globalRewardAmount]);
 
-  const updateReward = async (val: string) => {
-    if (!selectedBranchId || selectedBranchId === 'all') return;
+  const updateReward = async (val: string, isDefault: boolean) => {
     const amount = parseInt(val, 10);
     if (isNaN(amount) || amount < 0) return;
     
     setRewardUpdating(true);
-    // 1. Update policy
-    await upsertBranchPolicy(selectedBranchId, { check_in_reward: amount });
     
-    // 2. Update today's tasks so dashboard updates instantly
-    const today = getCurrentDateStr();
-    await supabase
-      .from('tasks')
-      .update({ reward_amount: amount })
-      .like('title', '%เช็คอิน%')
-      .eq('status', 'pending')
-      .eq('due_date', today);
+    if (selectedBranchId === 'all') {
+      await updateGlobalSetting('default_check_in_reward', amount.toString());
+      
+      const today = getCurrentDateStr();
+      const defaultBranchIds = branchPolicies.filter(p => p.use_default_check_in_reward !== false).map(p => p.branch_id);
+      if (defaultBranchIds.length > 0) {
+          const userIds = users.filter(u => defaultBranchIds.includes(u.branch_id)).map(u => u.id);
+          if (userIds.length > 0) {
+             await supabase
+               .from('tasks')
+               .update({ reward_amount: amount })
+               .like('title', '%เช็คอิน%')
+               .eq('status', 'pending')
+               .eq('due_date', today)
+               .in('user_id', userIds);
+          }
+      }
+    } else if (selectedBranchId) {
+      await upsertBranchPolicy(selectedBranchId, { 
+         check_in_reward: isDefault ? undefined : amount,
+         use_default_check_in_reward: isDefault
+      });
+      
+      const today = getCurrentDateStr();
+      const userIds = users.filter(u => u.branch_id === selectedBranchId).map(u => u.id);
+      if (userIds.length > 0) {
+         await supabase
+           .from('tasks')
+           .update({ reward_amount: isDefault ? globalRewardAmount : amount })
+           .like('title', '%เช็คอิน%')
+           .eq('status', 'pending')
+           .eq('due_date', today)
+           .in('user_id', userIds);
+      }
+    }
       
     setRewardUpdating(false);
   };
@@ -237,8 +275,19 @@ export default function AttendanceMonitoringPage() {
     
     if (rewardTimeoutRef.current) clearTimeout(rewardTimeoutRef.current);
     rewardTimeoutRef.current = setTimeout(() => {
-      updateReward(val);
+      updateReward(val, useDefaultReward);
     }, 800);
+  };
+
+  const handleUseDefaultChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+     const isDefault = e.target.value === 'true';
+     setUseDefaultReward(isDefault);
+     if (isDefault) {
+        setCheckInReward(globalRewardAmount.toString());
+        updateReward(globalRewardAmount.toString(), true);
+     } else {
+        updateReward(checkInReward, false);
+     }
   };
 
   const canCorrectAttendance =
@@ -510,26 +559,43 @@ export default function AttendanceMonitoringPage() {
       )}
 
       {/* Reward Setting Bar */}
-      {selectedBranchId && selectedBranchId !== 'all' && (
-        <Card className="p-3 bg-emerald-50 border-emerald-100 flex items-center justify-between shadow-sm">
+      {selectedBranchId && (
+        <Card className="p-3 bg-emerald-50 border-emerald-100 flex flex-col md:flex-row md:items-center justify-between shadow-sm gap-3">
            <div className="flex items-center gap-3">
               <div className="p-2 bg-emerald-100 text-emerald-600 rounded-xl">
                  <Coins className="w-5 h-5" />
               </div>
               <div>
-                 <p className="text-sm font-bold text-emerald-900">ค่าตอบแทนเช็คอินรายวัน (บาท/วัน)</p>
+                 <p className="text-sm font-bold text-emerald-900 flex items-center flex-wrap gap-2">
+                   ค่าตอบแทนเช็คอินรายวัน (บาท/วัน)
+                   {selectedBranchId === 'all' && <span className="text-[10px] bg-emerald-200 text-emerald-800 px-2 py-0.5 rounded-full">ค่าเริ่มต้นทุกสาขา</span>}
+                 </p>
                  <p className="text-xs font-medium text-emerald-700">มีผลทันทีกับภารกิจเช็คอินของวันนี้และวันถัดไป</p>
               </div>
            </div>
-           <div className="flex items-center gap-2">
-              {rewardUpdating && <div className="text-[10px] font-bold text-emerald-600 animate-pulse">กำลังบันทึก...</div>}
-              <div className="w-24">
+           <div className="flex items-center gap-3">
+              {rewardUpdating && <div className="text-[10px] font-bold text-emerald-600 animate-pulse hidden md:block">กำลังบันทึก...</div>}
+              
+              {selectedBranchId !== 'all' && (
+                 <Select
+                    className="bg-white border border-emerald-200 focus:border-emerald-500 focus:ring-emerald-500/20 text-sm min-w-[150px] rounded-lg h-10"
+                    value={useDefaultReward.toString()}
+                    onChange={handleUseDefaultChange}
+                    options={[
+                      { value: 'true', label: 'อิงตามค่ามาตรฐาน' },
+                      { value: 'false', label: 'กำหนดเอง' }
+                    ]}
+                 />
+              )}
+
+              <div className="w-24 shrink-0">
                  <Input 
                     type="number" 
                     value={checkInReward} 
                     onChange={handleRewardChange} 
+                    disabled={selectedBranchId !== 'all' && useDefaultReward}
                     min="0"
-                    className="bg-white border-emerald-200 focus:border-emerald-500 focus:ring-emerald-500/20"
+                    className={`bg-white border-emerald-200 focus:border-emerald-500 focus:ring-emerald-500/20 h-10 ${(selectedBranchId !== 'all' && useDefaultReward) ? 'opacity-60 bg-emerald-50 cursor-not-allowed text-emerald-800 font-bold' : ''}`}
                  />
               </div>
            </div>
