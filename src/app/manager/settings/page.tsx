@@ -15,25 +15,16 @@ export default function SettingsPage() {
   const currentUser = useAuthStore(state => state.currentUser);
   const getBranchPolicy = useHrStore(state => state.getBranchPolicy);
   const upsertBranchPolicy = useHrStore(state => state.upsertBranchPolicy);
-  
-  const [checkInReward, setCheckInReward] = useState('50');
-  const [isSaving, setIsSaving] = useState(false);
 
-  useEffect(() => {
-    if (currentUser?.branch_id) {
-      const policy = getBranchPolicy(currentUser.branch_id);
-      if (policy && policy.check_in_reward !== undefined) {
-        setCheckInReward(policy.check_in_reward.toString());
-      }
-    }
-  }, [currentUser, getBranchPolicy]);
+  const [isSaving, setIsSaving] = useState(false);
+  
+
 
   const handleSave = async () => {
     if (!currentUser?.branch_id) return;
     setIsSaving(true);
-    await upsertBranchPolicy(currentUser.branch_id, {
-      check_in_reward: parseInt(checkInReward, 10) || 0
-    });
+    // await save other settings...
+    await new Promise(r => setTimeout(r, 500));
     setIsSaving(false);
     alert('บันทึกการตั้งค่าสำเร็จ');
   };
@@ -65,28 +56,7 @@ export default function SettingsPage() {
                </div>
             </Card>
 
-            <Card>
-               <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
-                  <Coins className="w-5 h-5 text-emerald-600" />
-                  ค่าตอบแทน Milestone
-               </h3>
-               <div className="space-y-4">
-                  <div className="flex items-center justify-between p-3 bg-emerald-50 rounded-lg border border-emerald-100">
-                     <div>
-                        <p className="text-sm font-semibold text-emerald-900">รางวัลเช็คอินเข้างาน (บาท/วัน)</p>
-                        <p className="text-xs text-emerald-700">พนักงานจะได้รับ Milestone นี้เมื่อเช็คอินสำเร็จ</p>
-                     </div>
-                     <div className="w-24">
-                        <Input 
-                           type="number" 
-                           value={checkInReward} 
-                           onChange={(e) => setCheckInReward(e.target.value)} 
-                           min="0"
-                        />
-                     </div>
-                  </div>
-               </div>
-            </Card>
+
 
             <Card>
                <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">

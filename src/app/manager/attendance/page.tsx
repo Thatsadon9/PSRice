@@ -14,7 +14,9 @@ import {
   TimerReset,
   UserMinus,
   Zap,
+  Coins,
 } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
@@ -179,6 +181,8 @@ export default function AttendanceMonitoringPage() {
     schemaMessage,
     schemaReady,
     shiftAssignments,
+    getBranchPolicy,
+    upsertBranchPolicy,
   } = useHrStore();
 
   const [selectedDate, setSelectedDate] = useState(getCurrentDateStr());
@@ -190,6 +194,53 @@ export default function AttendanceMonitoringPage() {
   const [correctionNote, setCorrectionNote] = useState('');
   const [editError, setEditError] = useState('');
   const [saveTimesLoading, setSaveTimesLoading] = useState(false);
+  
+  const [checkInReward, setCheckInReward] = useState('50');
+  const [rewardUpdating, setRewardUpdating] = useState(false);
+  const rewardTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Sync checkInReward when branch changes
+  useEffect(() => {
+    if (selectedBranchId && selectedBranchId !== 'all') {
+      const policy = getBranchPolicy(selectedBranchId);
+      if (policy && policy.check_in_reward !== undefined) {
+        setCheckInReward(policy.check_in_reward.toString());
+      } else {
+        setCheckInReward('50');
+      }
+    }
+  }, [selectedBranchId, getBranchPolicy]);
+
+  const updateReward = async (val: string) => {
+    if (!selectedBranchId || selectedBranchId === 'all') return;
+    const amount = parseInt(val, 10);
+    if (isNaN(amount) || amount < 0) return;
+    
+    setRewardUpdating(true);
+    // 1. Update policy
+    await upsertBranchPolicy(selectedBranchId, { check_in_reward: amount });
+    
+    // 2. Update today's tasks so dashboard updates instantly
+    const today = getCurrentDateStr();
+    await supabase
+      .from('tasks')
+      .update({ reward_amount: amount })
+      .like('title', '%เช็คอิน%')
+      .eq('status', 'pending')
+      .eq('due_date', today);
+      
+    setRewardUpdating(false);
+  };
+
+  const handleRewardChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setCheckInReward(val);
+    
+    if (rewardTimeoutRef.current) clearTimeout(rewardTimeoutRef.current);
+    rewardTimeoutRef.current = setTimeout(() => {
+      updateReward(val);
+    }, 800);
+  };
 
   const canCorrectAttendance =
     currentUser?.role === 'admin' || currentUser?.role === 'manager';
@@ -456,6 +507,33 @@ export default function AttendanceMonitoringPage() {
               <p className="text-xs text-amber-800 mt-1">{schemaMessage}</p>
             </div>
           </div>
+        </Card>
+      )}
+
+      {/* Reward Setting Bar */}
+      {selectedBranchId && selectedBranchId !== 'all' && (
+        <Card className="p-3 bg-emerald-50 border-emerald-100 flex items-center justify-between shadow-sm">
+           <div className="flex items-center gap-3">
+              <div className="p-2 bg-emerald-100 text-emerald-600 rounded-xl">
+                 <Coins className="w-5 h-5" />
+              </div>
+              <div>
+                 <p className="text-sm font-bold text-emerald-900">ค่าตอบแทนเช็คอินรายวัน (บาท/วัน)</p>
+                 <p className="text-xs font-medium text-emerald-700">มีผลทันทีกับภารกิจเช็คอินของวันนี้และวันถัดไป</p>
+              </div>
+           </div>
+           <div className="flex items-center gap-2">
+              {rewardUpdating && <div className="text-[10px] font-bold text-emerald-600 animate-pulse">กำลังบันทึก...</div>}
+              <div className="w-24">
+                 <Input 
+                    type="number" 
+                    value={checkInReward} 
+                    onChange={handleRewardChange} 
+                    min="0"
+                    className="bg-white border-emerald-200 focus:border-emerald-500 focus:ring-emerald-500/20"
+                 />
+              </div>
+           </div>
         </Card>
       )}
 
