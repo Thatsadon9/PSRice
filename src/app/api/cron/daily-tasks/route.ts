@@ -110,7 +110,7 @@ async function handleDailyTasks(targetBranchId: string | null = null) {
       .from('users')
       .select('id, branch_id, role, status')
       .eq('status', 'active')
-      .eq('role', 'employee');
+      .in('role', ['employee', 'manager', 'admin']);
     
     if (targetBranchId) {
       userQuery = userQuery.eq('branch_id', targetBranchId);
