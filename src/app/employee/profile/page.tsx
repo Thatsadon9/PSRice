@@ -8,6 +8,7 @@ import {
   CalendarDays,
   Camera,
   ChevronRight,
+  Coins,
   ExternalLink,
   FileText,
   Landmark,
@@ -17,24 +18,30 @@ import {
   ReceiptText,
   Save,
   Shield,
+  TrendingDown,
+  TrendingUp,
   Upload,
   UserCircle,
   UserCog,
+  WalletCards,
   type LucideIcon,
 } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import Input, { TextArea } from '@/components/ui/Input';
+import { Page, PageHeader } from '@/components/ui/Page';
 import { ROLE_LABELS, SHIFT_ASSIGNMENT_STATUS_LABELS } from '@/lib/constants';
 import { getCurrentDateStr } from '@/lib/dateUtils';
-import { resolveShiftForUserDate } from '@/lib/hr';
+import { buildPayrollSummary, formatMinutesAsHours, getMonthDateRange, resolveShiftForUserDate } from '@/lib/hr';
 import { createSignedFileUrl, uploadFile, uploadPrivateFile } from '@/lib/storage';
 import { getAccessToken } from '@/lib/supabase';
 import type { User } from '@/lib/types';
 import { useAuthStore } from '@/store/authStore';
+import { useAttendanceStore } from '@/store/attendanceStore';
 import { useBranchStore } from '@/store/branchStore';
 import { useHrStore } from '@/store/hrStore';
+import { useTaskStore } from '@/store/taskStore';
 
 type ProfileFormState = {
   full_name: string;
@@ -124,11 +131,27 @@ function buildStoragePath(userId: string, prefix: string, file: File) {
   return `${userId}/${prefix}-${Date.now()}.${getFileExtension(file)}`;
 }
 
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat('th-TH', {
+    style: 'currency',
+    currency: 'THB',
+    maximumFractionDigits: 0,
+  }).format(value || 0);
+}
+
 export default function ProfilePage() {
   const router = useRouter();
   const { currentUser, logout, refreshCurrentUser } = useAuthStore();
+  const attendanceStore = useAttendanceStore();
   const branchStore = useBranchStore();
-  const hrStore = useHrStore();
+  const {
+    branchPolicies,
+    employeeRequests,
+    getCompensationProfile,
+    shiftAssignments,
+  } = useHrStore();
+  const taskStore = useTaskStore();
+  const payrollMonthRange = useMemo(() => getMonthDateRange(new Date()), []);
   const [form, setForm] = useState<ProfileFormState>(() => buildProfileForm(currentUser));
   const [passwordForm, setPasswordForm] = useState<PasswordFormState>({
     current_password: '',
@@ -171,10 +194,39 @@ export default function ProfilePage() {
     return resolveShiftForUserDate({
       user: currentUser,
       workDate: getCurrentDateStr(),
-      assignments: hrStore.shiftAssignments,
-      branchPolicies: hrStore.branchPolicies,
+      assignments: shiftAssignments,
+      branchPolicies,
     });
-  }, [currentUser, hrStore.branchPolicies, hrStore.shiftAssignments]);
+  }, [branchPolicies, currentUser, shiftAssignments]);
+  const payrollSummary = useMemo(() => {
+    if (!currentUser) {
+      return null;
+    }
+
+    return buildPayrollSummary({
+      user: currentUser,
+      startDate: payrollMonthRange.start,
+      endDate: payrollMonthRange.end,
+      records: attendanceStore.records.filter((record) => record.user_id === currentUser.id),
+      assignments: shiftAssignments,
+      branchPolicies,
+      requests: employeeRequests.filter((request) => request.user_id === currentUser.id),
+      tasks: taskStore.tasks.filter((task) => task.assigned_to === currentUser.id),
+      taskTemplates: taskStore.templates,
+      compensationProfile: getCompensationProfile(currentUser.id) ?? null,
+    });
+  }, [
+    attendanceStore.records,
+    branchPolicies,
+    currentUser,
+    employeeRequests,
+    getCompensationProfile,
+    payrollMonthRange.end,
+    payrollMonthRange.start,
+    shiftAssignments,
+    taskStore.tasks,
+    taskStore.templates,
+  ]);
 
   if (!currentUser) {
     return null;
@@ -376,13 +428,11 @@ export default function ProfilePage() {
   const displayName = form.full_name.trim() || currentUser.full_name;
 
   return (
-    <div className="space-y-5 px-4 py-5 pb-24 animate-fade-in">
-      <div className="space-y-1">
-        <h1 className="text-xl font-bold text-slate-900">โปรไฟล์พนักงาน</h1>
-        <p className="text-sm text-slate-500">
-          อัปเดตข้อมูลส่วนตัว เอกสารสำคัญ และความปลอดภัยของบัญชีด้วยตัวเอง
-        </p>
-      </div>
+    <Page maxWidth="sm" className="space-y-5 pb-24">
+      <PageHeader
+        title="โปรไฟล์"
+        description="ข้อมูลส่วนตัว เอกสาร และยอดเงินปัจจุบัน"
+      />
 
       <Card className="overflow-hidden border-slate-100 shadow-sm">
         <div className="flex flex-col items-center gap-4 py-2 text-center">
@@ -459,6 +509,78 @@ export default function ProfilePage() {
           </Button>
         </div>
       </Card>
+
+      {payrollSummary && (
+        <Card className="border-emerald-100 bg-white shadow-sm">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="rounded-2xl bg-emerald-50 p-3 text-emerald-600">
+                <WalletCards className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-xs font-medium text-slate-500">ยอดเงินเดือนนี้</p>
+                <p className="mt-1 text-3xl font-black tracking-tight text-slate-950">
+                  {formatCurrency(payrollSummary.net_pay)}
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  รอบ {payrollSummary.start_date} ถึง {payrollSummary.end_date}
+                </p>
+              </div>
+            </div>
+            <div className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
+              สุทธิ
+            </div>
+          </div>
+
+          <div className="mt-5 grid grid-cols-2 gap-3">
+            <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4">
+              <div className="flex items-center gap-2 text-emerald-700">
+                <TrendingUp className="h-4 w-4" />
+                <span className="text-[10px] font-bold uppercase tracking-widest">รายได้รวม</span>
+              </div>
+              <p className="mt-2 text-lg font-black text-emerald-900">{formatCurrency(payrollSummary.total_earnings)}</p>
+            </div>
+            <div className="rounded-2xl border border-red-100 bg-red-50/60 p-4">
+              <div className="flex items-center gap-2 text-red-600">
+                <TrendingDown className="h-4 w-4" />
+                <span className="text-[10px] font-bold uppercase tracking-widest">หักรวม</span>
+              </div>
+              <p className="mt-2 text-lg font-black text-red-700">{formatCurrency(payrollSummary.total_deductions)}</p>
+            </div>
+            <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+              <div className="flex items-center gap-2 text-slate-500">
+                <Coins className="h-4 w-4" />
+                <span className="text-[10px] font-bold uppercase tracking-widest">โบนัสงาน</span>
+              </div>
+              <p className="mt-2 text-lg font-black text-slate-900">
+                {formatCurrency(payrollSummary.attendance_reward + payrollSummary.task_reward)}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+              <div className="flex items-center gap-2 text-slate-500">
+                <ReceiptText className="h-4 w-4" />
+                <span className="text-[10px] font-bold uppercase tracking-widest">เบิกล่วงหน้า</span>
+              </div>
+              <p className="mt-2 text-lg font-black text-slate-900">{formatCurrency(payrollSummary.advance_deduction)}</p>
+            </div>
+          </div>
+
+          <div className="mt-5 space-y-2 border-t border-slate-100 pt-4">
+            <div className="flex items-center justify-between text-xs font-semibold text-slate-500">
+              <span>มาสาย {formatMinutesAsHours(payrollSummary.total_late_minutes)}</span>
+              <span className="text-red-500">- {formatCurrency(payrollSummary.late_deduction)}</span>
+            </div>
+            {payrollSummary.money_lines.filter((line) => line.source !== 'late').map((line) => (
+              <div key={line.id} className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-xs">
+                <span className="font-medium text-slate-600">{line.label}</span>
+                <span className={`font-black ${line.kind === 'earning' ? 'text-emerald-600' : 'text-red-500'}`}>
+                  {line.kind === 'earning' ? '+' : '-'} {formatCurrency(line.amount)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       {todayShift && (
         <Card className="border-slate-100">
@@ -964,6 +1086,6 @@ export default function ProfilePage() {
           </div>
         </form>
       </Modal>
-    </div>
+    </Page>
   );
 }

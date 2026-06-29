@@ -6,6 +6,7 @@ import { useHrStore } from '@/store/hrStore';
 import { useBranchStore } from '@/store/branchStore';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
+import { Page, PageHeader } from '@/components/ui/Page';
 import {
   Clock,
   ChevronLeft,
@@ -29,20 +30,26 @@ import { th } from 'date-fns/locale';
 import { SHIFT_ASSIGNMENT_STATUS_LABELS } from '@/lib/constants';
 import { resolveShiftForUserDate } from '@/lib/hr';
 import { ZoomIn, ZoomOut, Zap, Calendar as CalendarIcon } from 'lucide-react';
+import type { ShiftTemplate } from '@/lib/types';
+
+type ShiftResolverStore = {
+  shiftTemplates: ShiftTemplate[];
+  getShiftTemplatesByBranch: (branchId: string) => ShiftTemplate[];
+};
 
 function resolveShiftColor(
   shiftName: string | null | undefined, 
   templateId: string | null | undefined, 
   branchId: string, 
-  hrStore: any
+  hrStore: ShiftResolverStore,
 ): string | null {
   if (templateId) {
-    const template = hrStore.shiftTemplates.find((t: any) => t.id === templateId);
+    const template = hrStore.shiftTemplates.find((item) => item.id === templateId);
     if (template?.color) return template.color;
   }
 
   if (shiftName) {
-    const templates = hrStore.getShiftTemplatesByBranch(branchId) as any[];
+    const templates = hrStore.getShiftTemplatesByBranch(branchId);
     let template = templates.find((t) => t.name.trim().toLowerCase() === shiftName.trim().toLowerCase());
     
     if (!template) {
@@ -137,10 +144,14 @@ export default function EmployeeSchedulePage() {
   };
 
   return (
-    <div className="px-4 py-8 space-y-6 animate-fade-in pb-24 max-w-lg mx-auto">
+    <Page maxWidth="sm" className="space-y-5 pb-24">
       {/* Header & Month Navigation */}
+      <PageHeader
+        title="ตารางกะงาน"
+        description="ดูวันทำงาน วันหยุด และกะที่ได้รับมอบหมาย"
+      />
       <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
+        <div className="hidden">
           <div className="space-y-1">
             <h1 className="text-2xl font-black text-slate-900 leading-tight">ตารางกะงาน</h1>
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">ศุนย์จัดการตารางงาน</p>
@@ -380,6 +391,6 @@ export default function EmployeeSchedulePage() {
            })}
         </div>
       )}
-    </div>
+    </Page>
   );
 }

@@ -11,11 +11,12 @@ import {
   ClipboardList,
   Clock,
   MapPin,
-  Zap,
 } from 'lucide-react';
 import Badge from '@/components/ui/Badge';
 import Card from '@/components/ui/Card';
+import { Page, PageHeader } from '@/components/ui/Page';
 import StarRating from '@/components/ui/StarRating';
+import Tabs from '@/components/ui/Tabs';
 import {
   ATTENDANCE_STATUS_LABELS,
   REVIEW_STATUS_LABELS,
@@ -116,34 +117,18 @@ export default function HistoryPage() {
   ];
 
   return (
-    <div className="space-y-6 px-4 py-8 pb-24 animate-fade-in max-w-lg mx-auto">
-      <div className="flex items-center justify-between gap-4">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-black text-slate-900 leading-tight">ประวัติและพอร์ต</h1>
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">ศูนย์รวมประวัติการปฏิบัติงาน</p>
-        </div>
-        <div className="h-12 w-12 rounded-2xl bg-slate-900 flex items-center justify-center text-primary-400">
-           <Zap className="w-6 h-6 fill-primary-400/20" />
-        </div>
-      </div>
+    <Page maxWidth="sm" className="space-y-5 pb-24">
+      <PageHeader
+        title="ประวัติ"
+        description="ประวัติการเข้างาน ส่งงาน และตารางกะ"
+      />
 
-      <div className="p-1.5 bg-slate-100 rounded-[2rem] flex gap-1">
-        {tabs.map(tab => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => setManualActiveTab(tab.id as HistoryTab)}
-            className={`
-              flex flex-1 items-center justify-center gap-2 rounded-[1.75rem] px-2 py-3.5 text-[10px] font-black uppercase tracking-widest transition-all
-              min-h-12 touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2
-              ${activeTab === tab.id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}
-            `}
-          >
-            {tab.icon}
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <Tabs
+        variant="pill"
+        tabs={tabs}
+        activeTab={activeTab}
+        onChange={(tab) => setManualActiveTab(tab as HistoryTab)}
+      />
 
       <div className="space-y-4">
         {activeTab === 'attendance' && (
@@ -305,6 +290,6 @@ export default function HistoryPage() {
           </div>
         )}
       </div>
-    </div>
+    </Page>
   );
 }
