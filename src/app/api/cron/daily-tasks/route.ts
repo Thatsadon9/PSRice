@@ -63,7 +63,7 @@ async function handleDailyTasks(targetBranchId: string | null = null) {
 
     const defaultCheckInReward = normalizeRewardAmount(defaultRewardSetting?.value);
 
-    // 0. Ensure check-in templates exist for all branches
+    // 0. Ensure one global check-in template exists for all branches
     let branchPoliciesQuery = supabaseAdmin
       .from('branch_attendance_policies')
       .select('branch_id, check_in_reward, use_default_check_in_reward');
@@ -81,40 +81,32 @@ async function handleDailyTasks(targetBranchId: string | null = null) {
         : normalizeRewardAmount(policy.check_in_reward, defaultCheckInReward);
     }
 
-    if (policies && policies.length > 0) {
-      // Find existing system check-in templates
-      const { data: existingSystemTemplates, error: sysTmplError } = await supabaseAdmin
-        .from('task_templates')
-        .select('id, branch_id')
-        .eq('is_system', true)
-        .like('title', `%${CHECK_IN_TITLE_KEYWORD}%`);
-      
-      if (sysTmplError) throw sysTmplError;
+    const { data: globalCheckInTemplates, error: sysTmplError } = await supabaseAdmin
+      .from('task_templates')
+      .select('id')
+      .eq('is_system', true)
+      .is('branch_id', null)
+      .like('title', `%${CHECK_IN_TITLE_KEYWORD}%`)
+      .limit(1);
 
-      const existingSysBranches = new Set((existingSystemTemplates || []).map(t => t.branch_id));
-      const newSystemTemplates = [];
+    if (sysTmplError) throw sysTmplError;
 
-      for (const policy of policies) {
-        if (!existingSysBranches.has(policy.branch_id)) {
-          newSystemTemplates.push({
-            title: 'เช็คอินเข้างาน',
-            description: 'เช็คอินเข้างานประจำวันให้สำเร็จ',
-            priority: 'medium',
-            proof_type_required: 'any',
-            requires_approval: false,
-            recurrence_rule: 'daily',
-            branch_id: policy.branch_id,
-            is_system: true,
-            reward_amount: policiesMap[policy.branch_id] ?? defaultCheckInReward,
-            checklist_json: []
-          });
-        }
-      }
+    if (!globalCheckInTemplates || globalCheckInTemplates.length === 0) {
+      const { error: insertSysError } = await supabaseAdmin.from('task_templates').insert({
+        title: 'เช็คอินเข้างาน',
+        description: 'เช็คอินเข้างานประจำวันให้สำเร็จ',
+        priority: 'medium',
+        proof_type_required: 'any',
+        requires_approval: false,
+        recurrence_rule: 'daily',
+        branch_id: null,
+        assigned_to: null,
+        is_system: true,
+        reward_amount: defaultCheckInReward,
+        checklist_json: []
+      });
 
-      if (newSystemTemplates.length > 0) {
-        const { error: insertSysError } = await supabaseAdmin.from('task_templates').insert(newSystemTemplates);
-        if (insertSysError) console.error('Failed to insert system templates:', insertSysError);
-      }
+      if (insertSysError) console.error('Failed to insert global system template:', insertSysError);
     }
 
     // 1. Fetch templates that are 'daily'
@@ -124,7 +116,7 @@ async function handleDailyTasks(targetBranchId: string | null = null) {
       .eq('recurrence_rule', 'daily');
     
     if (targetBranchId) {
-      templateQuery = templateQuery.eq('branch_id', targetBranchId);
+      templateQuery = templateQuery.or(`branch_id.eq.${targetBranchId},branch_id.is.null`);
     }
 
     const { data: templates, error: templatesError } = await templateQuery;
@@ -133,8 +125,25 @@ async function handleDailyTasks(targetBranchId: string | null = null) {
     if (!templates || templates.length === 0) {
       return NextResponse.json({ message: 'No daily templates found', created: 0 });
     }
+    const dailyTemplates = templates.filter((template) => {
+      const isLegacyBranchCheckInTemplate =
+        template.is_system &&
+        template.branch_id !== null &&
+        template.title.includes(CHECK_IN_TITLE_KEYWORD);
 
-    // 2. Fetch all active employees
+      return !isLegacyBranchCheckInTemplate;
+    });
+    const skippedLegacyCheckInTemplates = templates.length - dailyTemplates.length;
+
+    if (dailyTemplates.length === 0) {
+      return NextResponse.json({
+        message: 'No daily templates found after skipping legacy branch check-in templates',
+        created: 0,
+        skipped_legacy_check_in_templates: skippedLegacyCheckInTemplates,
+      });
+    }
+
+    // 2. Fetch active users for assigned templates and system check-in tasks
     let userQuery = supabaseAdmin
       .from('users')
       .select('id, branch_id, role, status')
@@ -160,6 +169,7 @@ async function handleDailyTasks(targetBranchId: string | null = null) {
       }
       branchUsersMap[user.branch_id].push(user.id);
     }
+    const usersById = new Map(users.map((user) => [user.id, user]));
 
     const todayStr = getCurrentDateStr();
 
@@ -200,18 +210,44 @@ async function handleDailyTasks(targetBranchId: string | null = null) {
     // 4. Prepare new tasks and notifications
     const newTasks = [];
     const newNotifications = [];
+    let skippedUnassignedTemplates = 0;
+    let skippedInactiveAssignees = 0;
+    let skippedBranchMismatch = 0;
 
-    for (const template of templates) {
-      const branchId = template.branch_id;
-      const targetUserIds = branchUsersMap[branchId] || [];
+    for (const template of dailyTemplates) {
+      const branchId = typeof template.branch_id === 'string' ? template.branch_id : null;
+      const isCheckInTask = template.is_system && template.title.includes(CHECK_IN_TITLE_KEYWORD);
+      const assignedUserId = typeof template.assigned_to === 'string' ? template.assigned_to : '';
+      const targetUserIds = assignedUserId
+        ? [assignedUserId]
+        : isCheckInTask
+          ? branchId
+            ? branchUsersMap[branchId] || []
+            : users.map((user) => user.id)
+          : [];
+
+      if (targetUserIds.length === 0) {
+        skippedUnassignedTemplates += 1;
+        continue;
+      }
 
       for (const userId of targetUserIds) {
+        const assignedUser = usersById.get(userId);
+        if (!assignedUser) {
+          skippedInactiveAssignees += 1;
+          continue;
+        }
+
+        if (branchId && assignedUser.branch_id !== branchId) {
+          skippedBranchMismatch += 1;
+          continue;
+        }
+
         const signature = `${template.id}_${userId}`;
         if (!existingSet.has(signature)) {
           // This employee doesn't have this daily task yet
-          const isCheckInTask = template.is_system && template.title.includes(CHECK_IN_TITLE_KEYWORD);
           const rewardAmount = isCheckInTask
-            ? policiesMap[branchId] ?? defaultCheckInReward
+            ? policiesMap[assignedUser.branch_id] ?? defaultCheckInReward
             : template.reward_amount;
 
           newTasks.push({
@@ -261,12 +297,20 @@ async function handleDailyTasks(targetBranchId: string | null = null) {
         message: 'Successfully generated daily tasks', 
         created: newTasks.length,
         synced: syncedExistingCheckInTasks,
+        skipped_unassigned_templates: skippedUnassignedTemplates,
+        skipped_inactive_assignees: skippedInactiveAssignees,
+        skipped_branch_mismatches: skippedBranchMismatch,
+        skipped_legacy_check_in_templates: skippedLegacyCheckInTemplates,
       });
     } else {
       return NextResponse.json({ 
         message: 'All daily tasks were already generated for today', 
         created: 0,
         synced: syncedExistingCheckInTasks,
+        skipped_unassigned_templates: skippedUnassignedTemplates,
+        skipped_inactive_assignees: skippedInactiveAssignees,
+        skipped_branch_mismatches: skippedBranchMismatch,
+        skipped_legacy_check_in_templates: skippedLegacyCheckInTemplates,
       });
     }
 

@@ -216,7 +216,8 @@ export interface TaskTemplate {
   requires_approval: boolean;
   recurrence_rule: RecurrenceType;
   checklist_json: ChecklistItem[];
-  branch_id: string;
+  branch_id: string | null;
+  assigned_to?: string | null;
   is_system?: boolean;
   reward_amount?: number | null;
   created_at: string;
