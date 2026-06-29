@@ -55,7 +55,7 @@ export default function Badge({
       {dot && (
         <span className={`w-1.5 h-1.5 rounded-full ${dotColors[variant]}`} />
       )}
-      <span className="truncate">{children}</span>
+      <span className="inline-flex items-center gap-1 truncate">{children}</span>
     </span>
   );
 }
