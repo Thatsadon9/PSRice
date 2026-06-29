@@ -240,6 +240,14 @@ export default function AttendanceMonitoringPage() {
     
     if (selectedBranchId === 'all') {
       await updateGlobalSetting('default_check_in_reward', amount.toString());
+
+      // Update global task template (where branch_id is null)
+      await supabase
+        .from('task_templates')
+        .update({ reward_amount: amount })
+        .eq('is_system', true)
+        .is('branch_id', null)
+        .like('title', `%${CHECK_IN_TITLE_KEYWORD}%`);
       
       const today = getCurrentDateStr();
       const defaultBranchIds = branchPolicies.filter(p => p.use_default_check_in_reward !== false).map(p => p.branch_id);
