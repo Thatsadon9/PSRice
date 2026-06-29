@@ -40,7 +40,7 @@ import { useEmployeeStore } from '@/store/employeeStore';
 import { useHrStore } from '@/store/hrStore';
 import { getContrastTextColor } from '@/lib/colorUtils';
 
-type SlotKey = 'morning' | 'late' | 'full';
+type SlotKey = string;
 
 interface SlotDefinition {
   key: SlotKey;
@@ -310,34 +310,35 @@ function resolveSlotConfig(
 
 function getSlotKeyForAssignment(
   assignment: ShiftAssignment,
-  slotConfigMap: Record<SlotKey, SlotConfig> | undefined,
-): SlotKey | undefined {
+  slotConfigMap: Record<string, SlotConfig> | undefined,
+): string | undefined {
   if (slotConfigMap) {
-    for (const slot of SLOT_DEFINITIONS) {
-      const slotConfig = slotConfigMap[slot.key];
-      if (slotConfig.templateId && assignment.shift_template_id === slotConfig.templateId) {
-        return slot.key;
+    // 1. Try matching by template ID
+    if (assignment.shift_template_id) {
+      for (const [key, slotConfig] of Object.entries(slotConfigMap)) {
+        if (slotConfig.templateId === assignment.shift_template_id) {
+          return key;
+        }
       }
     }
-  }
 
-  const normalizedShiftName = assignment.shift_name.trim().toLowerCase();
-  for (const slot of SLOT_DEFINITIONS) {
-    if (slot.keywords.some((keyword) => normalizedShiftName.includes(keyword.toLowerCase()))) {
-      return slot.key;
+    // 2. Match by exact name
+    const normalizedShiftName = assignment.shift_name.trim().toLowerCase();
+    for (const [key, slotConfig] of Object.entries(slotConfigMap)) {
+      if (slotConfig.shiftName.trim().toLowerCase() === normalizedShiftName) {
+        return key;
+      }
     }
-  }
 
-  const normalizedStartTime = normalizeTimeValue(assignment.start_time);
-  const normalizedEndTime = normalizeTimeValue(assignment.end_time);
-  if (slotConfigMap) {
-    for (const slot of SLOT_DEFINITIONS) {
-      const slotConfig = slotConfigMap[slot.key];
+    // 3. Match by start/end times
+    const normalizedStartTime = normalizeTimeValue(assignment.start_time);
+    const normalizedEndTime = normalizeTimeValue(assignment.end_time);
+    for (const [key, slotConfig] of Object.entries(slotConfigMap)) {
       if (
         normalizedStartTime === normalizeTimeValue(slotConfig.startTime)
         && normalizedEndTime === normalizeTimeValue(slotConfig.endTime)
       ) {
-        return slot.key;
+        return key;
       }
     }
   }
@@ -357,6 +358,7 @@ export default function ManagerSchedulePage() {
   const upsertBranchPolicy = useHrStore((state) => state.upsertBranchPolicy);
   const addShiftTemplate = useHrStore((state) => state.addShiftTemplate);
   const updateShiftTemplate = useHrStore((state) => state.updateShiftTemplate);
+  const deleteShiftTemplate = useHrStore((state) => state.deleteShiftTemplate);
   const upsertShiftAssignment = useHrStore((state) => state.upsertShiftAssignment);
   const deleteShiftAssignment = useHrStore((state) => state.deleteShiftAssignment);
 
@@ -415,16 +417,34 @@ export default function ManagerSchedulePage() {
   }, [branches, employees]);
 
   const slotConfigByBranch = useMemo(() => {
-    const map = new Map<string, Record<SlotKey, SlotConfig>>();
+    const map = new Map<string, Record<string, SlotConfig>>();
 
     branches.forEach((branch) => {
       const policy = getBranchPolicy(branch.id);
       const templates = getShiftTemplatesByBranch(branch.id);
-      map.set(branch.id, {
-        morning: resolveSlotConfig(SLOT_DEFINITIONS[0], templates, policy),
-        late: resolveSlotConfig(SLOT_DEFINITIONS[1], templates, policy),
-        full: resolveSlotConfig(SLOT_DEFINITIONS[2], templates, policy),
-      });
+      
+      const slots: Record<string, SlotConfig> = {};
+      
+      if (templates.length === 0) {
+        slots['morning'] = resolveSlotConfig(SLOT_DEFINITIONS[0], templates, policy);
+        slots['late'] = resolveSlotConfig(SLOT_DEFINITIONS[1], templates, policy);
+        slots['full'] = resolveSlotConfig(SLOT_DEFINITIONS[2], templates, policy);
+      } else {
+        templates.forEach((template) => {
+          slots[template.id] = {
+            templateId: template.id,
+            shiftName: template.name,
+            startTime: normalizeTimeValue(template.start_time),
+            endTime: normalizeTimeValue(template.end_time),
+            breakMinutes: Number(template.break_minutes ?? 0),
+            lateGraceMinutes: Number(template.late_grace_minutes ?? 15),
+            earlyOutGraceMinutes: Number(template.early_out_grace_minutes ?? 0),
+            minimumOtMinutes: Number(template.minimum_ot_minutes ?? 30),
+            color: template.color || '#94a3b8',
+          };
+        });
+      }
+      map.set(branch.id, slots);
     });
 
     return map;
@@ -501,9 +521,6 @@ export default function ManagerSchedulePage() {
   const modalBranch = activeSelection
     ? branches.find((branch) => branch.id === activeSelection.branchId) || null
     : null;
-  const modalSlot = activeSelection
-    ? SLOT_DEFINITIONS.find((slot) => slot.key === activeSelection.slotKey) || null
-    : null;
   const modalSlotConfig = activeSelection
     ? slotConfigByBranch.get(activeSelection.branchId)?.[activeSelection.slotKey] || null
     : null;
@@ -543,7 +560,7 @@ export default function ManagerSchedulePage() {
     ? (policyDrafts[configBranch.id] || createDefaultPolicyDraft(configPolicy))
     : null;
 
-  const getConfigSlotDraft = (branchId: string, slotKey: SlotKey) => {
+  const getConfigSlotDraft = (branchId: string, slotKey: string) => {
     const draftKey = `${branchId}:${slotKey}`;
     const slotConfig = slotConfigByBranch.get(branchId)?.[slotKey];
     if (!slotConfig) {
@@ -760,27 +777,40 @@ export default function ManagerSchedulePage() {
     setSavingConfigKey(null);
   };
 
-  const handleSaveSlotTemplate = async (slot: SlotDefinition) => {
+  const handleSaveSlotTemplate = async (slotKey: string) => {
     if (!configBranch) {
       return;
     }
 
-    const slotDraft = getConfigSlotDraft(configBranch.id, slot.key);
+    const slotDraft = getConfigSlotDraft(configBranch.id, slotKey);
     if (!slotDraft) {
       return;
     }
 
     const branchTemplates = getShiftTemplatesByBranch(configBranch.id);
-    const existingTemplate = findTemplateForSlot(branchTemplates, slot);
+    
+    let existingTemplate: ShiftTemplate | undefined;
+    let slotDef: SlotDefinition | undefined;
+    
+    if (slotKey === 'morning' || slotKey === 'late' || slotKey === 'full') {
+      slotDef = SLOT_DEFINITIONS.find(d => d.key === slotKey);
+      if (slotDef) {
+        existingTemplate = findTemplateForSlot(branchTemplates, slotDef);
+      }
+    } else {
+      existingTemplate = branchTemplates.find(t => t.id === slotKey);
+    }
 
-    setSavingConfigKey(`slot:${configBranch.id}:${slot.key}`);
+    setSavingConfigKey(`slot:${configBranch.id}:${slotKey}`);
     
     let success = false;
+    const defaultName = slotDef?.defaultName || 'กะใหม่';
+    const primaryCode = slotDef?.primaryCode || 'CUSTOM';
 
     if (existingTemplate) {
       success = await updateShiftTemplate(existingTemplate.id, {
-        name: slotDraft.name.trim() || slot.defaultName,
-        code: slot.primaryCode,
+        name: slotDraft.name.trim() || defaultName,
+        code: existingTemplate.code || primaryCode,
         start_time: normalizeTimeValue(slotDraft.start_time),
         end_time: normalizeTimeValue(slotDraft.end_time),
         break_minutes: Number(slotDraft.break_minutes || 0),
@@ -793,8 +823,8 @@ export default function ManagerSchedulePage() {
     } else {
       success = await addShiftTemplate({
         branch_id: configBranch.id,
-        name: slotDraft.name.trim() || slot.defaultName,
-        code: slot.primaryCode,
+        name: slotDraft.name.trim() || defaultName,
+        code: primaryCode,
         color: slotDraft.color,
         start_time: normalizeTimeValue(slotDraft.start_time),
         end_time: normalizeTimeValue(slotDraft.end_time),
@@ -807,15 +837,53 @@ export default function ManagerSchedulePage() {
     }
 
     if (success) {
-      showNotification(`บันทึกรายละเอียด ${slot.modalLabel} เรียบร้อยแล้ว`);
+      showNotification('บันทึกรายละเอียดกะเรียบร้อยแล้ว');
       setSlotDrafts((current) => {
         const next = { ...current };
-        delete next[`${configBranch.id}:${slot.key}`];
+        delete next[`${configBranch.id}:${slotKey}`];
         return next;
       });
+    } else {
+      showNotification('ไม่สามารถบันทึกกะได้', 'error');
     }
 
     setSavingConfigKey(null);
+  };
+
+  const handleAddNewShiftTemplate = async () => {
+    if (!configBranch) return;
+
+    const success = await addShiftTemplate({
+      branch_id: configBranch.id,
+      name: 'กะใหม่',
+      code: 'CUSTOM',
+      color: '#3b82f6',
+      start_time: '08:00',
+      end_time: '17:00',
+      break_minutes: 60,
+      late_grace_minutes: 15,
+      early_out_grace_minutes: 0,
+      minimum_ot_minutes: 30,
+      is_active: true,
+    });
+
+    if (success) {
+      showNotification('เพิ่มกะใหม่เรียบร้อยแล้ว กรุณากำหนดรายละเอียดเพิ่มเติม');
+    } else {
+      showNotification('ไม่สามารถเพิ่มกะใหม่ได้', 'error');
+    }
+  };
+
+  const handleDeleteShiftTemplate = async (templateId: string) => {
+    if (!configBranch) return;
+    if (!confirm('คุณต้องการลบกะนี้ใช่หรือไม่? (การลบกะจะไม่ลบประวัติงานที่มอบหมายไปแล้ว)')) return;
+
+    const success = await deleteShiftTemplate(templateId);
+    if (success) {
+      showNotification('ลบกะเรียบร้อยแล้ว');
+    } else {
+      showNotification('ไม่สามารถลบกะได้', 'error');
+    }
   };
 
   return (
@@ -1003,18 +1071,21 @@ export default function ManagerSchedulePage() {
                 {branches.map((branch, branchIndex) => {
                   const palette = getPalette(branchIndex);
                   const branchEmployees = branchEmployeesMap.get(branch.id) || [];
-                  const slotMap = slotConfigByBranch.get(branch.id);
+                  const slotMap = slotConfigByBranch.get(branch.id) || {};
+                  const slotKeys = Object.keys(slotMap);
 
-                  return SLOT_DEFINITIONS.map((slot, slotIndex) => {
-                    const slotConfig = slotMap?.[slot.key];
+                  return slotKeys.map((slotKey, slotIndex) => {
+                    const slotConfig = slotMap[slotKey];
                     const slotColor = slotConfig?.color || palette.border;
                     const contrastText = getContrastTextColor(slotColor);
 
+                    const slotLabel = slotKey === 'morning' ? 'เช้า' : slotKey === 'late' ? 'สาย' : slotKey === 'full' ? 'FD' : slotConfig.shiftName.slice(0, 3);
+
                     return (
-                      <tr key={`${branch.id}:${slot.key}`} className="hover:bg-slate-50/30 transition-colors">
+                      <tr key={`${branch.id}:${slotKey}`} className="hover:bg-slate-50/30 transition-colors">
                         {slotIndex === 0 && (
                           <td
-                            rowSpan={SLOT_DEFINITIONS.length}
+                            rowSpan={slotKeys.length}
                             className="border-r border-slate-200 p-0 align-top bg-white"
                           >
                             <div className="flex h-full">
@@ -1039,10 +1110,10 @@ export default function ManagerSchedulePage() {
                                 className={`inline-flex h-5 items-center justify-center rounded-md px-1.5 text-[10px] font-black ${contrastText}`}
                                 style={{ backgroundColor: slotColor }}
                               >
-                                {slot.label}
+                                {slotLabel}
                               </span>
                               <span className="truncate text-[11px] font-bold text-slate-600">
-                                {slotConfig?.shiftName || slot.modalLabel}
+                                {slotConfig?.shiftName}
                               </span>
                             </div>
                             <div className="text-[10px] font-medium text-slate-400 tabular-nums">
@@ -1053,13 +1124,13 @@ export default function ManagerSchedulePage() {
 
                         {visibleRange.days.map((day) => {
                           const workDate = format(day, 'yyyy-MM-dd');
-                          const cellKey = `${branch.id}::${slot.key}::${workDate}`;
+                          const cellKey = `${branch.id}::${slotKey}::${workDate}`;
                           const cellAssignments = [...(assignmentsByCell.get(cellKey) || [])].sort((left, right) => {
                             const leftName = userMap.get(left.user_id)?.full_name || '';
                             const rightName = userMap.get(right.user_id)?.full_name || '';
                             return leftName.localeCompare(rightName, 'th');
                           });
-                          const selected = isCellSelected(branch.id, slot.key, workDate);
+                          const selected = isCellSelected(branch.id, slotKey, workDate);
                           const isToday = workDate === format(today, 'yyyy-MM-dd');
 
                           return (
@@ -1067,9 +1138,9 @@ export default function ManagerSchedulePage() {
                               key={cellKey}
                               onMouseDown={(event) => {
                                 event.preventDefault();
-                                handleCellMouseDown(branch.id, slot.key, workDate);
+                                handleCellMouseDown(branch.id, slotKey, workDate);
                               }}
-                              onMouseEnter={() => handleCellMouseEnter(branch.id, slot.key, workDate)}
+                              onMouseEnter={() => handleCellMouseEnter(branch.id, slotKey, workDate)}
                               className={`group relative border-r border-slate-100 p-1 cursor-pointer transition-all ${
                                 selected ? 'z-10' : ''
                               }`}
@@ -1179,57 +1250,86 @@ export default function ManagerSchedulePage() {
               </section>
 
               <section className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-base font-bold text-slate-900 border-l-4 border-amber-500 pl-3">รายละเอียดกะ (เช้า / สาย / FD)</h3>
+                <div className="flex items-center justify-between border-l-4 border-amber-500 pl-3">
+                  <h3 className="text-base font-bold text-slate-900">รายละเอียดกะพนักงาน</h3>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void handleAddNewShiftTemplate()}
+                    disabled={savingConfigKey !== null}
+                  >
+                    + เพิ่มกะใหม่
+                  </Button>
                 </div>
                 
                 <div className="space-y-4">
-                  {SLOT_DEFINITIONS.map((slot) => {
-                    const slotDraft = getConfigSlotDraft(configBranch.id, slot.key);
-                    if (!slotDraft) return null;
+                  {(() => {
+                    const slotMap = slotConfigByBranch.get(configBranch.id) || {};
+                    const slotKeys = Object.keys(slotMap);
 
-                    return (
-                      <div key={slot.key} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                        <div className="flex items-center justify-between mb-4 pb-4 border-b border-slate-50">
-                          <div className="flex items-center gap-3">
-                            <span 
-                              className={`h-6 min-w-[40px] flex items-center justify-center rounded-md text-[10px] font-black ${getContrastTextColor(slotDraft.color)}`}
-                              style={{ backgroundColor: slotDraft.color }}
-                            >
-                              {slot.label}
-                            </span>
-                            <h4 className="font-bold text-slate-900">{slotDraft.name || slot.modalLabel}</h4>
-                          </div>
-                          <Button 
-                            size="sm" 
-                            variant="primary"
-                            onClick={() => void handleSaveSlotTemplate(slot)}
-                            loading={savingConfigKey === `slot:${configBranch.id}:${slot.key}`}
-                          >
-                            บันทึก {slot.label}
-                          </Button>
-                        </div>
-                        
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                          <div className="col-span-2">
-                            <Input label="ชื่อเรียกกะ" value={slotDraft.name} onChange={(e) => updateSlotDraft(slot.key, 'name', e.target.value)} />
-                          </div>
-                          <Input label="เริ่มงาน" type="time" value={slotDraft.start_time} onChange={(e) => updateSlotDraft(slot.key, 'start_time', e.target.value)} />
-                          <Input label="เลิกงาน" type="time" value={slotDraft.end_time} onChange={(e) => updateSlotDraft(slot.key, 'end_time', e.target.value)} />
-                          <div className="col-span-2 flex items-end gap-3">
-                            <div className="flex-1">
-                              <Input label="รหัสธีมสี" type="color" value={slotDraft.color} onChange={(e) => updateSlotDraft(slot.key, 'color', e.target.value)} className="h-10 p-1" />
+                    return slotKeys.map((slotKey) => {
+                      const slotDraft = getConfigSlotDraft(configBranch.id, slotKey);
+                      if (!slotDraft) return null;
+
+                      const isDefault = slotKey === 'morning' || slotKey === 'late' || slotKey === 'full';
+                      const slotLabel = slotKey === 'morning' ? 'เช้า' : slotKey === 'late' ? 'สาย' : slotKey === 'full' ? 'FD' : 'กะ';
+                      const defaultModalLabel = slotKey === 'morning' ? 'กะเช้า' : slotKey === 'late' ? 'กะสาย' : slotKey === 'full' ? 'กะ Full Day' : 'กะใหม่';
+
+                      return (
+                        <div key={slotKey} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                          <div className="flex items-center justify-between mb-4 pb-4 border-b border-slate-50">
+                            <div className="flex items-center gap-3">
+                              <span 
+                                className={`h-6 min-w-[40px] flex items-center justify-center rounded-md text-[10px] font-black ${getContrastTextColor(slotDraft.color)}`}
+                                style={{ backgroundColor: slotDraft.color }}
+                              >
+                                {slotLabel}
+                              </span>
+                              <h4 className="font-bold text-slate-900">{slotDraft.name || defaultModalLabel}</h4>
                             </div>
-                            <div className="flex-1">
-                              <Input label="พัก (นาที)" type="number" value={slotDraft.break_minutes} onChange={(e) => updateSlotDraft(slot.key, 'break_minutes', Number(e.target.value))} />
+                            <div className="flex gap-2">
+                              <Button 
+                                size="sm" 
+                                variant="primary"
+                                onClick={() => void handleSaveSlotTemplate(slotKey)}
+                                loading={savingConfigKey === `slot:${configBranch.id}:${slotKey}`}
+                              >
+                                บันทึก
+                              </Button>
+                              {!isDefault && (
+                                <Button
+                                  size="sm"
+                                  variant="danger"
+                                  onClick={() => void handleDeleteShiftTemplate(slotKey)}
+                                  disabled={savingConfigKey !== null}
+                                >
+                                  ลบ
+                                </Button>
+                              )}
                             </div>
                           </div>
-                          <Input label="สาย (นาที)" type="number" value={slotDraft.late_grace_minutes} onChange={(e) => updateSlotDraft(slot.key, 'late_grace_minutes', Number(e.target.value))} />
-                          <Input label="OT ขั้นต่ำ" type="number" value={slotDraft.minimum_ot_minutes} onChange={(e) => updateSlotDraft(slot.key, 'minimum_ot_minutes', Number(e.target.value))} />
+                          
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div className="col-span-2">
+                              <Input label="ชื่อเรียกกะ" value={slotDraft.name} onChange={(e) => updateSlotDraft(slotKey, 'name', e.target.value)} />
+                            </div>
+                            <Input label="เริ่มงาน" type="time" value={slotDraft.start_time} onChange={(e) => updateSlotDraft(slotKey, 'start_time', e.target.value)} />
+                            <Input label="เลิกงาน" type="time" value={slotDraft.end_time} onChange={(e) => updateSlotDraft(slotKey, 'end_time', e.target.value)} />
+                            <div className="col-span-2 flex items-end gap-3">
+                              <div className="flex-1">
+                                <Input label="รหัสธีมสี" type="color" value={slotDraft.color} onChange={(e) => updateSlotDraft(slotKey, 'color', e.target.value)} className="h-10 p-1" />
+                              </div>
+                              <div className="flex-1">
+                                <Input label="พัก (นาที)" type="number" value={slotDraft.break_minutes} onChange={(e) => updateSlotDraft(slotKey, 'break_minutes', Number(e.target.value))} />
+                              </div>
+                            </div>
+                            <Input label="สาย (นาที)" type="number" value={slotDraft.late_grace_minutes} onChange={(e) => updateSlotDraft(slotKey, 'late_grace_minutes', Number(e.target.value))} />
+                            <Input label="OT ขั้นต่ำ" type="number" value={slotDraft.minimum_ot_minutes} onChange={(e) => updateSlotDraft(slotKey, 'minimum_ot_minutes', Number(e.target.value))} />
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    });
+                  })()}
                 </div>
               </section>
             </div>
@@ -1287,7 +1387,7 @@ export default function ManagerSchedulePage() {
         title={modalBranch && modalSlotConfig ? `${modalBranch.name} • ${modalSlotConfig.shiftName}` : 'จัดกะพนักงาน'}
         size="lg"
       >
-        {activeSelection && modalBranch && modalSlot && modalSlotConfig ? (
+        {activeSelection && modalBranch && modalSlotConfig ? (
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
