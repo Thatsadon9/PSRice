@@ -1,20 +1,20 @@
 'use client';
 /* eslint-disable @next/next/no-img-element */
 
-import { differenceInMinutes, format } from 'date-fns';
-import { th } from 'date-fns/locale';
+import { differenceInMinutes } from 'date-fns';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
+import Card from '@/components/ui/Card';
+import { Page, PageHeader } from '@/components/ui/Page';
 import { useAuthStore } from '@/store/authStore';
 import { useAttendanceStore } from '@/store/attendanceStore';
 import { useBranchStore } from '@/store/branchStore';
 import { useHrStore } from '@/store/hrStore';
 import { formatTime, getCurrentDateStr } from '@/lib/dateUtils';
 import { checkGeofence, formatDistance } from '@/lib/geofence';
-import { createLocalDateTime, resolveShiftForUserDate, formatMinutesAsHours } from '@/lib/hr';
+import { createLocalDateTime, formatMinutesAsHours, resolveShiftForUserDate } from '@/lib/hr';
 import { getAccuracyColor, getAccuracyLabel, getAccuracyLevel, getDeviceInfo } from '@/lib/gps';
 import type { AttendanceRecord, GPSCoordinates } from '@/lib/types';
 import {
@@ -22,15 +22,12 @@ import {
   ArrowLeft,
   Camera,
   CheckCircle2,
-  Clock,
   MapPin,
   Navigation,
   RotateCcw,
-  Shield,
   XCircle,
-  Zap,
 } from 'lucide-react';
-import { openCamera, stopCamera, capturePhoto } from '@/lib/camera';
+import { capturePhoto, openCamera, stopCamera } from '@/lib/camera';
 
 type Step = 'status' | 'camera' | 'confirm' | 'result';
 
@@ -61,7 +58,7 @@ export default function CheckInPage() {
   const streamRef = useRef<MediaStream | null>(null);
 
   const todayDate = getCurrentDateStr();
-  
+
   const todayShift = useMemo(() => {
     if (!currentUser) {
       return null;
@@ -176,8 +173,7 @@ export default function CheckInPage() {
     }
 
     const video = videoRef.current;
-    
-    // Ensure video is ready
+
     if (video.videoWidth === 0 || video.readyState < 2) {
       return;
     }
@@ -215,7 +211,6 @@ export default function CheckInPage() {
     }
 
     setSubmitting(true);
-    // Removed artificial delay for production readiness
 
     const geoResult = checkGeofence(gpsCoords, branch);
 
@@ -245,11 +240,11 @@ export default function CheckInPage() {
       device_info: getDeviceInfo(),
       status: isCheckOut ? 'checked_out' : isLate ? 'late' : 'checked_in',
       notes: isCheckOut
-        ? todayShift ? `เช็กเอาต์กะ ${todayShift.shift_name}` : ''
+        ? todayShift ? `เช็คเอาต์กะ ${todayShift.shift_name}` : ''
         : isLate
           ? `เข้างานสาย ${formatMinutesAsHours(lateMinutes)}`
           : todayShift
-            ? `เช็กอินกะ ${todayShift.shift_name}`
+            ? `เช็คอินกะ ${todayShift.shift_name}`
             : '',
     };
 
@@ -259,10 +254,10 @@ export default function CheckInPage() {
       setResultStatus('success');
       setResultMessage(
         isCheckOut
-          ? 'เช็กเอาต์สำเร็จ'
+          ? 'เช็คเอาต์สำเร็จ'
           : isLate
-            ? `เช็กอินสำเร็จ (สาย ${formatMinutesAsHours(lateMinutes)})`
-            : 'เช็กอินสำเร็จ',
+            ? `เช็คอินสำเร็จ (สาย ${formatMinutesAsHours(lateMinutes)})`
+            : 'เช็คอินสำเร็จ',
       );
     } else {
       setResultStatus('error');
@@ -279,183 +274,162 @@ export default function CheckInPage() {
     fetchGPS();
   };
 
+  const branchOptions = branchStore.branches.filter((item) => currentUser.role === 'admin' || !item.admin_only);
+  const canStartCamera = Boolean(gpsCoords && geofenceResult?.isWithinGeofence && canCheckIn);
+  const canSubmit = Boolean(photoData && gpsCoords && branch && geofenceResult?.isWithinGeofence && canCheckIn);
+  const pageTitle = isCheckIn ? 'ลงเวลาเข้างาน' : 'ลงเวลาออกงาน';
+  const gpsStatusLabel = gpsLoading ? 'กำลังค้นหา...' : gpsCoords ? 'พร้อมใช้งาน' : 'ยังไม่พร้อม';
+  const locationLabel = geofenceResult
+    ? geofenceResult.isWithinGeofence ? 'อยู่ในพื้นที่' : 'นอกพื้นที่'
+    : '--';
+
   return (
-    <div className="px-4 py-8 space-y-6 animate-fade-in pb-24 max-w-lg mx-auto">
-      <div className="flex items-center justify-between gap-4">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-black text-slate-900 leading-tight">
-            {isCheckIn ? 'ลงเวลาเข้างาน' : 'ลงเวลาออกงาน'}
-          </h1>
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">ศุนย์ลงเวลาพนักงาน</p>
-        </div>
-        <div className={`h-12 w-12 rounded-2xl flex items-center justify-center shadow-lg ${isCheckIn ? 'bg-emerald-600 text-white shadow-emerald-200' : 'bg-slate-900 text-white shadow-slate-200'}`}>
-           {isCheckIn ? <MapPin className="w-6 h-6" /> : <Clock className="w-6 h-6" />}
-        </div>
-      </div>
+    <Page maxWidth="sm" className="space-y-5 pb-24">
+      <PageHeader
+        title={pageTitle}
+        description={branch ? `สาขา ${branch.name}` : 'ตรวจสอบสาขาและตำแหน่งก่อนลงเวลา'}
+        action={(
+          <Button variant="ghost" size="sm" icon={<ArrowLeft className="h-4 w-4" />} onClick={() => router.push('/employee')}>
+            กลับ
+          </Button>
+        )}
+      />
 
       {!schemaReady && (
-        <Card className="bg-amber-50 border-amber-100 rounded-[2rem] p-5">
-          <div className="flex items-start gap-4">
-            <div className="p-3 bg-amber-100 text-amber-600 rounded-2xl">
-              <AlertTriangle className="w-6 h-6" />
+        <Card className="border-amber-100 bg-amber-50 p-4">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+              <AlertTriangle className="h-5 w-5" />
             </div>
-            <div>
-              <p className="text-sm font-black text-amber-900 leading-tight">สถานะซิงก์: ออฟไลน์</p>
-              <p className="text-[10px] font-bold text-amber-800/60 uppercase tracking-wider mt-1">{schemaMessage}</p>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-amber-950">สถานะซิงก์: ออฟไลน์</p>
+              <p className="mt-1 text-xs leading-5 text-amber-800">{schemaMessage}</p>
             </div>
           </div>
         </Card>
       )}
 
-      {todayShift && (
-        <div className="relative group">
-          <div className="absolute -inset-0.5 bg-gradient-to-r from-emerald-500 to-primary-500 rounded-[2rem] blur opacity-10 group-hover:opacity-20 transition duration-1000"></div>
-          <Card className="relative bg-white border-slate-100 rounded-[2rem] p-5 shadow-xl shadow-slate-200/50">
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex items-center gap-4">
-                <div className="h-14 w-14 rounded-2xl bg-slate-50 flex flex-col items-center justify-center border border-slate-100">
-                  <span className="text-[9px] font-black text-slate-400 uppercase leading-none mb-1">{format(new Date(), 'EEE', { locale: th })}</span>
-                  <span className="text-lg font-black text-slate-900 leading-none">{format(new Date(), 'd')}</span>
-                </div>
-                <div>
-                  <p className="text-sm font-black text-slate-900 underline decoration-primary-200 decoration-2 underline-offset-4">{todayShift.shift_name}</p>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1.5 flex items-center gap-1.5">
-                    <Clock className="w-3 h-3" />
-                    {todayShift.start_time} - {todayShift.end_time}
-                  </p>
-                </div>
-              </div>
-              <div className="flex flex-col items-end gap-1.5">
-                <Badge variant={todayShift.source === 'assignment' ? 'success' : 'info'} className="font-black uppercase text-[9px] tracking-tight">
-                  {todayShift.source === 'assignment' ? 'ซิงก์แล้ว' : 'ค่าเริ่มต้น'}
-                </Badge>
-                {isCrossBranch && (
-                  <Badge variant="warning" className="font-black uppercase text-[9px] tracking-tight bg-amber-100 text-amber-700">
-                    ปฏิบัติงานต่างสาขา
-                  </Badge>
-                )}
-              </div>
-            </div>
-          </Card>
+      <Card className="p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-slate-950">{todayShift?.shift_name || 'กะทั่วไป'}</p>
+            <p className="mt-1 text-sm text-slate-500">
+              {todayShift ? `${todayShift.start_time} - ${todayShift.end_time}` : 'ไม่พบตารางกะ'}
+            </p>
+          </div>
+          <Badge variant={alreadyDone ? 'success' : isCheckOut ? 'info' : 'default'}>
+            {alreadyDone ? 'ลงเวลาแล้ว' : isCheckOut ? 'รอเช็คเอาต์' : 'รอเช็คอิน'}
+          </Badge>
         </div>
-      )}
+
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          <div className="rounded-xl bg-slate-50 p-3">
+            <p className="text-xs text-slate-500">เวลาเข้า</p>
+            <p className="mt-1 text-lg font-bold text-slate-950">
+              {todayRecord.checkIn ? formatTime(todayRecord.checkIn.created_at) : '--:--'}
+            </p>
+          </div>
+          <div className="rounded-xl bg-slate-50 p-3">
+            <p className="text-xs text-slate-500">เวลาออก</p>
+            <p className="mt-1 text-lg font-bold text-slate-950">
+              {todayRecord.checkOut ? formatTime(todayRecord.checkOut.created_at) : '--:--'}
+            </p>
+          </div>
+        </div>
+
+        <label className="mt-4 block">
+          <span className="text-xs font-medium text-slate-500">สาขาที่ลงเวลา</span>
+          <select
+            value={activeBranchId || ''}
+            onChange={(event) => {
+              setSelectedBranchId(event.target.value);
+              fetchGPS();
+            }}
+            className="mt-1 w-full min-h-10 rounded-xl border border-slate-300 bg-white px-3 py-2 pr-10 text-base leading-tight text-slate-900 shadow-sm transition-colors duration-150 appearance-none focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+          >
+            {branchOptions.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name} {item.id === currentUser.branch_id ? '(สาขาหลัก)' : ''}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        {isCrossBranch && (
+          <p className="mt-2 text-xs text-amber-700">
+            ลงเวลาต่างสาขา จากสาขาหลัก {homeBranch?.name || '-'}
+          </p>
+        )}
+
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          <div className="rounded-xl border border-slate-200 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <Navigation className={`h-4 w-4 ${gpsCoords ? 'text-emerald-600' : 'text-slate-400'}`} />
+              {gpsLoading && <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-100 border-t-primary-600" />}
+            </div>
+            <p className="mt-2 text-xs text-slate-500">GPS</p>
+            <p className="mt-1 truncate text-sm font-semibold text-slate-950">{gpsStatusLabel}</p>
+            {gpsCoords && (
+              <p className={`mt-1 text-xs ${getAccuracyColor(getAccuracyLevel(gpsCoords.accuracy))}`}>
+                {Math.round(gpsCoords.accuracy)} ม. · {getAccuracyLabel(getAccuracyLevel(gpsCoords.accuracy))}
+              </p>
+            )}
+          </div>
+          <div className="rounded-xl border border-slate-200 p-3">
+            <MapPin className={`h-4 w-4 ${geofenceResult?.isWithinGeofence ? 'text-emerald-600' : 'text-slate-400'}`} />
+            <p className="mt-2 text-xs text-slate-500">พื้นที่</p>
+            <p className={`mt-1 truncate text-sm font-semibold ${geofenceResult?.isWithinGeofence ? 'text-emerald-700' : 'text-slate-950'}`}>
+              {locationLabel}
+            </p>
+            {geofenceResult && (
+              <p className="mt-1 text-xs text-slate-500">{formatDistance(geofenceResult.distanceMeters)}</p>
+            )}
+          </div>
+        </div>
+      </Card>
 
       {alreadyDone && step === 'status' && (
-        <Card className="bg-slate-900 border-slate-800 rounded-[2.5rem] p-8 shadow-2xl overflow-hidden relative group">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-1000" />
-          
-          <div className="relative z-10 flex flex-col items-center text-center">
-            <div className="p-4 rounded-[2rem] bg-emerald-500/10 text-emerald-400 mb-6 border border-emerald-500/20">
-              <CheckCircle2 className="w-10 h-10" />
-            </div>
-            <h3 className="text-xl font-black text-white mb-2 tracking-tight">คุณลงเวลาออกงานแล้ว</h3>
-            <p className="text-xs text-slate-400 font-bold uppercase tracking-widest leading-relaxed">
-              เข้า: {todayRecord.checkIn ? formatTime(todayRecord.checkIn.created_at) : '--:--'} <span className="mx-2 text-slate-700">•</span> ออก: {todayRecord.checkOut ? formatTime(todayRecord.checkOut.created_at) : '--:--'}
-            </p>
-            <div className="mt-8 w-full flex gap-3">
-               <Button fullWidth variant="none" className="bg-white/5 border border-white/10 text-white font-black text-xs h-12 rounded-2xl hover:bg-white/10 transition-all uppercase tracking-widest" onClick={() => router.push('/employee')}>
-                 🏠 หน้าแรก
-               </Button>
-               <Button fullWidth variant="none" className="bg-primary-600 text-white font-black text-xs h-12 rounded-2xl shadow-lg shadow-primary-900/40 hover:bg-primary-500 transition-all uppercase tracking-widest" onClick={() => router.push('/employee/history?tab=attendance')}>
-                 📜 ดูประวัติ
-               </Button>
-            </div>
+        <Card className="p-6 text-center">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+            <CheckCircle2 className="h-8 w-8" />
+          </div>
+          <h3 className="mt-4 text-lg font-semibold text-slate-950">คุณลงเวลาออกงานแล้ว</h3>
+          <p className="mt-2 text-sm text-slate-500">
+            เข้า: {todayRecord.checkIn ? formatTime(todayRecord.checkIn.created_at) : '--:--'} · ออก: {todayRecord.checkOut ? formatTime(todayRecord.checkOut.created_at) : '--:--'}
+          </p>
+          <div className="mt-5 grid grid-cols-2 gap-2">
+            <Button variant="outline" onClick={() => router.push('/employee')}>หน้าแรก</Button>
+            <Button onClick={() => router.push('/employee/history?tab=attendance')}>ประวัติ</Button>
           </div>
         </Card>
       )}
 
       {step === 'status' && !alreadyDone && (
-        <div className="space-y-6">
+        <div className="space-y-5">
           {!canCheckIn && (
-            <Card className="bg-red-50 border-red-100 rounded-[2rem] p-5">
-              <div className="flex items-start gap-4">
-                <div className="p-3 bg-red-100 text-red-600 rounded-2xl">
-                  <XCircle className="w-6 h-6" />
+            <Card className="border-red-100 bg-red-50 p-4">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-100 text-red-700">
+                  <XCircle className="h-5 w-5" />
                 </div>
-                <div>
-                  <p className="text-sm font-black text-red-900">ตรวจพบสถานะการลา ระบบล็อคชั่วคราว</p>
-                  <p className="text-[10px] font-bold text-red-800/60 uppercase tracking-wider mt-1">Leave status detected. System locked.</p>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-red-950">วันนี้มีสถานะลา</p>
+                  <p className="mt-1 text-xs leading-5 text-red-700">ระบบจึงปิดการลงเวลาชั่วคราว</p>
                 </div>
               </div>
             </Card>
           )}
 
-          <div className="mb-2">
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 pl-2">สถานที่ลงเวลา</label>
-            <div className="relative">
-              <select
-                value={activeBranchId || ''}
-                onChange={(e) => {
-                  setSelectedBranchId(e.target.value);
-                  fetchGPS();
-                }}
-                className="w-full bg-white border-2 border-slate-100 rounded-[2rem] px-5 py-4 text-sm font-black text-slate-900 focus:outline-none focus:border-primary-500 focus:ring-4 focus:ring-primary-500/10 appearance-none shadow-sm transition-all"
-              >
-                {branchStore.branches
-                  .filter(b => currentUser?.role === 'admin' || !b.admin_only)
-                  .map(b => (
-                  <option key={b.id} value={b.id}>{b.name} {b.id === currentUser?.branch_id ? '(สาขาหลัก)' : ''}</option>
-                ))}
-              </select>
-              <div className="absolute inset-y-0 right-5 flex items-center pointer-events-none text-slate-400">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7"></path></svg>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-             <Card className="p-5 rounded-[2rem] border-slate-100 shadow-sm relative overflow-hidden group">
-                <div className="flex items-center justify-between mb-3">
-                   <div className="p-2.5 bg-slate-50 rounded-xl group-hover:scale-110 transition-transform">
-                      <Navigation className={`w-5 h-5 ${gpsCoords ? 'text-emerald-500' : 'text-slate-400'}`} />
-                   </div>
-                   {gpsLoading && <div className="w-4 h-4 rounded-full border-2 border-primary-100 border-t-primary-600 animate-spin" />}
-                </div>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">สัญญาณ GPS</p>
-                <div className="flex items-baseline gap-1.5">
-                   <p className="text-lg font-black text-slate-900">{gpsCoords ? 'พร้อม' : 'กำลังค้นหา...'}</p>
-                   {gpsCoords && <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />}
-                </div>
-                {gpsCoords && (
-                  <p className={`text-[9px] font-black uppercase mt-1 tracking-tighter ${getAccuracyColor(getAccuracyLevel(gpsCoords.accuracy))}`}>
-                    แม่นยำระยะ {Math.round(gpsCoords.accuracy)}ม. • {getAccuracyLabel(getAccuracyLevel(gpsCoords.accuracy))}
-                  </p>
-                )}
-             </Card>
-
-             <Card className="p-5 rounded-[2rem] border-slate-100 shadow-sm relative overflow-hidden group">
-                <div className="flex items-center justify-between mb-3">
-                   <div className="p-2.5 bg-slate-50 rounded-xl group-hover:scale-110 transition-transform">
-                      <MapPin className={`w-5 h-5 ${geofenceResult?.isWithinGeofence ? 'text-emerald-500' : 'text-slate-400'}`} />
-                   </div>
-                </div>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Location</p>
-                <p className="text-lg font-black text-slate-900 truncate">
-                   {geofenceResult ? (geofenceResult.isWithinGeofence ? 'ตรงพิกัด' : 'นอกพื้นที่') : '--'}
-                </p>
-                {geofenceResult && (
-                  <p className={`text-[9px] font-black uppercase mt-1 tracking-tighter ${geofenceResult.isWithinGeofence ? 'text-emerald-600' : 'text-red-600'}`}>
-                    {geofenceResult.isWithinGeofence ? 'อยู่ในพื้นที่' : 'อยู่นอกพื้นที่'}
-                  </p>
-                )}
-             </Card>
-          </div>
-
           {gpsError && (
-            <Card className="bg-red-50 border-red-100 rounded-[2rem] p-5">
-              <div className="flex items-start gap-4">
-                <div className="p-3 bg-red-100 text-red-600 rounded-2xl">
-                  <AlertTriangle className="w-6 h-6" />
+            <Card className="border-red-100 bg-red-50 p-4">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-100 text-red-700">
+                  <AlertTriangle className="h-5 w-5" />
                 </div>
-                <div>
-                  <p className="text-sm font-black text-red-900">ไม่สามารถเข้าถึง GPS</p>
-                  <p className="text-[10px] font-bold text-red-800/70 uppercase tracking-wider mt-1">{gpsError}</p>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="mt-3 px-0 text-red-700 hover:bg-transparent"
-                    onClick={fetchGPS}
-                  >
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-red-950">ไม่สามารถเข้าถึง GPS</p>
+                  <p className="mt-1 text-xs leading-5 text-red-700">{gpsError}</p>
+                  <Button variant="ghost" size="sm" className="mt-2 px-0 text-red-700 hover:bg-transparent" onClick={fetchGPS}>
                     ลองใหม่อีกครั้ง
                   </Button>
                 </div>
@@ -463,89 +437,64 @@ export default function CheckInPage() {
             </Card>
           )}
 
-          <div className="space-y-4">
-             <div className="bg-slate-900 rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden group">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-primary-500/20 rounded-full blur-3xl -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-1000" />
-                <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full blur-2xl -ml-12 -mb-12" />
-                
-                <div className="relative z-10 flex flex-col items-center text-center space-y-6">
-                   <div className="p-6 rounded-[2.5rem] bg-white/5 border border-white/10 shadow-inner group-hover:scale-105 transition-transform duration-500">
-                      <Camera className="w-12 h-12 text-white" />
-                   </div>
-                   
-                   <div className="space-y-2">
-                      <h3 className="text-xl font-black text-white tracking-tight">ตรวจสอบความปลอดภัย</h3>
-                      <p className="text-xs text-slate-400 font-bold uppercase tracking-[0.2em]">ถ่ายรูปเซลฟีเพื่อยืนยันตัวตน</p>
-                   </div>
-                   
-                   <Button
-                      fullWidth
-                      size="lg"
-                      variant="none"
-                      onClick={() => setStep('camera')}
-                      disabled={!gpsCoords || !geofenceResult?.isWithinGeofence || !canCheckIn}
-                      className={`h-16 rounded-[2rem] text-sm font-black uppercase tracking-widest transition-all
-                        ${!gpsCoords || !geofenceResult?.isWithinGeofence || !canCheckIn 
-                          ? 'bg-slate-800 text-slate-600 cursor-not-allowed' 
-                          : 'bg-primary-600 text-white shadow-xl shadow-primary-900/40 hover:bg-primary-500 active:scale-95'}
-                      `}
-                   >
-                     📸 ถ่ายรูปยืนยัน
-                   </Button>
-                </div>
-             </div>
-             
-             <div className="flex items-center justify-center gap-6 px-4">
-                <div className="flex items-center gap-2">
-                   <Shield className="w-3 h-3 text-slate-300" />
-                   <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">ระบบยืนยันตัวตน</span>
-                </div>
-                <div className="flex items-center gap-2">
-                   <Navigation className="w-3 h-3 text-slate-300" />
-                   <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">บังคับใช้พิกัด</span>
-                </div>
-             </div>
-          </div>
+          <Card className="p-4">
+            <div className="mb-4 flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-800">
+                <Camera className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-base font-semibold text-slate-950">ยืนยันตัวตนก่อนลงเวลา</h3>
+                <p className="mt-1 text-sm leading-6 text-slate-500">ถ่ายรูปเซลฟีและตรวจสอบตำแหน่งก่อนส่งข้อมูล</p>
+              </div>
+            </div>
+            <Button
+              fullWidth
+              size="lg"
+              icon={<Camera className="h-5 w-5" />}
+              onClick={() => setStep('camera')}
+              disabled={!canStartCamera}
+            >
+              ถ่ายรูปยืนยันตัวตน
+            </Button>
+          </Card>
         </div>
       )}
 
       {step === 'camera' && (
-        <div className="space-y-4 animate-in slide-in-from-bottom-4 duration-500">
-           <div className="relative rounded-[3rem] overflow-hidden shadow-2xl bg-black aspect-[3/4]">
-              <div className="absolute inset-0 z-0 opacity-40">
-                 <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_center,_transparent_0%,_black_100%)]" />
-              </div>
-              
+        <div className="space-y-4">
+          <Card padding="none" className="overflow-hidden bg-black">
+            <div className="relative aspect-[3/4]">
               {cameraError ? (
-                <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center bg-slate-900">
-                   <XCircle className="w-12 h-12 text-red-500 mb-4" />
-                   <p className="text-lg font-black text-white leading-tight">{cameraError}</p>
-                   <Button 
-                     variant="outline" 
-                     size="sm" 
-                     className="mt-6 border-white/20 text-white hover:bg-white/10" 
-                     onClick={() => {
-                        const input = document.createElement('input');
-                        input.type = 'file';
-                        input.accept = 'image/*';
-                        input.setAttribute('capture', 'user');
-                        input.onchange = (e: Event) => {
-                          const file = (e.target as HTMLInputElement).files?.[0];
-                          if (file) {
-                            const reader = new FileReader();
-                            reader.onloadend = () => {
-                              stopCameraStream();
-                              setPhotoData(reader.result as string);
-                              setStep('confirm');
-                            };
-                            reader.readAsDataURL(file);
-                          }
-                        };
-                        input.click();
-                     }}
-                   >
-                     ลองใหม่
-                   </Button>
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900 p-8 text-center">
+                  <XCircle className="mb-4 h-12 w-12 text-red-500" />
+                  <p className="text-base font-semibold text-white">{cameraError}</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-5 border-white/20 text-white hover:bg-white/10"
+                    onClick={() => {
+                      const input = document.createElement('input');
+                      input.type = 'file';
+                      input.accept = 'image/*';
+                      input.setAttribute('capture', 'user');
+                      input.onchange = (event: Event) => {
+                        const target = event.target as HTMLInputElement;
+                        const file = target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            stopCameraStream();
+                            setPhotoData(reader.result as string);
+                            setStep('confirm');
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      };
+                      input.click();
+                    }}
+                  >
+                    เลือกรูปจากเครื่อง
+                  </Button>
                 </div>
               ) : (
                 <video
@@ -553,163 +502,132 @@ export default function CheckInPage() {
                   autoPlay
                   playsInline
                   muted
-                  className="w-full h-full object-cover"
+                  className="h-full w-full object-cover"
                 />
               )}
-              
-              <div className="absolute inset-0 pointer-events-none ring-1 ring-inset ring-white/20 rounded-[3rem]" />
-              
-              <div className="absolute bottom-8 left-1/2 -translate-x-1/2 w-full px-8 flex justify-center">
-                 <button
-                   onClick={takePhoto}
-                   disabled={Boolean(cameraError) || !cameraStream}
-                   className="w-20 h-20 rounded-full bg-white p-1 hover:scale-110 active:scale-95 transition-all shadow-2xl disabled:opacity-50"
-                 >
-                    <div className="w-full h-full rounded-full border-4 border-slate-900 flex items-center justify-center text-slate-900">
-                       <div className="w-4 h-4 bg-slate-900 rounded-sm" />
-                    </div>
-                 </button>
+
+              <div className="pointer-events-none absolute inset-0 ring-1 ring-inset ring-white/20" />
+
+              <div className="absolute bottom-8 left-1/2 flex w-full -translate-x-1/2 justify-center px-8">
+                <button
+                  type="button"
+                  onClick={takePhoto}
+                  disabled={Boolean(cameraError) || !cameraStream}
+                  className="h-20 w-20 rounded-full bg-white p-1 shadow-lg transition-transform hover:scale-105 active:scale-95 disabled:opacity-50"
+                  aria-label="ถ่ายรูป"
+                >
+                  <div className="flex h-full w-full items-center justify-center rounded-full border-4 border-slate-900 text-slate-900">
+                    <div className="h-4 w-4 rounded-sm bg-slate-900" />
+                  </div>
+                </button>
               </div>
 
-              <button 
-                 onClick={() => { stopCameraStream(); setStep('status'); }}
-                 className="absolute top-8 left-8 p-3 bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl text-white hover:bg-black/60 transition-all"
+              <button
+                type="button"
+                onClick={() => { stopCameraStream(); setStep('status'); }}
+                className="absolute left-4 top-4 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-black/50 text-white transition-colors hover:bg-black/70"
+                aria-label="กลับ"
               >
-                 <ArrowLeft className="w-5 h-5" />
+                <ArrowLeft className="h-5 w-5" />
               </button>
-           </div>
-           
-           <canvas ref={canvasRef} className="hidden" />
-           <p className="text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">จัดใบหน้าให้อยู่ในกรอบที่กำหนด</p>
+            </div>
+          </Card>
+
+          <canvas ref={canvasRef} className="hidden" />
+          <p className="text-center text-xs text-slate-500">จัดใบหน้าให้อยู่ในกรอบ แล้วกดถ่ายรูป</p>
         </div>
       )}
 
       {step === 'confirm' && photoData && (
-        <div className="space-y-6 animate-in fade-in zoom-in-95 duration-500">
-          <div className="relative group">
-             <div className="absolute -inset-1 bg-gradient-to-r from-primary-500 to-emerald-500 rounded-[3rem] blur opacity-10"></div>
-             <Card padding="none" className="relative overflow-hidden rounded-[3rem] shadow-2xl aspect-[3/4]">
-                <img src={photoData} alt="Preview" className="w-full h-full object-cover" />
-                <div className="absolute bottom-0 left-0 w-full p-8 bg-gradient-to-t from-black/80 via-black/20 to-transparent">
-                   <div className="flex items-center justify-between gap-4">
-                      <div>
-                         <p className="text-xl font-black text-white">{isCheckIn ? 'เข้างาน' : 'ออกงาน'}</p>
-                         <p className="text-xs font-black text-white/60 uppercase tracking-widest">ยืนยันตัวตนแล้ว</p>
-                      </div>
-                      <div className="p-3 bg-emerald-500 text-white rounded-2xl shadow-lg shadow-emerald-500/40">
-                         <CheckCircle2 className="w-6 h-6" />
-                      </div>
-                   </div>
-                </div>
-             </Card>
-          </div>
-
-          <Card className="rounded-[2.5rem] border-slate-100 p-6 space-y-4 shadow-xl shadow-slate-200/50">
-             <div className="flex items-center justify-between pb-4 border-b border-slate-50">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">รายละเอียดการลงเวลา</p>
-                <div className="h-2 w-2 bg-emerald-500 rounded-full" />
-             </div>
-             
-             <div className="space-y-3">
-               {[
-                 { label: 'เวลาที่บันทึก', value: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) },
-                 { label: 'สาขา/ศูนย์ปฏิบัติงาน', value: branch?.name + (isCrossBranch ? ` (สาขาหลัก: ${homeBranch?.name})` : '') },
-                 { label: 'กะงาน', value: todayShift?.shift_name || 'ทั่วไป' },
-                 { label: 'ความแม่นยำ GPS', value: `${Math.round(gpsCoords?.accuracy || 0)} เมตร`, color: getAccuracyColor(getAccuracyLevel(gpsCoords?.accuracy || 0)) },
-               ].map((item, idx) => (
-                 <div key={idx} className="flex justify-between items-baseline">
-                   <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider">{item.label}</span>
-                   <span className={`text-[13px] font-black ${item.color || 'text-slate-900'}`}>{item.value}</span>
-                 </div>
-               ))}
-             </div>
+        <div className="space-y-5">
+          <Card padding="none" className="overflow-hidden">
+            <div className="relative aspect-[3/4]">
+              <img src={photoData} alt="Preview" className="h-full w-full object-cover" />
+              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent p-5 text-white">
+                <p className="text-lg font-semibold">{isCheckIn ? 'เข้างาน' : 'ออกงาน'}</p>
+                <p className="mt-1 text-xs text-white/70">ยืนยันตัวตนแล้ว</p>
+              </div>
+            </div>
           </Card>
 
-          <div className="flex gap-4">
+          <Card className="space-y-4 p-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <p className="text-sm font-semibold text-slate-950">รายละเอียดการลงเวลา</p>
+              <span className="h-2 w-2 rounded-full bg-emerald-500" />
+            </div>
+
+            <div className="space-y-3">
+              {[
+                { label: 'เวลาที่บันทึก', value: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) },
+                { label: 'สาขา', value: branch?.name ? `${branch.name}${isCrossBranch ? ` (สาขาหลัก: ${homeBranch?.name || '-'})` : ''}` : '-' },
+                { label: 'กะงาน', value: todayShift?.shift_name || 'ทั่วไป' },
+                { label: 'ความแม่นยำ GPS', value: `${Math.round(gpsCoords?.accuracy || 0)} เมตร`, color: getAccuracyColor(getAccuracyLevel(gpsCoords?.accuracy || 0)) },
+              ].map((item) => (
+                <div key={item.label} className="flex items-baseline justify-between gap-3">
+                  <span className="text-xs text-slate-500">{item.label}</span>
+                  <span className={`min-w-0 truncate text-right text-sm font-semibold ${item.color || 'text-slate-950'}`}>
+                    {item.value}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          <div className="grid grid-cols-2 gap-2">
             <Button
-              variant="none"
+              variant="outline"
               fullWidth
+              icon={<RotateCcw className="h-4 w-4" />}
               onClick={() => {
                 setPhotoData(null);
                 setStep('camera');
               }}
-              className="h-16 rounded-[2rem] bg-slate-100 text-slate-600 font-black uppercase tracking-widest text-xs hover:bg-slate-200 transition-all flex items-center justify-center gap-2"
             >
-              <RotateCcw className="w-4 h-4" />
               ถ่ายใหม่
             </Button>
             <Button
               fullWidth
               size="lg"
-              variant="none"
               loading={submitting}
+              disabled={!photoData || !canSubmit}
               onClick={handleSubmit}
-              className={`h-16 rounded-[2rem] text-white font-black uppercase tracking-widest text-xs shadow-xl transition-all flex items-center justify-center gap-2
-                ${isCheckIn ? 'bg-emerald-600 shadow-emerald-900/40 hover:bg-emerald-500' : 'bg-slate-900 shadow-slate-900/40 hover:bg-slate-800'}
-              `}
             >
-               ยืนยันและส่งข้อมูล
-               <CheckCircle2 className="w-4 h-4" />
+              ยืนยันการลงเวลา
             </Button>
           </div>
         </div>
       )}
 
       {step === 'result' && (
-        <div className="animate-in zoom-in-95 fade-in-0 duration-700 max-w-sm mx-auto pt-10">
-          <Card className="rounded-[3rem] border-slate-100 shadow-2xl relative overflow-hidden group">
-            <div className={`h-2.5 w-full ${resultStatus === 'success' ? 'bg-emerald-500' : 'bg-red-500'}`} />
-            
-            <div className="p-10 flex flex-col items-center text-center">
-              <div className={`p-6 rounded-[2.5rem] mb-8 relative ${resultStatus === 'success' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
-                {resultStatus === 'success' ? (
-                  <>
-                    <CheckCircle2 className="w-16 h-16" />
-                    <div className="absolute -top-2 -right-2 w-8 h-8 bg-emerald-500 text-white rounded-full flex items-center justify-center shadow-lg animate-bounce">
-                       <Zap className="w-4 h-4" />
-                    </div>
-                  </>
-                ) : (
-                  <XCircle className="w-16 h-16" />
-                )}
-              </div>
-              
-              <h3 className={`text-2xl font-black mb-3 tracking-tight ${resultStatus === 'success' ? 'text-slate-900' : 'text-red-900'}`}>
-                {resultMessage}
-              </h3>
-              
-              <p className="text-xs text-slate-400 font-bold uppercase tracking-[0.2em] leading-relaxed mb-8">
-                {resultStatus === 'success'
-                  ? `${new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} • เชื่อมต่อข้อมูลสำเร็จ`
-                  : 'เกิดข้อผิดพลาดรุนแรง โปรดติดต่อผู้ดูแลระบบหากยังพบปัญหา'}
-              </p>
-              
-              <div className="w-full space-y-3">
-                {resultStatus === 'success' ? (
-                  <Button 
-                     fullWidth 
-                     variant="none" 
-                     onClick={() => router.push('/employee')}
-                     className="h-14 rounded-2xl bg-slate-900 text-white font-black text-xs uppercase tracking-widest hover:bg-slate-800 hover:shadow-xl transition-all"
-                  >
-                    กลับสู่แดชบอร์ด
-                  </Button>
-                ) : (
-                  <Button 
-                     fullWidth 
-                     variant="none"
-                     onClick={reset}
-                     className="h-14 rounded-2xl bg-red-600 text-white font-black text-xs uppercase tracking-widest hover:bg-red-500 hover:shadow-xl transition-all flex items-center justify-center gap-2"
-                  >
-                    <RotateCcw className="w-4 h-4" />
-                    เริ่มกระบวนการใหม่
-                  </Button>
-                )}
-              </div>
-            </div>
-          </Card>
-        </div>
+        <Card className="p-6 text-center">
+          <div className={`mx-auto flex h-16 w-16 items-center justify-center rounded-2xl ${
+            resultStatus === 'success' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'
+          }`}>
+            {resultStatus === 'success' ? <CheckCircle2 className="h-9 w-9" /> : <XCircle className="h-9 w-9" />}
+          </div>
+
+          <h3 className={`mt-5 text-xl font-semibold ${resultStatus === 'success' ? 'text-slate-950' : 'text-red-950'}`}>
+            {resultMessage}
+          </h3>
+          <p className="mt-2 text-sm leading-6 text-slate-500">
+            {resultStatus === 'success'
+              ? `${new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} · เชื่อมต่อข้อมูลสำเร็จ`
+              : 'เกิดข้อผิดพลาด กรุณาลองใหม่หรือติดต่อผู้ดูแลระบบ'}
+          </p>
+
+          <div className="mt-6">
+            {resultStatus === 'success' ? (
+              <Button fullWidth size="lg" onClick={() => router.push('/employee')}>
+                กลับสู่แดชบอร์ด
+              </Button>
+            ) : (
+              <Button fullWidth size="lg" variant="danger" icon={<RotateCcw className="h-4 w-4" />} onClick={reset}>
+                เริ่มใหม่
+              </Button>
+            )}
+          </div>
+        </Card>
       )}
-    </div>
+    </Page>
   );
 }

@@ -36,17 +36,19 @@ export default function Card({
   padding = 'md',
   id,
 }: CardProps) {
-  const hasBgClass = className.includes('bg-');
-  const hasRoundedClass = className.includes('rounded-');
-  const hasBorderClass = className.includes('border-') && !className.includes('border-l-4');
-
+  const classNames = className.split(/\s+/).filter(Boolean);
+  const hasBgClass = classNames.some((item) => item.startsWith('bg-'));
+  const hasRoundedClass = classNames.some((item) => item.startsWith('rounded'));
+  const hasBorderClass = classNames.some((item) =>
+    /^border(?:-[trblxy])?(?:$|-0$|-2$|-4$|-8$|-none$)/.test(item)
+  );
   const sharedClassName = `
-    ${hasBgClass ? '' : 'bg-white'} 
-    ${hasRoundedClass ? '' : 'rounded-xl'} 
+    ${hasBgClass ? '' : 'bg-white'}
+    ${hasRoundedClass ? '' : 'rounded-2xl'}
     ${hasBorderClass ? '' : 'border border-slate-200'}
     ${statusColor ? `border-l-4 ${statusBorderColors[statusColor]}` : ''}
     ${paddingClasses[padding]}
-    ${interactive || onClick ? 'card-hover cursor-pointer' : ''}
+    ${interactive || onClick ? 'transition-colors hover:border-primary-200 hover:bg-slate-50 cursor-pointer' : ''}
     ${className}
   `.trim();
 

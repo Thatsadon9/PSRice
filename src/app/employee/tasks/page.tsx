@@ -1,31 +1,26 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   AlertTriangle,
-  Calendar,
   CheckCircle2,
   CheckSquare,
   Coins,
-  FileText,
-  Flag,
   ImagePlus,
   Send,
   Trophy,
   Video,
-  Clock,
 } from 'lucide-react';
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
-import Modal from '@/components/ui/Modal';
-import SubmissionFilesGrid, { type PreviewFile } from '@/components/ui/SubmissionFilesGrid';
 import { TextArea } from '@/components/ui/Input';
-import {
-  PRIORITY_LABELS,
-  PROOF_TYPE_LABELS,
-  TASK_STATUS_LABELS,
-} from '@/lib/constants';
+import Modal from '@/components/ui/Modal';
+import { Page, PageHeader, StatTile } from '@/components/ui/Page';
+import SubmissionFilesGrid, { type PreviewFile } from '@/components/ui/SubmissionFilesGrid';
+import Tabs from '@/components/ui/Tabs';
+import { PROOF_TYPE_LABELS, TASK_STATUS_LABELS } from '@/lib/constants';
 import { formatThaiDate } from '@/lib/dateUtils';
 import {
   buildReviewRequestNotifications,
@@ -35,15 +30,16 @@ import {
 import {
   formatThaiCurrency,
   getMilestoneReward,
+  isAttendanceTask,
   isMilestoneComplete,
   sortMilestoneTasks,
-  isAttendanceTask,
 } from '@/lib/taskMilestones';
-import type { FileType, Priority, ProofType, Task } from '@/lib/types';
+import type { FileType, ProofType, Task } from '@/lib/types';
 import { useAuthStore } from '@/store/authStore';
 import { useEmployeeStore } from '@/store/employeeStore';
 import { useTaskStore } from '@/store/taskStore';
-import { useRouter } from 'next/navigation';
+
+type TaskView = 'today' | 'active' | 'review' | 'fix' | 'done';
 
 interface PendingProofUpload {
   id: string;
@@ -72,11 +68,19 @@ function isAllowedProofUpload(proofRequired: ProofType, fileType: FileType) {
   return false;
 }
 
+function getTaskBadgeVariant(status: Task['status']) {
+  if (status === 'approved') return 'success' as const;
+  if (status === 'submitted') return 'warning' as const;
+  if (status === 'rejected' || status === 'overdue') return 'danger' as const;
+  return 'default' as const;
+}
+
 export default function MyTasksPage() {
   const router = useRouter();
   const currentUser = useAuthStore((state) => state.currentUser);
   const taskStore = useTaskStore();
   const employeeStore = useEmployeeStore();
+  const [activeView, setActiveView] = useState<TaskView>('today');
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [note, setNote] = useState('');
   const [proofUploads, setProofUploads] = useState<PendingProofUpload[]>([]);
@@ -91,8 +95,12 @@ export default function MyTasksPage() {
     return sortMilestoneTasks(taskStore.getTasksByUser(currentUser.id));
   }, [currentUser, taskStore]);
 
+  const todayTasks = useMemo(() => {
+    if (!currentUser) return [];
+    return sortMilestoneTasks(taskStore.getTodayTasksByUser(currentUser.id));
+  }, [currentUser, taskStore]);
+
   const completedTasks = allTasks.filter((task) => isMilestoneComplete(task.status));
-  const currentIndex = allTasks.findIndex((task) => !isMilestoneComplete(task.status));
   const earnedReward = allTasks.reduce((sum, task) => {
     const template = task.template_id ? taskStore.getTemplateById(task.template_id) : null;
     return sum + (isMilestoneComplete(task.status) ? getMilestoneReward(task, template) : 0);
@@ -102,6 +110,32 @@ export default function MyTasksPage() {
     return sum + getMilestoneReward(task, template);
   }, 0);
   const progress = allTasks.length > 0 ? Math.round((completedTasks.length / allTasks.length) * 100) : 100;
+
+  const taskTabs = [
+    { id: 'today', label: 'วันนี้', count: todayTasks.length },
+    { id: 'active', label: 'ต้องทำ', count: allTasks.filter((task) => ['pending', 'in_progress', 'overdue'].includes(task.status)).length },
+    { id: 'review', label: 'รอตรวจ', count: allTasks.filter((task) => task.status === 'submitted').length },
+    { id: 'fix', label: 'แก้งาน', count: allTasks.filter((task) => task.status === 'rejected').length },
+    { id: 'done', label: 'เสร็จแล้ว', count: allTasks.filter((task) => isMilestoneComplete(task.status)).length },
+  ];
+
+  const visibleTasks = useMemo(() => {
+    switch (activeView) {
+      case 'today':
+        return todayTasks;
+      case 'active':
+        return allTasks.filter((task) => ['pending', 'in_progress', 'overdue'].includes(task.status));
+      case 'review':
+        return allTasks.filter((task) => task.status === 'submitted');
+      case 'fix':
+        return allTasks.filter((task) => task.status === 'rejected');
+      case 'done':
+        return allTasks.filter((task) => isMilestoneComplete(task.status));
+      default:
+        return allTasks;
+    }
+  }, [activeView, allTasks, todayTasks]);
+
   const selectedTemplate = selectedTask?.template_id ? taskStore.getTemplateById(selectedTask.template_id) : null;
   const selectedProofRequired = (selectedTask?.proof_type_required || selectedTemplate?.proof_type_required || 'photo') as ProofType;
   const selectedReward = selectedTask ? getMilestoneReward(selectedTask, selectedTemplate) : 0;
@@ -181,14 +215,6 @@ export default function MyTasksPage() {
     event.target.value = '';
   };
 
-  const removeUpload = (uploadId: string) => {
-    setProofUploads((currentUploads) => {
-      const target = currentUploads.find((upload) => upload.id === uploadId);
-      if (target) URL.revokeObjectURL(target.previewUrl);
-      return currentUploads.filter((upload) => upload.id !== uploadId);
-    });
-  };
-
   const canSubmit = (() => {
     if (!selectedTask || selectedTask.status === 'approved' || selectedTask.status === 'submitted') {
       return false;
@@ -257,292 +283,193 @@ export default function MyTasksPage() {
     setSubmitting(false);
   };
 
+  const handleTaskAction = (task: Task) => {
+    const template = task.template_id ? taskStore.getTemplateById(task.template_id) : null;
+
+    if (!isMilestoneComplete(task.status) && isAttendanceTask(task, template)) {
+      router.push('/employee/check-in');
+      return;
+    }
+
+    openMilestone(task);
+  };
+
   return (
-    <div className="px-4 py-5 space-y-5 animate-fade-in pb-24 max-w-lg mx-auto">
-      <div className="rounded-[2rem] bg-slate-900 text-white p-5 shadow-2xl shadow-slate-300/40 overflow-hidden relative">
-        <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-500/20 rounded-full blur-3xl -mr-20 -mt-24" />
-        <div className="relative z-10 space-y-5">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-black tracking-tight">Milestone</h1>
-              <p className="text-xs font-bold text-slate-400 mt-1">ทำงานให้ครบทีละขั้น แล้วเห็นเงินสะสมเพิ่มขึ้นเรื่อย ๆ</p>
-            </div>
-            <div className="h-12 w-12 rounded-2xl bg-white/10 flex items-center justify-center">
-              <Trophy className="w-6 h-6 text-emerald-300" />
-            </div>
-          </div>
+    <Page maxWidth="sm" className="space-y-5 pb-24">
+      <PageHeader
+        title="งานของฉัน"
+        description="ติดตามงานวันนี้ งานที่ต้องแก้ และรายได้จาก Milestone"
+      />
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-3xl bg-white/10 border border-white/10 p-4">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">เงินสะสม</p>
-              <p className="text-xl font-black mt-1">{formatThaiCurrency(earnedReward)}</p>
-            </div>
-            <div className="rounded-3xl bg-white/10 border border-white/10 p-4">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">ทำสำเร็จ</p>
-              <p className="text-xl font-black mt-1">{completedTasks.length}/{allTasks.length}</p>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-slate-400">
-              <span>Progress</span>
-              <span>{progress}%</span>
-            </div>
-            <div className="h-3 rounded-full bg-white/10 overflow-hidden">
-              <div className="h-full rounded-full bg-emerald-400 transition-all duration-500" style={{ width: `${progress}%` }} />
-            </div>
-            <p className="text-[10px] font-bold text-slate-500">เป้าหมายรวม {formatThaiCurrency(totalReward)}</p>
-          </div>
-        </div>
+      <div className="grid grid-cols-2 gap-3">
+        <StatTile
+          label="เงินสะสม"
+          value={formatThaiCurrency(earnedReward)}
+          helper={`เป้าหมาย ${formatThaiCurrency(totalReward)}`}
+          icon={<Coins className="h-5 w-5" />}
+          tone="green"
+        />
+        <StatTile
+          label="ทำสำเร็จ"
+          value={`${completedTasks.length}/${allTasks.length}`}
+          helper={`${progress}% progress`}
+          icon={<Trophy className="h-5 w-5" />}
+          tone="blue"
+        />
       </div>
 
-      {allTasks.length === 0 ? (
-        <Card>
-          <div className="text-center py-10">
-            <CheckCircle2 className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-            <p className="text-sm text-slate-500">ยังไม่มี Milestone ที่ได้รับมอบหมาย</p>
-          </div>
+      <Tabs
+        variant="pill"
+        tabs={taskTabs}
+        activeTab={activeView}
+        onChange={(tab) => setActiveView(tab as TaskView)}
+      />
+
+      {visibleTasks.length === 0 ? (
+        <Card className="p-8 text-center">
+          <CheckCircle2 className="mx-auto h-10 w-10 text-slate-300" />
+          <p className="mt-3 text-sm font-medium text-slate-500">ยังไม่มีงานในหมวดนี้</p>
         </Card>
       ) : (
-        <div className="relative space-y-0">
-          <div className="absolute left-[1.35rem] top-7 bottom-7 w-1 rounded-full bg-slate-200" />
-          {allTasks.map((task, index) => {
+        <div className="space-y-3">
+          {visibleTasks.map((task) => {
             const template = task.template_id ? taskStore.getTemplateById(task.template_id) : null;
-            const isComplete = isMilestoneComplete(task.status);
-            const isCurrent = currentIndex === index;
             const reward = getMilestoneReward(task, template);
-            const priority = (task.priority || template?.priority || 'medium') as Priority;
+            const actionLabel = task.status === 'approved'
+              ? 'ดูรายละเอียด'
+              : isAttendanceTask(task, template)
+                ? 'ไปเช็คอิน'
+                : task.status === 'submitted'
+                  ? 'ดูสถานะ'
+                  : 'ส่งงาน';
 
             return (
-              <button
-                key={task.id}
-                type="button"
-                onClick={() => {
-                  if (!isComplete && isAttendanceTask(task, template)) {
-                    router.push('/employee/check-in');
-                  } else {
-                    openMilestone(task);
-                  }
-                }}
-                className="relative z-10 w-full flex items-start gap-4 py-3 text-left group"
-              >
-                <div className={`mt-2 h-11 w-11 rounded-full flex items-center justify-center shrink-0 text-sm font-black shadow-sm border-4 border-slate-50 transition-all ${
-                  isComplete ? 'bg-emerald-500 text-white' : 'bg-slate-300 text-slate-600'
-                } ${isCurrent ? 'ring-4 ring-primary-100' : ''}`}>
-                  {isComplete ? <CheckCircle2 className="w-5 h-5" /> : (isAttendanceTask(task, template) ? <Clock className="w-5 h-5" /> : index + 1)}
-                </div>
-
-                <div className={`flex-1 rounded-[2rem] border p-4 transition-all ${
-                  isComplete
-                    ? 'bg-emerald-50 border-emerald-100'
-                    : 'bg-white border-slate-100 group-hover:border-slate-200'
-                }`}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className={`text-sm font-black line-clamp-2 ${isComplete ? 'text-emerald-900' : 'text-slate-900'}`}>
-                        {task.title || template?.title || 'งาน'}
-                      </p>
-                      <div className="flex items-center gap-2 mt-2 flex-wrap text-[10px] font-bold text-slate-500">
-                        <span className="flex items-center gap-1">
-                          <Calendar className="w-3 h-3" />
-                          {formatThaiDate(task.due_date)}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Flag className="w-3 h-3" />
-                          {PRIORITY_LABELS[priority]}
-                        </span>
-                      </div>
-                    </div>
-                    <div className={`shrink-0 rounded-2xl px-3 py-2 ${isComplete ? 'bg-white text-emerald-700' : 'bg-slate-50 text-slate-600'}`}>
-                      <div className="flex items-center gap-1 text-xs font-black">
-                        <Coins className="w-3.5 h-3.5" />
-                        {formatThaiCurrency(reward)}
-                      </div>
-                    </div>
+              <Card key={task.id} className="p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h3 className="truncate text-sm font-semibold text-slate-950">
+                      {task.title || template?.title || 'งาน'}
+                    </h3>
+                    <p className="mt-1 line-clamp-2 text-sm text-slate-500">
+                      {task.description || template?.description || 'ไม่มีรายละเอียดเพิ่มเติม'}
+                    </p>
                   </div>
-                  <div className="mt-3 flex items-center justify-between gap-3">
-                    <Badge variant={isComplete ? 'success' : task.status === 'overdue' || task.status === 'rejected' ? 'danger' : 'default'} size="sm">
-                      {TASK_STATUS_LABELS[task.status]}
-                    </Badge>
-                    {isCurrent && !isComplete && (
-                      <span className="text-[10px] font-black text-primary-600 bg-primary-50 px-2 py-1 rounded-full">ขั้นต่อไป</span>
-                    )}
-                  </div>
+                  <Badge variant={getTaskBadgeVariant(task.status)}>
+                    {TASK_STATUS_LABELS[task.status]}
+                  </Badge>
                 </div>
-              </button>
+                <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                  <span>{formatThaiDate(task.due_date || task.created_at)}</span>
+                  <span>{formatThaiCurrency(reward)}</span>
+                </div>
+                <Button
+                  className="mt-4"
+                  fullWidth
+                  variant={task.status === 'approved' || task.status === 'submitted' ? 'secondary' : 'primary'}
+                  onClick={() => handleTaskAction(task)}
+                >
+                  {actionLabel}
+                </Button>
+              </Card>
             );
           })}
         </div>
       )}
 
-      <Modal isOpen={Boolean(selectedTask)} onClose={closeMilestone} bottomSheet title="รายละเอียด Milestone">
+      <Modal isOpen={Boolean(selectedTask)} onClose={closeMilestone} title="ส่งงาน" bottomSheet>
         {selectedTask && (
-          <div className="space-y-5">
+          <div className="space-y-4">
             {submitSuccess ? (
-              <div className="text-center py-6">
-                <div className="mx-auto mb-4 h-16 w-16 rounded-full bg-emerald-100 flex items-center justify-center">
-                  <CheckCircle2 className="w-9 h-9 text-emerald-600" />
-                </div>
-                <h2 className="text-lg font-black text-slate-900">ส่งงานเรียบร้อยแล้ว</h2>
-                <p className="text-sm font-bold text-slate-500 mt-1">Milestone นี้เพิ่มยอดสะสม {formatThaiCurrency(selectedReward)}</p>
-                <Button className="mt-5" fullWidth onClick={closeMilestone}>กลับไปดู Milestone</Button>
+              <div className="py-6 text-center">
+                <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-600" />
+                <h2 className="mt-3 text-lg font-semibold text-slate-950">ส่งงานเรียบร้อยแล้ว</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  {selectedTemplate?.requires_approval ? 'รอผู้จัดการตรวจสอบ' : `เพิ่มยอดสะสม ${formatThaiCurrency(selectedReward)}`}
+                </p>
+                <Button className="mt-5" fullWidth onClick={closeMilestone}>กลับไปดูงาน</Button>
               </div>
             ) : (
               <>
-                <div className="rounded-[2rem] bg-slate-50 border border-slate-100 p-4 space-y-4">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                   <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <h2 className="text-lg font-black text-slate-900 leading-tight">{selectedTask.title || selectedTemplate?.title || 'งาน'}</h2>
-                      <p className="text-xs font-bold text-slate-500 mt-1">กำหนด {formatThaiDate(selectedTask.due_date)}</p>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-950">{selectedTask.title || selectedTemplate?.title || 'งาน'}</p>
+                      <p className="mt-1 text-xs text-slate-500">{PROOF_TYPE_LABELS[selectedProofRequired]}</p>
                     </div>
-                    <div className="rounded-2xl bg-white px-3 py-2 text-emerald-700 shadow-sm">
-                      <div className="flex items-center gap-1 text-sm font-black">
-                        <Coins className="w-4 h-4" />
-                        {formatThaiCurrency(selectedReward)}
-                      </div>
-                    </div>
+                    <Badge variant={getTaskBadgeVariant(selectedTask.status)}>{TASK_STATUS_LABELS[selectedTask.status]}</Badge>
                   </div>
-
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Badge variant={isMilestoneComplete(selectedTask.status) ? 'success' : selectedTask.status === 'overdue' || selectedTask.status === 'rejected' ? 'danger' : 'default'} size="sm">
-                      {TASK_STATUS_LABELS[selectedTask.status]}
-                    </Badge>
-                    <Badge variant="info" size="sm">
-                      หลักฐาน: {PROOF_TYPE_LABELS[selectedProofRequired]}
-                    </Badge>
-                  </div>
-
-                  {(selectedTask.description || selectedTemplate?.description) && (
-                    <div className="rounded-2xl bg-white border border-slate-100 p-3">
-                      <div className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
-                        <FileText className="w-3.5 h-3.5" />
-                        รายละเอียด
-                      </div>
-                      <p className="text-sm text-slate-700 leading-relaxed">{selectedTask.description || selectedTemplate?.description}</p>
-                    </div>
-                  )}
                 </div>
 
                 {selectedTask.checklist_state && selectedTask.checklist_state.length > 0 && (
                   <div className="space-y-2">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">รายการที่ต้องทำ</p>
-                    <div className="rounded-[1.5rem] border border-slate-100 overflow-hidden divide-y divide-slate-100">
-                      {selectedTask.checklist_state.map((item) => (
-                        <button
-                          key={item.id}
-                          type="button"
-                          disabled={isMilestoneComplete(selectedTask.status)}
-                          onClick={() => handleChecklistToggle(item.id)}
-                          className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
-                            item.completed ? 'bg-emerald-50' : 'bg-white hover:bg-slate-50'
-                          } disabled:opacity-70`}
-                        >
-                          <div className={`h-6 w-6 rounded-lg border-2 flex items-center justify-center ${
-                            item.completed ? 'bg-emerald-600 border-emerald-600' : 'bg-white border-slate-200'
-                          }`}>
-                            {item.completed && <CheckSquare className="w-4 h-4 text-white" />}
-                          </div>
-                          <span className={`text-sm font-bold ${item.completed ? 'text-emerald-800 line-through' : 'text-slate-700'}`}>{item.label}</span>
-                        </button>
-                      ))}
-                    </div>
+                    {selectedTask.checklist_state.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        disabled={isMilestoneComplete(selectedTask.status)}
+                        onClick={() => handleChecklistToggle(item.id)}
+                        className="flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 text-left disabled:opacity-70"
+                      >
+                        <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border ${
+                          item.completed ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-300 bg-white'
+                        }`}>
+                          {item.completed && <CheckSquare className="h-4 w-4" />}
+                        </span>
+                        <span className={`text-sm font-medium ${item.completed ? 'text-slate-400 line-through' : 'text-slate-700'}`}>
+                          {item.label}
+                        </span>
+                      </button>
+                    ))}
                   </div>
                 )}
 
-                {!isMilestoneComplete(selectedTask.status) ? (
-                  isAttendanceTask(selectedTask, selectedTemplate) ? (
-                    <div className="space-y-4">
-                      <div className="rounded-[2rem] bg-blue-50 border border-blue-100 p-5 text-center">
-                        <Clock className="w-10 h-10 text-blue-600 mx-auto mb-3" />
-                        <p className="text-sm font-black text-blue-900">เช็คอินเข้างานเพื่อรับ Milestone นี้</p>
-                        <p className="text-xs font-bold text-blue-700 mt-1">ระบบจะมอบ Milestone นี้ให้อัตโนมัติเมื่อเช็คอินสำเร็จ</p>
-                      </div>
-                      <Button
-                        fullWidth
-                        size="lg"
-                        className="h-14 rounded-2xl text-sm font-black gap-2 shadow-lg bg-blue-600 text-white shadow-blue-200 hover:bg-blue-700"
-                        onClick={() => router.push('/employee/check-in')}
-                        icon={<Clock className="w-4 h-4" />}
-                      >
-                        ไปหน้าเช็คอิน
-                      </Button>
-                    </div>
-                  ) : (
-                  <div className="space-y-4">
-                    {(selectedProofRequired === 'photo' || selectedProofRequired === 'video' || selectedProofRequired === 'any') && (
-                      <div className="space-y-3">
-                        <input
-                          ref={fileInputRef}
-                          type="file"
-                          accept={getProofAccept(selectedProofRequired)}
-                          capture={selectedProofRequired === 'photo' || selectedProofRequired === 'video' ? 'environment' : undefined}
-                          multiple
-                          className="hidden"
-                          onChange={handleFileChange}
-                        />
-
-                        {previewFiles.length > 0 && (
-                          <SubmissionFilesGrid files={previewFiles} emptyLabel="ยังไม่มีไฟล์หลักฐาน" onRemove={removeUpload} />
-                        )}
-
-                        <button
-                          type="button"
-                          onClick={() => fileInputRef.current?.click()}
-                          className="w-full flex flex-col items-center justify-center gap-3 py-8 border-2 border-dashed border-slate-200 rounded-[2rem] hover:border-emerald-300 hover:bg-emerald-50/40 transition-all"
-                        >
-                          <div className="p-4 bg-emerald-50 text-emerald-600 rounded-full">
-                            {selectedProofRequired === 'video' ? <Video className="w-6 h-6" /> : <ImagePlus className="w-6 h-6" />}
-                          </div>
-                          <div className="text-center">
-                            <p className="text-sm font-black text-slate-900">แนบหลักฐาน</p>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">รูปภาพหรือวิดีโอตามที่งานกำหนด</p>
-                          </div>
-                        </button>
-                      </div>
-                    )}
-
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">หมายเหตุ</label>
-                      <TextArea
-                        id="milestone-proof-note"
-                        value={note}
-                        onChange={(event) => setNote(event.target.value)}
-                        rows={3}
-                        placeholder="ระบุรายละเอียดการทำงานหรือสิ่งที่ต้องการแจ้งผู้จัดการ..."
-                        className="rounded-2xl border-slate-100 focus:ring-emerald-100"
-                      />
-                    </div>
-
+                {(selectedProofRequired === 'photo' || selectedProofRequired === 'video' || selectedProofRequired === 'any') && (
+                  <div className="space-y-3">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept={getProofAccept(selectedProofRequired)}
+                      capture={selectedProofRequired === 'photo' || selectedProofRequired === 'video' ? 'environment' : undefined}
+                      multiple
+                      className="hidden"
+                      onChange={handleFileChange}
+                    />
+                    <SubmissionFilesGrid
+                      files={previewFiles}
+                      emptyLabel="ยังไม่มีไฟล์หลักฐาน"
+                      onRemove={(id) => setProofUploads((current) => {
+                        const target = current.find((upload) => upload.id === id);
+                        if (target) URL.revokeObjectURL(target.previewUrl);
+                        return current.filter((upload) => upload.id !== id);
+                      })}
+                    />
                     <Button
                       fullWidth
-                      size="lg"
-                      variant="none"
-                      className={`h-14 rounded-2xl text-sm font-black gap-2 shadow-lg ${
-                        canSubmit
-                          ? 'bg-emerald-600 text-white shadow-emerald-200 hover:bg-emerald-700'
-                          : 'bg-slate-100 text-slate-400 shadow-none cursor-not-allowed'
-                      }`}
-                      loading={submitting}
-                      disabled={!canSubmit}
-                      onClick={handleSubmit}
-                      icon={<Send className="w-4 h-4" />}
+                      variant="outline"
+                      icon={selectedProofRequired === 'video' ? <Video className="h-4 w-4" /> : <ImagePlus className="h-4 w-4" />}
+                      onClick={() => fileInputRef.current?.click()}
                     >
-                      ส่งงานและรับ Milestone
+                      แนบหลักฐาน
                     </Button>
-
-                    {submitError && (
-                      <div className="flex items-center justify-center gap-2 text-[10px] font-bold text-red-500">
-                        <AlertTriangle className="w-3.5 h-3.5" />
-                        {submitError}
-                      </div>
-                    )}
                   </div>
-                  )
-                ) : (
-                  <div className="rounded-[2rem] bg-emerald-50 border border-emerald-100 p-5 text-center">
-                    <CheckCircle2 className="w-10 h-10 text-emerald-600 mx-auto mb-3" />
-                    <p className="text-sm font-black text-emerald-900">Milestone นี้สำเร็จแล้ว</p>
-                    <p className="text-xs font-bold text-emerald-700 mt-1">ยอดสะสมเพิ่มแล้ว {formatThaiCurrency(selectedReward)}</p>
+                )}
+
+                <TextArea
+                  value={note}
+                  onChange={(event) => setNote(event.target.value)}
+                  label="บันทึกเพิ่มเติม"
+                  rows={3}
+                  placeholder="ระบุรายละเอียดเพิ่มเติม"
+                />
+
+                <Button fullWidth loading={submitting} disabled={!canSubmit} onClick={() => void handleSubmit()} icon={<Send className="h-4 w-4" />}>
+                  ส่งงานให้ตรวจ
+                </Button>
+
+                {submitError && (
+                  <div className="flex items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+                    <AlertTriangle className="h-4 w-4" />
+                    {submitError}
                   </div>
                 )}
               </>
@@ -550,6 +477,6 @@ export default function MyTasksPage() {
           </div>
         )}
       </Modal>
-    </div>
+    </Page>
   );
 }

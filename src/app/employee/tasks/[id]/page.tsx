@@ -4,7 +4,6 @@ import { use, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
-  Calendar,
   CheckCircle2,
   CheckSquare,
   FileText,
@@ -12,11 +11,11 @@ import {
   ImagePlus,
   Send,
   Video,
-  Zap,
 } from 'lucide-react';
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
+import { Page, PageHeader } from '@/components/ui/Page';
 import SubmissionFilesGrid, { type PreviewFile } from '@/components/ui/SubmissionFilesGrid';
 import StarRating from '@/components/ui/StarRating';
 import { TextArea } from '@/components/ui/Input';
@@ -119,9 +118,9 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
 
   if (!task) {
     return (
-      <div className="px-4 py-8 text-center">
+      <Page maxWidth="sm" className="py-8 text-center">
         <p className="text-slate-500">ไม่พบงานนี้</p>
-      </div>
+      </Page>
     );
   }
 
@@ -299,17 +298,17 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
 
   if (submitted) {
     return (
-      <div className="px-4 py-4 space-y-4 animate-fade-in">
-        <Card>
-          <div className="flex flex-col items-center text-center py-8">
-            <div className="p-4 rounded-full bg-emerald-100 mb-4">
-              <CheckCircle2 className="w-10 h-10 text-emerald-600" />
+      <Page maxWidth="sm" className="space-y-4 pb-24">
+        <Card className="p-6">
+          <div className="flex flex-col items-center py-6 text-center">
+            <div className="mb-4 rounded-2xl bg-emerald-100 p-4">
+              <CheckCircle2 className="h-10 w-10 text-emerald-600" />
             </div>
-            <h3 className="text-lg font-semibold text-slate-900 mb-1">ส่งงานเรียบร้อยแล้ว</h3>
+            <h3 className="mb-1 text-lg font-semibold text-slate-900">ส่งงานเรียบร้อยแล้ว</h3>
             <p className="text-sm text-slate-500">
               {template?.requires_approval ? 'รอผู้จัดการตรวจสอบ' : 'งานเสร็จสมบูรณ์'}
             </p>
-            <div className="flex gap-3 mt-4 w-full">
+            <div className="mt-4 flex w-full gap-3">
               <Button variant="outline" fullWidth onClick={() => router.push('/employee/tasks')}>
                 กลับหน้างาน
               </Button>
@@ -319,76 +318,60 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
             </div>
           </div>
         </Card>
-      </div>
+      </Page>
     );
   }
 
   return (
-    <div className="px-4 py-6 space-y-6 animate-fade-in pb-24 max-w-lg mx-auto">
-      <div className="flex items-center justify-between">
-        <button
-          onClick={() => router.back()}
-          className="flex items-center gap-2 text-xs font-black text-slate-400 uppercase tracking-widest hover:text-primary-600 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          กลับไปหน้ารายการงาน
-        </button>
-        <Badge
-          variant={getStatusVariant(task.status) as 'success' | 'warning' | 'danger' | 'info' | 'default'}
-          className="px-3 py-1 font-black uppercase text-[10px] tracking-tight"
-        >
+    <Page maxWidth="sm" className="space-y-5 pb-24">
+      <PageHeader
+        title={task.title || template?.title || 'งาน'}
+        description={`กำหนด ${formatThaiDate(task.due_date)}`}
+        action={(
+          <Button variant="ghost" size="sm" icon={<ArrowLeft className="h-4 w-4" />} onClick={() => router.back()}>
+            กลับ
+          </Button>
+        )}
+      />
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant={getStatusVariant(task.status) as 'success' | 'warning' | 'danger' | 'info' | 'default'}>
           {TASK_STATUS_LABELS[task.status]}
         </Badge>
+        {(task.priority || template?.priority) && (
+          <Badge variant={(task.priority || template?.priority) === 'critical' ? 'danger' : 'info'}>
+            <Flag className="h-3 w-3" />
+            ระดับ {PRIORITY_LABELS[(task.priority || template?.priority || 'medium') as Priority]}
+          </Badge>
+        )}
       </div>
 
-      <div className="space-y-2">
-        <h1 className="text-2xl font-black text-slate-900 leading-tight">
-          {task.title || template?.title || 'งาน'}
-        </h1>
-        <div className="flex items-center gap-3">
-          {(task.priority || template?.priority) && (
-            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-tight
-              ${(task.priority || template?.priority) === 'critical' ? 'bg-red-50 text-red-600' :
-                (task.priority || template?.priority) === 'high' ? 'bg-amber-50 text-amber-600' :
-                'bg-blue-50 text-blue-600'}
-            `}>
-              <Flag className="w-3 h-3" />
-              ระดับ {PRIORITY_LABELS[(task.priority || template?.priority || 'medium') as Priority]}
-            </div>
-          )}
-          <div className="flex items-center gap-1.5 text-[10px] font-black text-slate-400 uppercase tracking-tight">
-            <Calendar className="w-3.5 h-3.5" />
-            Due {formatThaiDate(task.due_date)}
+      <Card className="p-4">
+        <div className="mb-4 flex items-center gap-3">
+          <div className="rounded-xl bg-slate-50 p-2.5 text-slate-400">
+            <FileText className="h-5 w-5" />
           </div>
-        </div>
-      </div>
-
-      <Card className="border-slate-100 shadow-xl shadow-slate-200/50 rounded-[2rem]">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="p-2.5 bg-slate-50 text-slate-400 rounded-xl">
-            <FileText className="w-5 h-5" />
-          </div>
-          <h2 className="font-black text-slate-900 uppercase text-xs tracking-widest">รายละเอียดงาน</h2>
+          <h2 className="text-sm font-semibold text-slate-950">รายละเอียดงาน</h2>
         </div>
         
         {(task.description || template?.description) && (
-          <p className="text-sm text-slate-600 leading-relaxed bg-slate-50/50 p-4 rounded-2xl border border-slate-50">
+          <p className="rounded-xl border border-slate-100 bg-slate-50/50 p-4 text-sm leading-6 text-slate-600">
             {task.description || template?.description}
           </p>
         )}
         
-        <div className="mt-4 pt-4 border-t border-slate-50 flex items-center gap-2">
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">หลักฐานที่ต้องส่ง:</p>
-          <Badge variant="default" className="bg-primary-50 text-primary-700 font-bold text-[10px] border-none">
+        <div className="mt-4 flex items-center gap-2 border-t border-slate-100 pt-4">
+          <p className="text-xs font-medium text-slate-500">หลักฐานที่ต้องส่ง:</p>
+          <Badge variant="default" className="bg-primary-50 text-primary-700">
             {PROOF_TYPE_LABELS[proofRequired]}
           </Badge>
         </div>
       </Card>
 
       {task.checklist_state && task.checklist_state.length > 0 && (
-        <div className="space-y-4">
-          <h2 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] px-1">รายการที่ต้องดำเนินการ</h2>
-          <Card padding="none" className="overflow-hidden border-slate-100 shadow-sm rounded-[2rem]">
+        <div className="space-y-3">
+          <h2 className="px-1 text-sm font-semibold text-slate-950">รายการที่ต้องดำเนินการ</h2>
+          <Card padding="none" className="overflow-hidden">
             <div className="divide-y divide-slate-100">
               {task.checklist_state.map((item) => (
                 <button
@@ -396,10 +379,9 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                   onClick={() => handleChecklistToggle(item.id)}
                   disabled={task.status === 'approved' || task.status === 'submitted'}
                   className={`
-                    w-full flex items-center gap-4 px-5 py-4 text-left
-                    transition-all active:scale-[0.98]
+                    flex w-full items-center gap-4 px-5 py-4 text-left transition-colors
                     ${item.completed ? 'bg-emerald-50/30' : 'hover:bg-slate-50'}
-                    disabled:opacity-70 disabled:active:scale-100
+                    disabled:opacity-70
                   `}
                 >
                   <div className={`
@@ -419,12 +401,10 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
       )}
 
       {task.status !== 'approved' && task.status !== 'submitted' && (
-        <div className="space-y-4">
-          <h2 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] px-1">ส่งหลักฐานของคุณ</h2>
-          <Card className="border-slate-100 shadow-2xl shadow-primary-900/10 rounded-[2.5rem] relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-primary-100/30 rounded-full blur-3xl -mr-16 -mt-16" />
-            
-            <div className="relative z-10 space-y-6">
+        <div className="space-y-3">
+          <h2 className="px-1 text-sm font-semibold text-slate-950">ส่งหลักฐานของคุณ</h2>
+          <Card className="p-4">
+            <div className="space-y-5">
               {(proofRequired === 'photo' || proofRequired === 'video' || proofRequired === 'any') && (
                 <div className="space-y-4">
                   <input
@@ -446,10 +426,11 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                   )}
 
                   <button
+                    type="button"
                     onClick={openProofPicker}
-                    className="w-full flex flex-col items-center justify-center gap-3 py-10 border-2 border-dashed border-slate-200 rounded-[2rem] hover:border-primary-400 hover:bg-primary-50/30 transition-all group"
+                    className="flex w-full flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-slate-200 py-8 transition-colors hover:border-primary-400 hover:bg-primary-50/30"
                   >
-                    <div className="p-4 bg-primary-50 text-primary-600 rounded-full group-hover:scale-110 transition-transform shadow-sm">
+                    <div className="rounded-full bg-primary-50 p-4 text-primary-600 shadow-sm">
                       {proofRequired === 'video' ? <Video className="w-6 h-6" /> : <ImagePlus className="w-6 h-6" />}
                     </div>
                     <div className="text-center">
@@ -465,11 +446,10 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
               )}
 
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">หมายเหตุ (ไม่บังคับ)</label>
                 <TextArea
                   id="proof-note"
+                  label="หมายเหตุ (ไม่บังคับ)"
                   placeholder="ระบุรายละเอียดเพิ่มเติมถึงผู้จัดการ..."
-                  className="rounded-2xl border-slate-100 focus:ring-primary-100"
                   value={note}
                   onChange={(event) => setNote(event.target.value)}
                   rows={3}
@@ -480,12 +460,6 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                 <Button
                   fullWidth
                   size="lg"
-                  variant="none"
-                  className={`h-14 rounded-2xl text-sm font-black flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-lg
-                    ${canSubmit 
-                      ? 'bg-primary-600 text-white shadow-primary-200 hover:bg-primary-700' 
-                      : 'bg-slate-100 text-slate-400 shadow-none cursor-not-allowed'}
-                  `}
                   loading={submitting}
                   disabled={!canSubmit}
                   onClick={handleSubmit}
@@ -508,9 +482,9 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
       )}
 
       {submissions.length > 0 && (
-        <div className="space-y-4">
-          <h2 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] px-1">ประวัติการส่งงาน</h2>
-          <div className="space-y-4">
+        <div className="space-y-3">
+          <h2 className="px-1 text-sm font-semibold text-slate-950">ประวัติการส่งงาน</h2>
+          <div className="space-y-3">
             {submissions.map((submission) => {
               const files = taskStore.getFilesBySubmission(submission.id);
               const reviewer = submission.reviewed_by ? employeeStore.getUserById(submission.reviewed_by) : null;
@@ -528,15 +502,15 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
               })() as 'success' | 'danger' | 'warning';
 
               return (
-                <Card key={submission.id} className="border-slate-100 shadow-sm rounded-[2rem] overflow-hidden p-0">
+                <Card key={submission.id} className="overflow-hidden p-0">
                   <div className={`h-1.5 w-full ${
                     reviewVariant === 'success' ? 'bg-emerald-500' :
                     reviewVariant === 'danger' ? 'bg-red-500' : 'bg-amber-500'
                   }`} />
                   
-                  <div className="p-5 space-y-4">
+                  <div className="space-y-4 p-5">
                     <div className="flex items-center justify-between gap-3">
-                      <Badge variant={reviewVariant} size="sm" dot className="font-black uppercase text-[9px]">
+                      <Badge variant={reviewVariant} size="sm" dot>
                         {REVIEW_STATUS_LABELS[submission.review_status]}
                       </Badge>
                       <span className="text-[10px] font-bold text-slate-400">
@@ -562,30 +536,27 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                     )}
 
                     {(feedback.rating != null || feedback.comment) && (
-                      <div className="bg-slate-900 rounded-[2rem] p-5 shadow-xl relative overflow-hidden group">
-                        <div className="absolute top-0 right-0 w-24 h-24 bg-primary-500/10 rounded-full blur-2xl" />
-                        
-                        <div className="relative z-10 flex flex-col gap-3">
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                        <div className="flex flex-col gap-3">
                           <div className="flex items-center justify-between">
-                            <p className="text-[10px] font-black text-primary-400 uppercase tracking-widest">ความคิดเห็นจากผู้จัดการ</p>
+                            <p className="text-xs font-semibold text-slate-500">ความคิดเห็นจากผู้จัดการ</p>
                             {feedback.rating != null && (
                               <StarRating value={feedback.rating} readOnly size="sm" />
                             )}
                           </div>
                           
                           <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 rounded-full bg-white/10 flex items-center justify-center text-xs font-black text-white shrink-0">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-xs font-semibold text-slate-600">
                               {reviewer?.full_name?.charAt(0) || 'M'}
                             </div>
                             <div>
-                               <p className="text-sm font-bold text-white line-clamp-2">
+                               <p className="line-clamp-2 text-sm font-semibold text-slate-900">
                                  {feedback.comment || 'ไม่มีความเห็นเพิ่มเติม'}
                                </p>
-                               <p className="text-[9px] font-bold text-slate-500 uppercase mt-0.5">ตรวจโดย {reviewer?.full_name || 'System'}</p>
+                               <p className="mt-0.5 text-xs text-slate-500">ตรวจโดย {reviewer?.full_name || 'System'}</p>
                             </div>
                           </div>
                         </div>
-                        <Zap className="absolute bottom-[-10px] right-[-10px] w-16 h-16 text-white/5 rotate-12" />
                       </div>
                     )}
                   </div>
@@ -595,6 +566,6 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
           </div>
         </div>
       )}
-    </div>
+    </Page>
   );
 }

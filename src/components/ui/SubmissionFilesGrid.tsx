@@ -49,7 +49,7 @@ export default function SubmissionFilesGrid({
 
   if (files.length === 0) {
     return (
-      <div className={`col-span-full py-8 bg-slate-50 rounded-lg flex flex-col items-center justify-center text-slate-400 ${className}`}>
+      <div className={`col-span-full flex flex-col items-center justify-center rounded-xl bg-slate-50 py-8 text-slate-400 ${className}`}>
         <FileText className="w-8 h-8 mb-2 opacity-20" />
         <p className="text-xs">{emptyLabel}</p>
       </div>
@@ -64,16 +64,16 @@ export default function SubmissionFilesGrid({
         const isDownloading = downloadingId === file.id;
 
         return (
-          <div key={file.id} className="group relative rounded-2xl overflow-hidden bg-slate-100 border border-slate-200 aspect-video">
+          <div key={file.id} className="group relative aspect-video overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
             {isVideo ? (
               <video
                 src={file.file_url}
                 controls
                 preload="metadata"
-                className="w-full h-full object-cover bg-black"
+                className="h-full w-full bg-black object-cover"
               />
             ) : (
-              <img src={file.file_url} alt={file.label || 'Proof'} className="w-full h-full object-cover transition-transform group-hover:scale-105" />
+              <img src={file.file_url} alt={file.label || 'Proof'} className="h-full w-full object-cover" />
             )}
 
             <div className="absolute top-2 right-2 z-10 flex items-center gap-2">

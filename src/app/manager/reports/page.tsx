@@ -392,7 +392,7 @@ export default function ReportsPage() {
                   content={({ active, payload }) => {
                     if (active && payload && payload.length) {
                       return (
-                        <div className="bg-slate-900 text-white p-3 rounded-xl shadow-xl border border-slate-800">
+                        <div className="bg-slate-900 text-white p-3 rounded-xl shadow-sm border border-slate-800">
                           <p className="text-xs font-bold text-slate-400 mb-1">{payload[0].payload.name}</p>
                           <p className="text-sm font-black">{formatCurrency(Number(payload[0].value))}</p>
                         </div>

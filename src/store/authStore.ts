@@ -5,15 +5,44 @@
 
 import { create } from 'zustand';
 import type { User } from '@/lib/types';
+import type { AdminViewMode } from '@/lib/viewMode';
+import type { PostgrestSingleResponse } from '@supabase/postgrest-js';
 import { AuthChangeEvent, Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 
 let authListenerRegistered = false;
 const AUTH_TIMEOUT_MS = 8000;
+const ADMIN_VIEW_MODE_STORAGE_KEY = 'psrice.adminViewMode';
 
-function withTimeout<T>(promise: Promise<T>, label: string) {
+function readStoredAdminViewMode(): AdminViewMode {
+  if (typeof window === 'undefined') {
+    return 'manager';
+  }
+
+  return window.localStorage.getItem(ADMIN_VIEW_MODE_STORAGE_KEY) === 'employee'
+    ? 'employee'
+    : 'manager';
+}
+
+function writeStoredAdminViewMode(mode: AdminViewMode) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.localStorage.setItem(ADMIN_VIEW_MODE_STORAGE_KEY, mode);
+}
+
+function resolveAdminViewModeForUser(user: User | null, currentMode: AdminViewMode): AdminViewMode {
+  if (user?.role !== 'admin') {
+    return 'manager';
+  }
+
+  return currentMode === 'employee' ? 'employee' : readStoredAdminViewMode();
+}
+
+function withTimeout<T>(promise: PromiseLike<T>, label: string) {
   return Promise.race([
-    promise,
+    Promise.resolve(promise),
     new Promise<T>((_, reject) => {
       window.setTimeout(() => {
         reject(new Error(`${label} timed out`));
@@ -31,14 +60,12 @@ async function clearInvalidSession() {
 }
 
 async function fetchUserProfile(userId: string) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await withTimeout<any>(
+  const { data, error } = await withTimeout<PostgrestSingleResponse<User>>(
     supabase
       .from('users')
       .select('*')
       .eq('id', userId)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .single() as any,
+      .single<User>(),
     'Fetch user profile',
   );
 
@@ -81,11 +108,14 @@ interface AuthState {
   currentUser: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  adminViewMode: AdminViewMode;
   
   // Transitions
   initialize: () => Promise<void>;
   refreshCurrentUser: (userId?: string) => Promise<void>;
   subscribeToCurrentUserProfile: (userId: string) => () => void;
+  setAdminViewMode: (mode: AdminViewMode) => void;
+  toggleAdminViewMode: () => AdminViewMode;
   login: (email: string, password?: string) => Promise<LoginResult>;
   logout: () => Promise<void>;
 }
@@ -94,6 +124,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   currentUser: null,
   isAuthenticated: false,
   isLoading: true, // Start as loading to prevent flash of login page
+  adminViewMode: readStoredAdminViewMode(),
 
   initialize: async () => {
     try {
@@ -137,6 +168,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         currentUser: userData,
         isAuthenticated: true,
         isLoading: false,
+        adminViewMode: resolveAdminViewModeForUser(userData, get().adminViewMode),
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown auth restore error';
@@ -209,6 +241,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       currentUser: userData,
       isAuthenticated: true,
       isLoading: false,
+      adminViewMode: resolveAdminViewModeForUser(userData, get().adminViewMode),
     });
   },
 
@@ -236,6 +269,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             currentUser: nextUser,
             isAuthenticated: true,
             isLoading: false,
+            adminViewMode: resolveAdminViewModeForUser(nextUser, get().adminViewMode),
           });
         },
       )
@@ -304,7 +338,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ 
         currentUser: userData as User, 
         isAuthenticated: true, 
-        isLoading: false 
+        isLoading: false,
+        adminViewMode: resolveAdminViewModeForUser(userData as User, get().adminViewMode),
       });
       return { success: true };
     } catch (error) {
@@ -323,5 +358,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   logout: async () => {
     await supabase.auth.signOut();
     set({ currentUser: null, isAuthenticated: false, isLoading: false });
+  },
+
+  setAdminViewMode: (mode) => {
+    const user = get().currentUser;
+
+    if (user?.role !== 'admin') {
+      set({ adminViewMode: 'manager' });
+      return;
+    }
+
+    writeStoredAdminViewMode(mode);
+    set({ adminViewMode: mode });
+  },
+
+  toggleAdminViewMode: () => {
+    const nextMode: AdminViewMode = get().adminViewMode === 'employee' ? 'manager' : 'employee';
+    get().setAdminViewMode(nextMode);
+    return nextMode;
   },
 }));

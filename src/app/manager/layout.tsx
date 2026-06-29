@@ -144,8 +144,8 @@ export default function ManagerLayout({ children }: { children: React.ReactNode 
 
       <div className="flex-1 flex flex-col min-w-0">
         <Header showMenu onMenuClick={() => setSidebarOpen(true)} />
-        <main className="flex-1 pb-20 lg:pb-0 overflow-y-auto overflow-x-hidden">
-          <div className="max-w-5xl mx-auto w-full p-4 md:p-6 min-w-0">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden pb-24 lg:pb-0">
+          <div className="mx-auto w-full max-w-7xl p-4 sm:p-6">
              {children}
           </div>
         </main>

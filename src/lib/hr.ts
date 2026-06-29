@@ -234,17 +234,17 @@ function buildPayrollMoneyLines(params: {
   manualDeduction: number;
 }) {
   const rows: PayrollMoneyLine[] = [
-    { id: 'gross-pay', label: 'ค่าจ้างพื้นฐาน', amount: params.grossPay, kind: 'earning', source: 'base' },
+    { id: 'gross-pay', label: 'ค่าแรงพื้นฐาน', amount: params.grossPay, kind: 'earning', source: 'base' },
     { id: 'ot-pay', label: 'ค่าล่วงเวลา', amount: params.otPay, kind: 'earning', source: 'ot' },
-    { id: 'attendance-reward', label: 'โบนัสเช็คอิน', amount: params.attendanceReward, kind: 'earning', source: 'attendance' },
-    { id: 'task-reward', label: 'โบนัสงานที่อนุมัติ', amount: params.taskReward, kind: 'earning', source: 'task' },
-    { id: 'expense-reimbursement', label: 'เบิกค่าใช้จ่ายที่อนุมัติ', amount: params.expenseReimbursement, kind: 'earning', source: 'expense' },
-    { id: 'manual-bonus', label: 'โบนัสปรับเพิ่ม', amount: params.manualBonus, kind: 'earning', source: 'manual' },
+    { id: 'attendance-reward', label: 'ค่าเช็คอิน', amount: params.attendanceReward, kind: 'earning', source: 'attendance' },
+    { id: 'task-reward', label: 'ค่าตอบแทนงาน', amount: params.taskReward, kind: 'earning', source: 'task' },
+    { id: 'expense-reimbursement', label: 'คืนค่าใช้จ่ายที่อนุมัติ', amount: params.expenseReimbursement, kind: 'earning', source: 'expense' },
+    { id: 'manual-bonus', label: 'เงินเพิ่มพิเศษ', amount: params.manualBonus, kind: 'earning', source: 'manual' },
     { id: 'late-deduction', label: 'หักเข้างานสาย', amount: params.lateDeduction, kind: 'deduction', source: 'late' },
     { id: 'absence-deduction', label: 'หักขาดงาน', amount: params.absenceDeduction, kind: 'deduction', source: 'absence' },
     { id: 'leave-deduction', label: 'หักวันลา', amount: params.leaveDeduction, kind: 'deduction', source: 'leave' },
-    { id: 'advance-deduction', label: 'หักเบิกเงินล่วงหน้า', amount: params.advanceDeduction, kind: 'deduction', source: 'advance' },
-    { id: 'manual-deduction', label: 'รายการหักปรับลด', amount: params.manualDeduction, kind: 'deduction', source: 'manual' },
+    { id: 'advance-deduction', label: 'เบิกเงินล่วงหน้า', amount: params.advanceDeduction, kind: 'deduction', source: 'advance' },
+    { id: 'manual-deduction', label: 'รายการหักอื่นๆ', amount: params.manualDeduction, kind: 'deduction', source: 'manual' },
   ];
 
   return rows.filter((row) => row.amount > 0);

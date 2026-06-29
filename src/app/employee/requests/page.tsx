@@ -12,7 +12,7 @@ import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import Input, { TextArea } from '@/components/ui/Input';
 import Modal from '@/components/ui/Modal';
-import Select from '@/components/ui/Select';
+import { Page, PageHeader, StatTile } from '@/components/ui/Page';
 import Tabs from '@/components/ui/Tabs';
 import { useAuthStore } from '@/store/authStore';
 import { useEmployeeStore } from '@/store/employeeStore';
@@ -23,6 +23,7 @@ import { insertNotifications } from '@/lib/reviewHelpers';
 import { buildEmployeeRequestCreatedNotifications, getRequestApprovers } from '@/lib/requestHelpers';
 
 type RequestFilter = 'pending' | 'approved' | 'rejected' | 'all';
+type RequestType = 'leave' | 'advance' | 'expense';
 
 const statusVariantMap = {
   pending: 'warning',
@@ -30,6 +31,10 @@ const statusVariantMap = {
   rejected: 'danger',
   cancelled: 'default',
 } as const;
+
+function formatCurrency(amount: number) {
+  return new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(amount);
+}
 
 export default function EmployeeRequestsPage() {
   const { currentUser } = useAuthStore();
@@ -42,13 +47,14 @@ export default function EmployeeRequestsPage() {
   const [formError, setFormError] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [form, setForm] = useState({
-    request_type: 'leave' as 'leave' | 'advance' | 'expense',
+    request_type: 'leave' as RequestType,
     title: '',
     description: '',
     amount: '',
     start_date: '',
     end_date: '',
   });
+
   const myRequests = useMemo(() => {
     if (!currentUser) {
       return [];
@@ -86,6 +92,11 @@ export default function EmployeeRequestsPage() {
       end_date: '',
     });
     setFiles([]);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    resetForm();
   };
 
   const handleSubmit = async () => {
@@ -158,30 +169,21 @@ export default function EmployeeRequestsPage() {
   };
 
   return (
-    <div className="px-4 py-4 space-y-4 animate-fade-in pb-24">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-lg font-bold text-slate-900">คำขอและรายงาน</h1>
-          <p className="text-sm text-slate-500 mt-1">ยื่นลา เบิกเงินล่วงหน้า หรือเบิกค่าใช้จ่ายได้จากหน้านี้</p>
-        </div>
-        <Button size="sm" onClick={() => setIsModalOpen(true)} icon={<Plus className="w-4 h-4" />}>
-          สร้างคำขอ
-        </Button>
-      </div>
+    <Page maxWidth="sm" className="space-y-5 pb-24">
+      <PageHeader
+        title="คำขอของฉัน"
+        description="ส่งคำขอลา เบิกเงินล่วงหน้า และเบิกค่าใช้จ่าย"
+        action={(
+          <Button size="sm" onClick={() => setIsModalOpen(true)} icon={<Plus className="h-4 w-4" />}>
+            สร้างคำขอ
+          </Button>
+        )}
+      />
 
       <div className="grid grid-cols-3 gap-3">
-        <Card className="bg-amber-50 border-amber-100">
-          <p className="text-[11px] text-amber-700">รออนุมัติ</p>
-          <p className="text-2xl font-bold text-amber-900 mt-1">{summary.pending}</p>
-        </Card>
-        <Card className="bg-emerald-50 border-emerald-100">
-          <p className="text-[11px] text-emerald-700">อนุมัติแล้ว</p>
-          <p className="text-2xl font-bold text-emerald-900 mt-1">{summary.approved}</p>
-        </Card>
-        <Card className="bg-red-50 border-red-100">
-          <p className="text-[11px] text-red-700">ไม่อนุมัติ</p>
-          <p className="text-2xl font-bold text-red-900 mt-1">{summary.rejected}</p>
-        </Card>
+        <StatTile label="รออนุมัติ" value={summary.pending} tone="amber" />
+        <StatTile label="อนุมัติ" value={summary.approved} tone="green" />
+        <StatTile label="ไม่อนุมัติ" value={summary.rejected} tone="red" />
       </div>
 
       <Tabs
@@ -198,17 +200,17 @@ export default function EmployeeRequestsPage() {
 
       <div className="space-y-3">
         {filteredRequests.length === 0 ? (
-          <Card className="text-center py-10">
-            <ReceiptText className="w-10 h-10 text-slate-200 mx-auto mb-3" />
-            <p className="text-sm font-medium text-slate-500">ยังไม่มีคำขอในหมวดนี้</p>
+          <Card className="p-8 text-center">
+            <ReceiptText className="mx-auto h-10 w-10 text-slate-300" />
+            <p className="mt-3 text-sm font-medium text-slate-500">ยังไม่มีคำขอในหมวดนี้</p>
           </Card>
         ) : (
           filteredRequests.map((request) => (
-            <Card key={request.id} className="space-y-3">
+            <Card key={request.id} className="p-4">
               <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">{request.title}</p>
-                  <p className="text-xs text-slate-500 mt-1">{EMPLOYEE_REQUEST_TYPE_LABELS[request.request_type]}</p>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-slate-950">{request.title}</p>
+                  <p className="mt-1 text-xs text-slate-500">{EMPLOYEE_REQUEST_TYPE_LABELS[request.request_type]}</p>
                 </div>
                 <Badge variant={statusVariantMap[request.status]}>
                   {APPROVAL_STATUS_LABELS[request.status]}
@@ -216,22 +218,20 @@ export default function EmployeeRequestsPage() {
               </div>
 
               {request.description && (
-                <p className="text-sm text-slate-600">{request.description}</p>
+                <p className="mt-3 line-clamp-2 text-sm text-slate-600">{request.description}</p>
               )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+              <div className="mt-3 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
                 {request.amount != null && (
                   <div className="rounded-xl bg-slate-50 p-3">
                     <p className="text-xs text-slate-500">จำนวนเงิน</p>
-                    <p className="font-semibold text-slate-900 mt-1">
-                      {new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(request.amount)}
-                    </p>
+                    <p className="mt-1 font-semibold text-slate-950">{formatCurrency(request.amount)}</p>
                   </div>
                 )}
                 {(request.start_date || request.end_date) && (
                   <div className="rounded-xl bg-slate-50 p-3">
                     <p className="text-xs text-slate-500">ช่วงวันที่</p>
-                    <p className="font-semibold text-slate-900 mt-1">
+                    <p className="mt-1 font-semibold text-slate-950">
                       {request.start_date || '-'}{request.end_date && request.end_date !== request.start_date ? ` ถึง ${request.end_date}` : ''}
                     </p>
                   </div>
@@ -239,29 +239,26 @@ export default function EmployeeRequestsPage() {
               </div>
 
               {request.attachment_urls.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-xs font-medium text-slate-500">ไฟล์แนบ</p>
-                  <div className="flex flex-wrap gap-2">
-                    {request.attachment_urls.map((url) => (
-                      <a
-                        key={url}
-                        href={url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700"
-                      >
-                        <FileUp className="w-3.5 h-3.5" />
-                        เปิดไฟล์แนบ
-                      </a>
-                    ))}
-                  </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {request.attachment_urls.map((url) => (
+                    <a
+                      key={url}
+                      href={url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700"
+                    >
+                      <FileUp className="h-3.5 w-3.5" />
+                      เปิดไฟล์แนบ
+                    </a>
+                  ))}
                 </div>
               )}
 
               {request.review_note && (
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
                   <p className="text-xs text-slate-500">หมายเหตุจากผู้อนุมัติ</p>
-                  <p className="text-sm text-slate-700 mt-1">{request.review_note}</p>
+                  <p className="mt-1 text-sm text-slate-700">{request.review_note}</p>
                 </div>
               )}
             </Card>
@@ -269,18 +266,25 @@ export default function EmployeeRequestsPage() {
         )}
       </div>
 
-      <Modal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); resetForm(); }} title="สร้างคำขอใหม่" bottomSheet>
+      <Modal isOpen={isModalOpen} onClose={closeModal} title="สร้างคำขอใหม่" bottomSheet>
         <div className="space-y-4">
-          <Select
-            label="ประเภทคำขอ"
-            value={form.request_type}
-            onChange={(event) => setForm((current) => ({ ...current, request_type: event.target.value as typeof current.request_type }))}
-            options={[
-              { value: 'leave', label: EMPLOYEE_REQUEST_TYPE_LABELS.leave },
-              { value: 'advance', label: EMPLOYEE_REQUEST_TYPE_LABELS.advance },
-              { value: 'expense', label: EMPLOYEE_REQUEST_TYPE_LABELS.expense },
-            ]}
-          />
+          <div className="grid grid-cols-3 gap-2">
+            {(['leave', 'advance', 'expense'] as const).map((type) => (
+              <button
+                key={type}
+                type="button"
+                onClick={() => setForm((current) => ({ ...current, request_type: type }))}
+                className={`min-h-10 rounded-xl border px-2 text-xs font-semibold ${
+                  form.request_type === type
+                    ? 'border-primary-500 bg-primary-50 text-primary-800'
+                    : 'border-slate-200 bg-white text-slate-600'
+                }`}
+              >
+                {EMPLOYEE_REQUEST_TYPE_LABELS[type]}
+              </button>
+            ))}
+          </div>
+
           <Input
             label="หัวข้อคำขอ"
             placeholder="เช่น ลากิจ 1 วัน"
@@ -321,9 +325,9 @@ export default function EmployeeRequestsPage() {
           )}
 
           <div className="rounded-xl border border-dashed border-slate-300 p-4">
-            <label className="flex flex-col items-center gap-2 text-center cursor-pointer">
-              <div className="p-3 rounded-full bg-slate-100">
-                <FileUp className="w-5 h-5 text-slate-500" />
+            <label className="flex cursor-pointer flex-col items-center gap-2 text-center">
+              <div className="rounded-full bg-slate-100 p-3">
+                <FileUp className="h-5 w-5 text-slate-500" />
               </div>
               <div>
                 <p className="text-sm font-medium text-slate-800">แนบไฟล์ประกอบ</p>
@@ -340,7 +344,7 @@ export default function EmployeeRequestsPage() {
             {files.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-2">
                 {files.map((file) => (
-                  <span key={file.name} className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600">
+                  <span key={file.name} className="max-w-full truncate rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600">
                     {file.name}
                   </span>
                 ))}
@@ -355,15 +359,15 @@ export default function EmployeeRequestsPage() {
           )}
 
           <div className="grid grid-cols-2 gap-3 pt-2">
-            <Button variant="secondary" fullWidth onClick={() => { setIsModalOpen(false); resetForm(); }}>
+            <Button variant="secondary" fullWidth onClick={closeModal}>
               ยกเลิก
             </Button>
-            <Button fullWidth loading={submitting} onClick={() => void handleSubmit()} icon={<CalendarRange className="w-4 h-4" />}>
+            <Button fullWidth loading={submitting} onClick={() => void handleSubmit()} icon={<CalendarRange className="h-4 w-4" />}>
               ส่งคำขอ
             </Button>
           </div>
         </div>
       </Modal>
-    </div>
+    </Page>
   );
 }

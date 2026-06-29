@@ -26,15 +26,15 @@ export default function Tabs({
 }: TabsProps) {
   if (variant === 'pill') {
     return (
-      <div className={`flex gap-2 overflow-x-auto pb-1 ${className}`}>
+      <div className={`flex gap-2 overflow-x-auto pb-1 app-scrollbar ${className}`}>
         {tabs.map(tab => (
           <button
             key={tab.id}
             type="button"
             onClick={() => onChange(tab.id)}
             className={`
-              inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium
-              whitespace-nowrap touch-manipulation transition-all duration-150
+              inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold
+              whitespace-nowrap touch-manipulation transition-colors duration-150
               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2
               ${activeTab === tab.id
                 ? 'bg-primary-800 text-white shadow-sm'
@@ -59,7 +59,7 @@ export default function Tabs({
   }
 
   return (
-    <div className={`flex border-b border-slate-200 overflow-x-auto ${className}`}>
+    <div className={`flex overflow-x-auto border-b border-slate-200 app-scrollbar ${className}`}>
       {tabs.map(tab => (
         <button
           key={tab.id}
@@ -67,7 +67,7 @@ export default function Tabs({
           onClick={() => onChange(tab.id)}
           className={`
             inline-flex min-h-11 shrink-0 items-center gap-1.5 px-4 py-3 text-sm font-medium
-            whitespace-nowrap touch-manipulation transition-all duration-150
+            whitespace-nowrap touch-manipulation transition-colors duration-150
             border-b-2 -mb-px
             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2
             ${activeTab === tab.id

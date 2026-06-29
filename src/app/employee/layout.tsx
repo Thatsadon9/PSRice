@@ -13,10 +13,12 @@ import BottomNav from '@/components/layout/BottomNav';
 import Header from '@/components/layout/Header';
 import Skeleton from '@/components/ui/Skeleton';
 import { EMPLOYEE_NAV_ITEMS } from '@/lib/constants';
+import { canUseEmployeeArea } from '@/lib/viewMode';
 
 export default function EmployeeLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { isAuthenticated, currentUser } = useAuthStore();
+  const adminViewMode = useAuthStore(s => s.adminViewMode);
   const subscribeToCurrentUserProfile = useAuthStore(s => s.subscribeToCurrentUserProfile);
   const fetchEmployees = useEmployeeStore(s => s.fetchUsers);
   const subscribeToUserUpdates = useEmployeeStore(s => s.subscribeToUserUpdates);
@@ -39,7 +41,7 @@ export default function EmployeeLayout({ children }: { children: React.ReactNode
       return;
     }
 
-    if (currentUser && currentUser.role !== 'employee') {
+    if (currentUser && !canUseEmployeeArea(currentUser, adminViewMode)) {
       router.replace('/manager');
       return;
     }
@@ -65,7 +67,7 @@ export default function EmployeeLayout({ children }: { children: React.ReactNode
     return () => {
       isActive = false;
     };
-  }, [currentUser, isAuthenticated, router, fetchBranches, fetchEmployees, fetchTasks, fetchAttendance, fetchHrData, fetchNotifications, currentUser?.id]);
+  }, [adminViewMode, currentUser, isAuthenticated, router, fetchBranches, fetchEmployees, fetchTasks, fetchAttendance, fetchHrData, fetchNotifications, currentUser?.id]);
 
   useEffect(() => {
     if (isAuthenticated && currentUser?.id && dataLoaded) {
@@ -126,7 +128,7 @@ export default function EmployeeLayout({ children }: { children: React.ReactNode
   return (
     <div className="min-h-dvh bg-slate-50">
       <Header />
-      <main className="pb-20 max-w-lg mx-auto">
+      <main className="mx-auto w-full max-w-lg pb-24">
         {children}
       </main>
       <BottomNav items={EMPLOYEE_NAV_ITEMS} />

@@ -30,6 +30,7 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import Input, { TextArea } from '@/components/ui/Input';
+import { Page, PageHeader } from '@/components/ui/Page';
 import { ROLE_LABELS, SHIFT_ASSIGNMENT_STATUS_LABELS } from '@/lib/constants';
 import { getCurrentDateStr } from '@/lib/dateUtils';
 import { buildPayrollSummary, formatMinutesAsHours, getMonthDateRange, resolveShiftForUserDate } from '@/lib/hr';
@@ -427,13 +428,11 @@ export default function ProfilePage() {
   const displayName = form.full_name.trim() || currentUser.full_name;
 
   return (
-    <div className="space-y-5 px-4 py-5 pb-24 animate-fade-in">
-      <div className="space-y-1">
-        <h1 className="text-xl font-bold text-slate-900">โปรไฟล์พนักงาน</h1>
-        <p className="text-sm text-slate-500">
-          อัปเดตข้อมูลส่วนตัว เอกสารสำคัญ และความปลอดภัยของบัญชีด้วยตัวเอง
-        </p>
-      </div>
+    <Page maxWidth="sm" className="space-y-5 pb-24">
+      <PageHeader
+        title="โปรไฟล์"
+        description="ข้อมูลส่วนตัว เอกสาร และยอดเงินปัจจุบัน"
+      />
 
       <Card className="overflow-hidden border-slate-100 shadow-sm">
         <div className="flex flex-col items-center gap-4 py-2 text-center">
@@ -1087,6 +1086,6 @@ export default function ProfilePage() {
           </div>
         </form>
       </Modal>
-    </div>
+    </Page>
   );
 }

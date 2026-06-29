@@ -15,8 +15,8 @@ interface ModalProps {
 const sizeClasses = {
   sm: 'max-w-sm',
   md: 'max-w-md',
-  lg: 'max-w-lg',
-  full: 'max-w-full mx-4',
+  lg: 'max-w-2xl',
+  full: 'max-w-5xl mx-4',
 };
 
 export default function Modal({
@@ -68,7 +68,7 @@ export default function Modal({
         <div
           role="dialog"
           aria-modal="true"
-          className="relative w-full overscroll-contain bg-white rounded-t-2xl animate-slide-up safe-bottom sm:max-w-md sm:rounded-2xl max-h-[85vh] overflow-y-auto"
+          className="relative w-full max-h-[min(88vh,760px)] overscroll-contain overflow-y-auto rounded-t-2xl border border-slate-200 bg-white shadow-lg animate-slide-up safe-bottom sm:max-w-md sm:rounded-2xl"
         >
           <div className="flex items-center justify-center pt-3 pb-1 sm:hidden">
             <div className="w-10 h-1 bg-slate-300 rounded-full" />
@@ -101,7 +101,7 @@ export default function Modal({
       <div
         role="dialog"
         aria-modal="true"
-        className={`relative w-full overscroll-contain ${sizeClasses[size]} bg-white rounded-2xl shadow-xl animate-scale-in max-h-[85vh] overflow-y-auto`}
+        className={`relative w-full max-h-[min(88vh,760px)] overscroll-contain overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-lg animate-scale-in ${sizeClasses[size]}`}
       >
         {title && (
           <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-white/95 px-5 py-4 backdrop-blur-sm">

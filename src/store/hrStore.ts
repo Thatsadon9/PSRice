@@ -3,6 +3,7 @@
 import { create } from 'zustand';
 import type {
   ApprovalStatus,
+  AppSettingValue,
   BranchAttendancePolicy,
   CompensationProfile,
   EmployeeRequest,
@@ -13,14 +14,6 @@ import type {
 } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { normalizeTimeValue, toNumberValue } from '@/lib/hr';
-
-type AppSettingValue =
-  | string
-  | number
-  | boolean
-  | null
-  | AppSettingValue[]
-  | { [key: string]: AppSettingValue };
 
 interface HrState {
   branchPolicies: BranchAttendancePolicy[];

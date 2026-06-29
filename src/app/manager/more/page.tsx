@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import AdminViewModeSwitch from '@/components/layout/AdminViewModeSwitch';
 import Card from '@/components/ui/Card';
 import { useAuthStore } from '@/store/authStore';
 import {
@@ -46,6 +47,8 @@ export default function ManagerMorePage() {
   return (
     <div className="px-4 py-4 space-y-6 animate-fade-in">
       <h1 className="text-xl font-bold text-slate-900">เมนูจัดการ</h1>
+
+      <AdminViewModeSwitch variant="card" />
 
       <div className="grid grid-cols-1 gap-3">
         {menuItems.map((item) => (

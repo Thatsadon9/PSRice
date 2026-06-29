@@ -1,11 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { ReactNode } from 'react';
 import {
-  ArrowLeft,
   Bell,
   ChevronRight,
   Globe,
@@ -14,7 +12,9 @@ import {
   Smartphone,
   User,
 } from 'lucide-react';
+import AdminViewModeSwitch from '@/components/layout/AdminViewModeSwitch';
 import Card from '@/components/ui/Card';
+import { Page, PageHeader } from '@/components/ui/Page';
 import { useAuthStore } from '@/store/authStore';
 
 interface SettingsItem {
@@ -95,32 +95,29 @@ export default function SettingsPage() {
   ];
 
   return (
-    <div className="space-y-6 px-4 py-6 pb-24 animate-fade-in">
-      <div className="mb-2 flex items-center gap-3">
-        <Link
-          href="/employee"
-          className="-ml-2 rounded-full p-2 text-slate-500 transition-colors hover:bg-slate-100"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </Link>
-        <h1 className="text-xl font-bold text-slate-900">การตั้งค่า</h1>
-      </div>
+    <Page maxWidth="sm" className="space-y-5 pb-24">
+      <PageHeader
+        title="เพิ่มเติม"
+        description="ตั้งค่าแอป บัญชี และเมนูรอง"
+      />
 
-      <div className="space-y-6">
+      <AdminViewModeSwitch variant="card" />
+
+      <div className="space-y-5">
         {sections.map((section) => (
           <div key={section.title} className="space-y-3">
-            <h2 className="px-1 text-xs font-bold uppercase tracking-widest text-slate-400">
+            <h2 className="px-1 text-sm font-semibold text-slate-950">
               {section.title}
             </h2>
-            <Card padding="none" className="overflow-hidden border-slate-100 shadow-sm">
+            <Card padding="none" className="overflow-hidden">
               <div className="divide-y divide-slate-50">
                 {section.items.map((item) => (
                   <div
                     key={item.label}
-                    className="flex cursor-pointer items-center justify-between bg-white p-4 transition-colors hover:bg-slate-50"
+                    className="flex min-w-0 cursor-pointer items-center justify-between gap-3 bg-white p-4 transition-colors hover:bg-slate-50"
                     onClick={() => item.href && router.push(item.href)}
                   >
-                    <div className="flex items-center gap-4">
+                    <div className="flex min-w-0 items-center gap-4">
                       <div className="shrink-0 rounded-xl border border-slate-100 bg-slate-50 p-2.5 shadow-xs">
                         {item.icon}
                       </div>
@@ -144,7 +141,7 @@ export default function SettingsPage() {
             onClick={() => {
               void handleLogout();
             }}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl border border-red-100 bg-red-50 p-4 text-sm font-bold text-red-600 transition-all hover:bg-red-100 active:scale-[0.98]"
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-100 bg-red-50 p-4 text-sm font-bold text-red-600 transition-colors hover:bg-red-100"
           >
             <LogOut className="h-4 w-4" /> ออกจากระบบ
           </button>
@@ -153,6 +150,6 @@ export default function SettingsPage() {
           </p>
         </div>
       </div>
-    </div>
+    </Page>
   );
 }

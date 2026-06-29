@@ -9,7 +9,6 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 
-
 export default function SettingsPage() {
   const [appName, setAppName] = useState('PS Rice');
   const currentUser = useAuthStore(state => state.currentUser);

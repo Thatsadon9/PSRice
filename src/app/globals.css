@@ -32,6 +32,35 @@ body {
   min-height: 100dvh;
 }
 
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.app-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.text-balance-safe {
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.content-safe {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 /* Safe area padding for iPhone */
 .safe-bottom {
   padding-bottom: env(safe-area-inset-bottom, 0px);
