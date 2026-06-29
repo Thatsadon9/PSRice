@@ -12,6 +12,7 @@ import {
   Smartphone,
   User,
 } from 'lucide-react';
+import AdminViewModeSwitch from '@/components/layout/AdminViewModeSwitch';
 import Card from '@/components/ui/Card';
 import { Page, PageHeader } from '@/components/ui/Page';
 import { useAuthStore } from '@/store/authStore';
@@ -99,6 +100,8 @@ export default function SettingsPage() {
         title="เพิ่มเติม"
         description="ตั้งค่าแอป บัญชี และเมนูรอง"
       />
+
+      <AdminViewModeSwitch variant="card" />
 
       <div className="space-y-5">
         {sections.map((section) => (
