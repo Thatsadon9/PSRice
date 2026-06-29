@@ -19,6 +19,7 @@ interface EmployeeState {
   addUser: (user: Omit<User, 'id' | 'created_at'>, password?: string) => Promise<boolean>;
   updateUser: (userId: string, updates: Partial<User>) => Promise<boolean>;
   deleteUser: (userId: string) => Promise<boolean>;
+  resetPassword: (userId: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 function sortUsers(users: User[]) {
@@ -173,6 +174,34 @@ export const useEmployeeStore = create<EmployeeState>((set, get) => ({
       console.error('Delete user error:', err);
       set({ isLoading: false });
       return false;
+    }
+  },
+
+  resetPassword: async (userId: string, newPassword: string) => {
+    set({ isLoading: true });
+    try {
+      const accessToken = await getAccessToken();
+      const response = await fetch('/api/admin/reset-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        body: JSON.stringify({ userId, password: newPassword }),
+      });
+
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'ล้มเหลว');
+
+      set({ isLoading: false });
+      return { success: true };
+    } catch (err) {
+      console.error('Reset password error:', err);
+      set({ isLoading: false });
+      return { 
+        success: false, 
+        error: err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการเปลี่ยนรหัสผ่าน' 
+      };
     }
   },
 }));

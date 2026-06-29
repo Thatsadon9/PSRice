@@ -10,7 +10,7 @@ import Badge from '@/components/ui/Badge';
 import Modal from '@/components/ui/Modal';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
-import { UserPlus, Search, Edit2, Trash2, Building2, Mail, Shield, User, AlertCircle, UserMinus } from 'lucide-react';
+import { UserPlus, Search, Edit2, Trash2, Building2, Mail, Shield, User, AlertCircle, UserMinus, KeyRound } from 'lucide-react';
 import { ROLE_LABELS } from '@/lib/constants';
 import type { User as UserType, UserRole } from '@/lib/types';
 
@@ -41,6 +41,7 @@ export default function EmployeeManagementPage() {
   const addUser = useEmployeeStore((state) => state.addUser);
   const updateUser = useEmployeeStore((state) => state.updateUser);
   const deleteUser = useEmployeeStore((state) => state.deleteUser);
+  const resetPassword = useEmployeeStore((state) => state.resetPassword);
   const isLoading = useEmployeeStore((state) => state.isLoading);
   const branches = useBranchStore((state) => state.branches);
   const getBranchById = useBranchStore((state) => state.getBranchById);
@@ -50,6 +51,10 @@ export default function EmployeeManagementPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserType | null>(null);
   const [userToDelete, setUserToDelete] = useState<UserType | null>(null);
+  const [userToResetPassword, setUserToResetPassword] = useState<UserType | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [resetError, setResetError] = useState('');
+  const [resetSuccess, setResetSuccess] = useState('');
   const [formError, setFormError] = useState('');
 
   const isAdmin = currentUser?.role === 'admin';
@@ -109,6 +114,40 @@ export default function EmployeeManagementPage() {
     setIsModalOpen(false);
     setEditingUser(null);
     setFormError('');
+  };
+
+  const handleOpenResetPasswordModal = (user: UserType) => {
+    setUserToResetPassword(user);
+    setNewPassword('');
+    setResetError('');
+    setResetSuccess('');
+  };
+
+  const handleCloseResetPasswordModal = () => {
+    setUserToResetPassword(null);
+    setNewPassword('');
+    setResetError('');
+    setResetSuccess('');
+  };
+
+  const handleResetPasswordConfirm = async () => {
+    if (!userToResetPassword) return;
+
+    const pwd = newPassword.trim();
+    if (pwd.length < 8) {
+      setResetError('รหัสผ่านใหม่ต้องมีอย่างน้อย 8 ตัวอักษร');
+      return;
+    }
+
+    const result = await resetPassword(userToResetPassword.id, pwd);
+    if (result.success) {
+      setResetSuccess('รีเซ็ตรหัสผ่านสำเร็จเรียบร้อยแล้ว');
+      setTimeout(() => {
+        handleCloseResetPasswordModal();
+      }, 1500);
+    } else {
+      setResetError(result.error || 'รีเซ็ตรหัสผ่านไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
+    }
   };
 
   const handleOpenModal = (user?: UserType) => {
@@ -306,6 +345,14 @@ export default function EmployeeManagementPage() {
                         {canManage ? (
                           <div className="flex items-center justify-end gap-1">
                             <button
+                              onClick={() => handleOpenResetPasswordModal(employee)}
+                              className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                              title={`รีเซ็ตรหัสผ่าน ${employee.full_name}`}
+                              aria-label={`Reset password for ${employee.full_name}`}
+                            >
+                              <KeyRound className="w-4 h-4" />
+                            </button>
+                            <button
                               onClick={() => handleOpenModal(employee)}
                               className="p-1.5 text-slate-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
                               title={`แก้ไขข้อมูล ${employee.full_name}`}
@@ -403,6 +450,14 @@ export default function EmployeeManagementPage() {
                       <td className="px-6 py-4 text-right">
                         {canManage ? (
                           <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={() => handleOpenResetPasswordModal(employee)}
+                              className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                              title={`รีเซ็ตรหัสผ่าน ${employee.full_name}`}
+                              aria-label={`Reset password for ${employee.full_name}`}
+                            >
+                              <KeyRound className="w-4 h-4" />
+                            </button>
                             <button
                               onClick={() => handleOpenModal(employee)}
                               className="p-1.5 text-slate-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
@@ -563,6 +618,72 @@ export default function EmployeeManagementPage() {
             >
               ยืนยันการลบถาวร
             </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Reset Password Modal */}
+      <Modal
+        isOpen={!!userToResetPassword}
+        onClose={handleCloseResetPasswordModal}
+        title="รีเซ็ตรหัสผ่านพนักงาน"
+      >
+        <div className="space-y-4">
+          <div className="p-4 rounded-2xl bg-amber-50 border border-amber-100 flex items-start gap-3">
+            <div className="shrink-0 w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-700">
+              <KeyRound className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-amber-900">เปลี่ยนรหัสผ่านสำหรับล็อกอิน</p>
+              <p className="text-xs text-amber-700 mt-0.5">
+                บัญชีของ <span className="font-bold">{userToResetPassword?.full_name}</span> ({userToResetPassword?.email})
+              </p>
+            </div>
+          </div>
+
+          <Input
+            id="new-pwd"
+            label="รหัสผ่านใหม่ (อย่างน้อย 8 ตัวอักษร)"
+            type="password"
+            placeholder="กรอกรหัสผ่านใหม่ที่ต้องการตั้งค่า"
+            value={newPassword}
+            onChange={(event) => {
+              setNewPassword(event.target.value);
+              setResetError('');
+            }}
+          />
+
+          {resetError && (
+            <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {resetError}
+            </div>
+          )}
+
+          {resetSuccess && (
+            <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+              {resetSuccess}
+            </div>
+          )}
+
+          <div className="flex gap-3 pt-4">
+            <Button
+              variant="secondary"
+              fullWidth
+              onClick={handleCloseResetPasswordModal}
+              disabled={isLoading}
+            >
+              {resetSuccess ? 'ปิด' : 'ยกเลิก'}
+            </Button>
+            {!resetSuccess && (
+              <Button
+                variant="primary"
+                fullWidth
+                onClick={handleResetPasswordConfirm}
+                loading={isLoading}
+              >
+                ยืนยันการตั้งรหัสผ่านใหม่
+              </Button>
+            )}
           </div>
         </div>
       </Modal>
