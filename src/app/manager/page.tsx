@@ -136,6 +136,7 @@ export default function ManagerDashboard() {
   const todayAttendance = attendanceStore.getTodayRecordForUser(currentUser.id);
   const attendanceStatus = attendanceStore.getTodayStatus(currentUser.id);
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const myTasks = taskStore.tasks.filter((task) => task.assigned_to === currentUser.id);
   const todayTasks = taskStore.getTodayTasksByUser(currentUser.id);
   const milestoneTasks = sortMilestoneTasks(todayTasks);

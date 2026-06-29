@@ -1,20 +1,18 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { 
-  Bell, Shield, Save, Smartphone, Globe, Coins
+  Bell, Shield, Save, Smartphone, Globe
 } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
-import { useHrStore } from '@/store/hrStore';
+
 
 export default function SettingsPage() {
   const [appName, setAppName] = useState('PS Rice');
   const currentUser = useAuthStore(state => state.currentUser);
-  const getBranchPolicy = useHrStore(state => state.getBranchPolicy);
-  const upsertBranchPolicy = useHrStore(state => state.upsertBranchPolicy);
 
   const [isSaving, setIsSaving] = useState(false);
   

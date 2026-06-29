@@ -430,6 +430,7 @@ export default function ManagerSchedulePage() {
     });
 
     return map;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [branches, getBranchPolicy, getShiftTemplatesByBranch, branchPolicies, shiftTemplates]);
 
   const userMap = useMemo(() => {

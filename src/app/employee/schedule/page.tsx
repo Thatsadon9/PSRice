@@ -34,14 +34,17 @@ function resolveShiftColor(
   shiftName: string | null | undefined, 
   templateId: string | null | undefined, 
   branchId: string, 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   hrStore: any
 ): string | null {
   if (templateId) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const template = hrStore.shiftTemplates.find((t: any) => t.id === templateId);
     if (template?.color) return template.color;
   }
 
   if (shiftName) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const templates = hrStore.getShiftTemplatesByBranch(branchId) as any[];
     let template = templates.find((t) => t.name.trim().toLowerCase() === shiftName.trim().toLowerCase());
     

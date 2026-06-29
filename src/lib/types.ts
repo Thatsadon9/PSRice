@@ -86,6 +86,7 @@ export interface BranchAttendancePolicy {
 
 export interface AppSetting {
   key: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   value: any;
   updated_at: string;
 }

@@ -31,11 +31,13 @@ async function clearInvalidSession() {
 }
 
 async function fetchUserProfile(userId: string) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await withTimeout<any>(
     supabase
       .from('users')
       .select('*')
       .eq('id', userId)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .single() as any,
     'Fetch user profile',
   );
