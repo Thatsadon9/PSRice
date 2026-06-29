@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Mail, Lock, AlertCircle } from "lucide-react";
 import { useAuthStore } from "@/store/authStore";
+import { getLandingPath } from "@/lib/viewMode";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Modal from "@/components/ui/Modal";
@@ -27,8 +28,8 @@ export default function LoginPage() {
     const result = await login(email, password);
 
     if (result.success) {
-      const user = useAuthStore.getState().currentUser;
-      router.push(user?.role === "employee" ? "/employee" : "/manager");
+      const { currentUser, adminViewMode } = useAuthStore.getState();
+      router.push(getLandingPath(currentUser, adminViewMode));
     } else {
       setAuthAlert(result.message || "อีเมลหรือรหัสผ่านไม่ถูกต้อง");
     }
