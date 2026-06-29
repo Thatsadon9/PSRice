@@ -45,7 +45,7 @@ export default function Badge({
   return (
     <span
       className={`
-        inline-flex shrink-0 items-center gap-1.5 rounded-full font-medium leading-none whitespace-nowrap
+        inline-flex max-w-full shrink-0 items-center gap-1.5 rounded-full font-medium leading-none
         ${variantClasses[variant]}
         ${sizeClasses[size]}
         ${className}
@@ -55,7 +55,7 @@ export default function Badge({
       {dot && (
         <span className={`w-1.5 h-1.5 rounded-full ${dotColors[variant]}`} />
       )}
-      {children}
+      <span className="truncate">{children}</span>
     </span>
   );
 }

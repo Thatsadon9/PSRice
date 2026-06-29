@@ -27,8 +27,8 @@ export default function Select({
         id={id}
         aria-invalid={Boolean(error)}
         className={`
-          w-full min-h-11 rounded-xl border border-slate-300 bg-white shadow-sm
-          px-3 py-2.5 pr-10 text-base leading-tight text-slate-900 sm:text-sm
+          w-full min-h-10 rounded-xl border border-slate-300 bg-white
+          px-3 py-2 pr-10 text-base leading-tight text-slate-900 shadow-sm sm:text-sm
           focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500
           disabled:bg-slate-50 disabled:text-slate-500
           transition-colors duration-150 appearance-none
