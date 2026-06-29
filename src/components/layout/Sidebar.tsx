@@ -1,5 +1,6 @@
 'use client';
 
+import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -30,9 +31,10 @@ interface SidebarProps {
   items: NavItem[];
   isOpen: boolean;
   onClose: () => void;
+  onOpen?: () => void;
 }
 
-export default function Sidebar({ items, isOpen, onClose }: SidebarProps) {
+export default function Sidebar({ items, isOpen, onClose, onOpen }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { currentUser, logout } = useAuthStore();
@@ -45,25 +47,49 @@ export default function Sidebar({ items, isOpen, onClose }: SidebarProps) {
     router.push('/login');
   };
 
+  const x = useMotionValue(isOpen ? 0 : -288);
+  const bgOpacity = useTransform(x, [-288, 0], [0, 0.4]);
+
   return (
     <>
       {/* Mobile overlay */}
-      {isOpen && (
-        <div
-          className="fixed inset-0 bg-black/40 z-40 lg:hidden"
-          onClick={onClose}
-        />
-      )}
+      <motion.div
+        className="fixed inset-0 bg-black z-40 lg:hidden"
+        style={{ 
+          opacity: bgOpacity,
+          pointerEvents: isOpen ? 'auto' : 'none'
+        }}
+        onClick={onClose}
+      />
 
       {/* Sidebar */}
-      <aside
+      <motion.aside
+        style={{ x }}
+        drag="x"
+        dragDirectionLock
+        dragConstraints={{ left: -288, right: 0 }}
+        dragElastic={0}
+        onDragEnd={(e, info) => {
+          if (isOpen) {
+            if (info.offset.x < -30 || info.velocity.x < -300) {
+              onClose();
+            }
+          } else {
+            if (info.offset.x > 30 || info.velocity.x > 300) {
+              onOpen?.();
+            }
+          }
+        }}
+        initial={false}
+        animate={{ x: isOpen ? 0 : -288 }}
+        transition={{ type: 'spring', bounce: 0, duration: 0.3 }}
         className={`
           fixed top-0 left-0 bottom-0 z-50 flex w-72 flex-col border-r border-slate-200 bg-white
-          transform transition-transform duration-200 ease-out
-          lg:translate-x-0 lg:static lg:z-auto
-          ${isOpen ? 'translate-x-0' : '-translate-x-full'}
+          lg:static lg:!transform-none lg:z-auto touch-pan-y
         `}
       >
+        {/* Invisible edge drag handle to pull out the sidebar */}
+        <div className="absolute top-0 -right-4 bottom-0 w-4 bg-transparent lg:hidden touch-pan-y" />
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
           <div className="flex min-w-0 items-center gap-2.5">
@@ -138,7 +164,7 @@ export default function Sidebar({ items, isOpen, onClose }: SidebarProps) {
           </button>
           <p className="text-[10px] text-slate-400 font-medium text-center">PS Rice v1.0</p>
         </div>
-      </aside>
+      </motion.aside>
     </>
   );
 }

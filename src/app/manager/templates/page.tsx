@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { useTaskStore } from '@/store/taskStore';
 import { useAuthStore } from '@/store/authStore';
 import { useBranchStore } from '@/store/branchStore';
+import { useEmployeeStore } from '@/store/employeeStore';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
@@ -22,6 +23,9 @@ import {
 import { PRIORITY_LABELS, PROOF_TYPE_LABELS, RECURRENCE_LABELS } from '@/lib/constants';
 import type { TaskTemplate, Priority, ProofType, RecurrenceType } from '@/lib/types';
 
+const ALL_BRANCH_ID = '__all_branches__';
+const ALL_BRANCH_LABEL = 'ทุกสาขา';
+
 type TemplateFormData = {
   title: string;
   description: string;
@@ -30,6 +34,7 @@ type TemplateFormData = {
   recurrence_rule: RecurrenceType;
   requires_approval: boolean;
   branch_id: string;
+  assigned_to: string;
   reward_amount: string;
 };
 
@@ -42,6 +47,7 @@ function createEmptyTemplate(branchId: string): TemplateFormData {
     recurrence_rule: 'daily',
     requires_approval: true,
     branch_id: branchId,
+    assigned_to: '',
     reward_amount: '',
   };
 }
@@ -54,6 +60,7 @@ export default function TemplateManagementPage() {
   const currentUser = useAuthStore((state) => state.currentUser);
   const branches = useBranchStore((state) => state.branches);
   const getBranchById = useBranchStore((state) => state.getBranchById);
+  const users = useEmployeeStore((state) => state.users);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<TaskTemplate | null>(null);
@@ -74,19 +81,52 @@ export default function TemplateManagementPage() {
     return branches;
   }, [branches, currentUser]);
 
+  const canUseAllBranches = currentUser?.role === 'admin';
   const fallbackBranchId = currentUser?.branch_id || accessibleBranches[0]?.id || '';
-  const activeBranchId = currentUser?.role === 'manager' ? fallbackBranchId : selectedBranchId || fallbackBranchId;
+  const activeBranchId = currentUser?.role === 'manager'
+    ? fallbackBranchId
+    : selectedBranchId || (canUseAllBranches ? ALL_BRANCH_ID : fallbackBranchId);
+  const isAllBranchesView = activeBranchId === ALL_BRANCH_ID;
 
   const [formData, setFormData] = useState<TemplateFormData>(() => createEmptyTemplate(fallbackBranchId));
 
   const visibleTemplates = useMemo(() => {
-    return templates.filter((template) => !activeBranchId || template.branch_id === activeBranchId);
-  }, [activeBranchId, templates]);
+    if (isAllBranchesView) {
+      return templates;
+    }
+
+    return templates.filter((template) => template.branch_id === activeBranchId);
+  }, [activeBranchId, isAllBranchesView, templates]);
 
   const priorityOptions = Object.entries(PRIORITY_LABELS).map(([value, label]) => ({ value, label }));
   const proofOptions = Object.entries(PROOF_TYPE_LABELS).map(([value, label]) => ({ value, label }));
   const recurrenceOptions = Object.entries(RECURRENCE_LABELS).map(([value, label]) => ({ value, label }));
   const branchOptions = accessibleBranches.map((branch) => ({ value: branch.id, label: branch.name }));
+  const branchFilterOptions = canUseAllBranches
+    ? [{ value: ALL_BRANCH_ID, label: ALL_BRANCH_LABEL }, ...branchOptions]
+    : branchOptions;
+  const templateBranchOptions = editingTemplate?.is_system
+    ? [{ value: ALL_BRANCH_ID, label: ALL_BRANCH_LABEL }, ...branchOptions]
+    : branchOptions;
+  const employeeOptions = users
+    .filter((user) => user.role === 'employee' && user.status === 'active' && user.branch_id === formData.branch_id)
+    .map((user) => ({ value: user.id, label: user.full_name }));
+
+  const getAssigneeName = (userId?: string | null) => {
+    if (!userId) {
+      return null;
+    }
+
+    return users.find((user) => user.id === userId)?.full_name || null;
+  };
+
+  const getTemplateBranchLabel = (template: TaskTemplate) => {
+    if (!template.branch_id) {
+      return ALL_BRANCH_LABEL;
+    }
+
+    return getBranchById(template.branch_id)?.name || '-';
+  };
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
@@ -108,13 +148,14 @@ export default function TemplateManagementPage() {
         proof_type_required: template.proof_type_required,
         recurrence_rule: template.recurrence_rule,
         requires_approval: template.requires_approval,
-        branch_id: template.branch_id,
+        branch_id: template.branch_id || ALL_BRANCH_ID,
+        assigned_to: template.assigned_to || '',
         reward_amount: template.reward_amount ? String(template.reward_amount) : '',
       });
       setChecklistItems(template.checklist_json?.map((item) => ({ id: item.id, label: item.label })) || []);
     } else {
       setEditingTemplate(null);
-      setFormData(createEmptyTemplate(activeBranchId));
+      setFormData(createEmptyTemplate(isAllBranchesView ? fallbackBranchId : activeBranchId));
       setChecklistItems([]);
     }
 
@@ -147,8 +188,23 @@ export default function TemplateManagementPage() {
       return;
     }
 
-    if (!formData.branch_id) {
+    const isSystemTemplate = editingTemplate?.is_system === true;
+    const isGlobalSystemTemplate = isSystemTemplate && formData.branch_id === ALL_BRANCH_ID;
+
+    if (!formData.branch_id || (!isGlobalSystemTemplate && formData.branch_id === ALL_BRANCH_ID)) {
       setFormError('กรุณาเลือกสาขาที่เป็นเจ้าของต้นแบบ');
+      return;
+    }
+
+    const assignee = users.find((user) => user.id === formData.assigned_to);
+
+    if (!isSystemTemplate && (!assignee || assignee.role !== 'employee' || assignee.status !== 'active')) {
+      setFormError('กรุณาเลือกพนักงานที่จะรับงานนี้');
+      return;
+    }
+
+    if (assignee && assignee.branch_id !== formData.branch_id) {
+      setFormError('พนักงานที่เลือกต้องอยู่ในสาขาเดียวกับต้นแบบงาน');
       return;
     }
 
@@ -156,6 +212,8 @@ export default function TemplateManagementPage() {
       ...formData,
       title,
       description,
+      branch_id: isGlobalSystemTemplate ? null : formData.branch_id,
+      assigned_to: isSystemTemplate ? null : formData.assigned_to,
       reward_amount: formData.reward_amount === '' ? null : Number(formData.reward_amount),
       checklist_json: checklistItems.map((item) => ({
         id: item.id,
@@ -190,15 +248,15 @@ export default function TemplateManagementPage() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
           <Select
             label="สาขา"
-            options={branchOptions}
+            options={branchFilterOptions}
             value={activeBranchId}
             onChange={(event) => setSelectedBranchId(event.target.value)}
-            disabled={currentUser.role === 'manager' || branchOptions.length === 0}
+            disabled={currentUser.role === 'manager' || branchFilterOptions.length === 0}
           />
           <Button
             onClick={() => handleOpenModal()}
             icon={<Plus className="w-4 h-4" />}
-            disabled={!activeBranchId}
+            disabled={!fallbackBranchId}
           >
             สร้างต้นแบบใหม่
           </Button>
@@ -257,7 +315,14 @@ export default function TemplateManagementPage() {
                   {PRIORITY_LABELS[template.priority]}
                 </Badge>
                 <Badge variant="slate">{RECURRENCE_LABELS[template.recurrence_rule]}</Badge>
-                <Badge variant="default">{getBranchById(template.branch_id)?.name || '-'}</Badge>
+                <Badge variant="default">{getTemplateBranchLabel(template)}</Badge>
+                <Badge variant={template.is_system ? 'success' : template.assigned_to ? 'info' : 'warning'}>
+                  {template.is_system
+                    ? template.branch_id
+                      ? 'ระบบทั้งสาขา'
+                      : 'ระบบทุกสาขา'
+                    : getAssigneeName(template.assigned_to) || 'ยังไม่เลือกพนักงาน'}
+                </Badge>
                 <Badge variant="success" dot={template.requires_approval}>
                   {template.requires_approval ? 'ต้องอนุมัติ' : 'ไม่ต้องอนุมัติ'}
                 </Badge>
@@ -306,10 +371,27 @@ export default function TemplateManagementPage() {
 
           <Select
             label="สาขาเจ้าของต้นแบบ"
-            options={branchOptions}
+            options={templateBranchOptions}
             value={formData.branch_id}
-            onChange={(event) => setFormData({ ...formData, branch_id: event.target.value })}
-            disabled={currentUser.role === 'manager'}
+            onChange={(event) => setFormData({ ...formData, branch_id: event.target.value, assigned_to: '' })}
+            disabled={currentUser.role === 'manager' || editingTemplate?.is_system}
+          />
+
+          <Select
+            label="มอบหมายให้"
+            options={employeeOptions}
+            placeholder={
+              editingTemplate?.is_system
+                ? formData.branch_id === ALL_BRANCH_ID
+                  ? 'งานระบบใช้ทุกสาขา'
+                  : 'งานระบบใช้ทั้งสาขา'
+                : employeeOptions.length > 0
+                  ? 'เลือกพนักงาน'
+                  : 'ไม่มีพนักงานในสาขานี้'
+            }
+            value={formData.assigned_to}
+            onChange={(event) => setFormData({ ...formData, assigned_to: event.target.value })}
+            disabled={editingTemplate?.is_system || !formData.branch_id || employeeOptions.length === 0}
           />
 
           <div className="grid grid-cols-2 gap-4">
