@@ -13,6 +13,7 @@ import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import Input, { TextArea } from '@/components/ui/Input';
 import Modal from '@/components/ui/Modal';
+import { Page, PageHeader } from '@/components/ui/Page';
 import Select from '@/components/ui/Select';
 import Tabs from '@/components/ui/Tabs';
 import { useAuthStore } from '@/store/authStore';
@@ -201,11 +202,11 @@ export default function ManagerRequestsPage() {
   const isModalOpen = Boolean(selectedRequest || selectedRegistration);
 
   return (
-    <div className="space-y-6 animate-fade-in pb-10">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">คำขอและอนุมัติ</h1>
-        <p className="text-sm text-slate-500 mt-1">รวมคำขอของพนักงานและคำขอสมัครใช้งานใหม่ไว้ในหน้าจัดการเดียว</p>
-      </div>
+    <Page maxWidth="xl" className="space-y-6">
+      <PageHeader
+        title="คำขอและอนุมัติ"
+        description="รวมคำขอของพนักงานและคำขอสมัครใช้งานใหม่ไว้ในหน้าจัดการเดียว"
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="bg-amber-50 border-amber-100">
@@ -473,6 +474,6 @@ export default function ManagerRequestsPage() {
           </div>
         )}
       </Modal>
-    </div>
+    </Page>
   );
 }
