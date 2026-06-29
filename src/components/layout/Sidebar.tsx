@@ -1,6 +1,6 @@
 'use client';
 
-import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
+import { motion, useMotionValue, useTransform } from 'framer-motion';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
