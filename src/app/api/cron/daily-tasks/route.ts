@@ -73,11 +73,11 @@ async function handleDailyTasks(targetBranchId: string | null = null) {
     const { data: policies, error: policiesError } = await branchPoliciesQuery;
     if (policiesError) throw policiesError;
 
-    const policiesMap: Record<string, number> = {};
+    const policiesMap: Record<string, number | null> = {};
     for (const policy of policies || []) {
       const usesDefaultReward = policy.use_default_check_in_reward !== false;
       policiesMap[policy.branch_id] = usesDefaultReward
-        ? defaultCheckInReward
+        ? null
         : normalizeRewardAmount(policy.check_in_reward, defaultCheckInReward);
     }
 
@@ -247,7 +247,7 @@ async function handleDailyTasks(targetBranchId: string | null = null) {
         if (!existingSet.has(signature)) {
           // This employee doesn't have this daily task yet
           const rewardAmount = isCheckInTask
-            ? policiesMap[assignedUser.branch_id] ?? defaultCheckInReward
+            ? (policiesMap[assignedUser.branch_id] ?? template.reward_amount ?? defaultCheckInReward)
             : template.reward_amount;
 
           newTasks.push({
