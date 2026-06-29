@@ -237,7 +237,7 @@ export default function PayrollPage() {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-100 pb-8">
         <div className="space-y-2">
           <div className="flex items-center gap-3">
-             <div className="h-12 w-12 rounded-2xl bg-slate-900 flex items-center justify-center text-primary-400 shadow-xl shadow-slate-200">
+             <div className="h-12 w-12 rounded-2xl bg-slate-900 flex items-center justify-center text-primary-400 shadow-sm shadow-slate-200">
                 <Calculator className="w-6 h-6 fill-primary-400/20" />
              </div>
              <div>
@@ -247,7 +247,7 @@ export default function PayrollPage() {
           </div>
         </div>
         
-        <div className="flex flex-wrap items-center gap-3 bg-white p-2 rounded-[2rem] md:rounded-full border border-slate-100 shadow-sm self-start md:self-auto">
+        <div className="flex flex-wrap items-center gap-3 bg-white p-2 rounded-2xl md:rounded-full border border-slate-100 shadow-sm self-start md:self-auto">
           <div className="flex items-center gap-2 px-4 border-r border-slate-100 mr-2">
              <div className="flex bg-slate-100 p-1 rounded-full">
                 <button 
@@ -299,7 +299,7 @@ export default function PayrollPage() {
       </div>
 
       {!schemaReady && (
-        <Card statusColor="amber" className="bg-amber-50/60 border-amber-100 rounded-[2rem]">
+        <Card statusColor="amber" className="bg-amber-50/60 border-amber-100 rounded-2xl">
           <div className="flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5" />
             <div>
@@ -315,7 +315,7 @@ export default function PayrollPage() {
         
         {/* Left Column: Configuration Sidebar */}
         <div className="xl:col-span-3 space-y-6 sticky top-24 min-w-0">
-          <Card className="rounded-[2.5rem] border-slate-100 shadow-sm p-6">
+          <Card className="rounded-2xl border-slate-100 shadow-sm p-6">
             <div className="flex items-center gap-3 mb-6">
                <div className="p-2.5 bg-primary-50 text-primary-600 rounded-xl">
                  <WalletCards className="w-5 h-5" />
@@ -355,11 +355,11 @@ export default function PayrollPage() {
                 </div>
               </div>
 
-              <Button fullWidth className="h-14 rounded-2xl shadow-xl shadow-primary-900/10 transition-all active:scale-95" onClick={() => void handleSaveProfile()} loading={saving} icon={<Save className="w-4 h-4 ml-2" />}>ปรับใช้อัตราค่าแรง</Button>
+              <Button fullWidth className="h-14 rounded-2xl shadow-sm shadow-primary-900/10 transition-all active:scale-95" onClick={() => void handleSaveProfile()} loading={saving} icon={<Save className="w-4 h-4 ml-2" />}>ปรับใช้อัตราค่าแรง</Button>
             </div>
           </Card>
           
-          <div className="p-5 rounded-[2rem] bg-slate-900 text-white shadow-2xl space-y-3">
+          <div className="p-5 rounded-2xl bg-slate-900 text-white shadow-lg space-y-3">
              <div className="flex items-center gap-2 mb-2">
                 <div className="h-2 w-2 rounded-full bg-primary-400 animate-pulse" />
                  <span className="text-[9px] font-black uppercase tracking-widest text-primary-400">เกณฑ์การคำนวณ</span>
@@ -375,8 +375,8 @@ export default function PayrollPage() {
           
           {/* Dashboard Summary Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="group p-8 rounded-[2.5rem] bg-white border border-slate-100 shadow-sm transition-all hover:shadow-xl hover:-translate-y-1">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">
+            <div className="group p-8 rounded-2xl bg-white border border-slate-100 shadow-sm transition-all hover:shadow-sm hover:-translate-y-1">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-wide mb-4">
                 {viewMode === 'overview' ? 'ยอดรวมสาขาก่อนหัก' : 'ยอดรวมพนักงานก่อนหัก'}
               </p>
               <div className="flex items-end justify-between">
@@ -397,9 +397,9 @@ export default function PayrollPage() {
               </div>
             </div>
 
-            <div className="p-8 rounded-[2.5rem] bg-emerald-600 shadow-2xl shadow-emerald-900/10 text-white relative overflow-hidden group">
-              <div className="absolute right-0 top-0 translate-x-1/4 -translate-y-1/4 h-32 w-32 bg-white/10 rounded-full blur-3xl" />
-              <p className="text-[10px] font-black text-emerald-100 uppercase tracking-[0.2em] mb-4">
+            <div className="p-8 rounded-2xl bg-emerald-600 shadow-lg shadow-emerald-900/10 text-white relative overflow-hidden group">
+              <div className="absolute right-0 top-0 translate-x-1/4 -translate-y-1/4 h-32 w-32 bg-white/10 rounded-full " />
+              <p className="text-[10px] font-black text-emerald-100 uppercase tracking-wide mb-4">
                 {viewMode === 'overview' ? 'ค่า OT รวมสาขา' : 'ค่าทำงานล่วงเวลา (OT)'}
               </p>
               <div className="flex items-end justify-between relative z-10">
@@ -417,8 +417,8 @@ export default function PayrollPage() {
               </div>
             </div>
 
-            <div className="p-8 rounded-[2.5rem] bg-slate-900 shadow-2xl shadow-slate-900/20 text-white group">
-              <p className="text-[10px] font-black text-primary-400 uppercase tracking-[0.2em] mb-4">
+            <div className="p-8 rounded-2xl bg-slate-900 shadow-lg shadow-slate-900/20 text-white group">
+              <p className="text-[10px] font-black text-primary-400 uppercase tracking-wide mb-4">
                 {viewMode === 'overview' ? 'ยอดจ่ายสุทธิรวม' : 'ยอดจ่ายสุทธิ'}
               </p>
               <div className="flex items-end justify-between">
@@ -442,7 +442,7 @@ export default function PayrollPage() {
 
           {viewMode === 'overview' ? (
             <div className="space-y-6 animate-in slide-in-from-right-4 duration-500">
-               <Card className="rounded-[2.5rem] border-slate-100 shadow-sm overflow-hidden p-0">
+               <Card className="rounded-2xl border-slate-100 shadow-sm overflow-hidden p-0">
                   <div className="p-8 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-50/30">
                      <div className="space-y-1">
                         <h2 className="text-xl font-black text-slate-900">รายการค่าแรงรวมทั้งสาขา</h2>
@@ -463,7 +463,7 @@ export default function PayrollPage() {
                   <div className="overflow-x-auto">
                      <table className="w-full text-left min-w-[1200px]">
                         <thead>
-                           <tr className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 bg-slate-50/50">
+                           <tr className="text-[10px] font-black uppercase tracking-wide text-slate-400 bg-slate-50/50">
                               <th className="px-8 py-5">พนักงาน</th>
                               <th className="px-6 py-5">ประเภท / เรท</th>
                               <th className="px-6 py-5">มา / ขาด / สาย</th>
@@ -563,7 +563,7 @@ export default function PayrollPage() {
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in slide-in-from-left-4 duration-500">
                {/* ข้อมูลการทำงาน (Automated Metrics) */}
-               <Card className="rounded-[2.5rem] p-8 border-slate-100 shadow-sm relative overflow-hidden">
+               <Card className="rounded-2xl p-8 border-slate-100 shadow-sm relative overflow-hidden">
                  <div className="flex items-center justify-between mb-8">
                    <div className="flex items-center gap-3">
                      <div className="p-3 bg-primary-50 text-primary-600 rounded-2xl">
@@ -609,7 +609,7 @@ export default function PayrollPage() {
                </Card>
 
                {/* รายการปรับปรุง (Adjustment Ledger) */}
-               <Card className="rounded-[2.5rem] p-8 border-slate-100 shadow-sm flex flex-col">
+               <Card className="rounded-2xl p-8 border-slate-100 shadow-sm flex flex-col">
                  <div className="flex items-center justify-between mb-8">
                    <div className="flex items-center gap-3">
                      <div className="p-3 bg-primary-900 text-white rounded-2xl">
@@ -671,7 +671,7 @@ export default function PayrollPage() {
                </Card>
                
                <div className="lg:col-span-2">
-                 <Card className="rounded-[3rem] border-slate-100 shadow-sm overflow-hidden p-0">
+                 <Card className="rounded-2xl border-slate-100 shadow-sm overflow-hidden p-0">
                    <div className="p-8 border-b border-slate-50 flex items-center justify-between bg-slate-50/30">
                      <div className="space-y-1">
                         <h2 className="text-xl font-black text-slate-900">รายละเอียดรายวัน</h2>
@@ -684,7 +684,7 @@ export default function PayrollPage() {
                      <div className="overflow-x-auto">
                        <table className="w-full text-left min-w-[1000px]">
                          <thead>
-                           <tr className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 bg-slate-50/50">
+                           <tr className="text-[10px] font-black uppercase tracking-wide text-slate-400 bg-slate-50/50">
                              <th className="px-8 py-5">วันที่ทำงาน</th>
                              <th className="px-6 py-5">กะงานที่ได้รับ</th>
                              <th className="px-6 py-5">บันทึกเวลา (เข้า/ออก)</th>

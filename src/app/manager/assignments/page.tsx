@@ -1,7 +1,7 @@
 'use client';
 /* eslint-disable @next/next/no-img-element */
 
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useTaskStore } from '@/store/taskStore';
 import { useEmployeeStore } from '@/store/employeeStore';
 import { useBranchStore } from '@/store/branchStore';
@@ -144,7 +144,7 @@ export default function AssignmentsPage() {
       <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-6 border-b border-slate-100 pb-8">
         <div className="space-y-4">
           <div className="flex items-center gap-5">
-             <div className="h-16 w-16 rounded-[2rem] bg-slate-900 flex items-center justify-center text-primary-400 shadow-2xl shadow-slate-200 ring-4 ring-slate-50">
+             <div className="h-16 w-16 rounded-2xl bg-slate-900 flex items-center justify-center text-primary-400 shadow-lg shadow-slate-200 ring-4 ring-slate-50">
                 <ClipboardList className="w-8 h-8 fill-primary-400/20" />
              </div>
              <div>
@@ -156,7 +156,7 @@ export default function AssignmentsPage() {
           </div>
         </div>
         
-        <div className="flex flex-wrap items-center gap-3 bg-white p-2 rounded-[2.5rem] border border-slate-100 shadow-sm">
+        <div className="flex flex-wrap items-center gap-3 bg-white p-2 rounded-2xl border border-slate-100 shadow-sm">
           <div className="hidden sm:flex items-center gap-6 px-8 border-r border-slate-100">
              <div>
                 <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest leading-none mb-2 text-right sm:text-left">สถานะคิวงาน</p>
@@ -166,7 +166,7 @@ export default function AssignmentsPage() {
              </div>
 
           </div>
-          <Button onClick={() => setIsModalOpen(true)} className="h-12 px-8 rounded-full shadow-xl shadow-primary-900/10 active:scale-95" icon={<Plus className="w-4 h-4 mr-2" />}>
+          <Button onClick={() => setIsModalOpen(true)} className="h-12 px-8 rounded-full shadow-sm shadow-primary-900/10 active:scale-95" icon={<Plus className="w-4 h-4 mr-2" />}>
             มอบหมายงานใหม่
           </Button>
         </div>
@@ -177,19 +177,19 @@ export default function AssignmentsPage() {
         <div className="xl:col-span-3 space-y-6 lg:sticky lg:top-24">
 
            {/* Priority Snapshot */}
-           <Card className="rounded-[2.5rem] border-slate-100 shadow-xl shadow-slate-200/50 p-8 bg-white space-y-8">
+           <Card className="rounded-2xl border-slate-100 shadow-sm shadow-slate-200/50 p-8 bg-white space-y-8">
               <div className="flex items-center justify-between">
                  <div className="flex items-center gap-3">
                     <div className="p-3 bg-slate-100 text-slate-900 rounded-2xl">
                        <CalendarCheck className="w-5 h-5" />
                     </div>
-                    <h2 className="text-xs font-black text-slate-900 uppercase tracking-[0.2em]">สถิติปัจจุบัน</h2>
+                    <h2 className="text-xs font-black text-slate-900 uppercase tracking-wide">สถิติปัจจุบัน</h2>
                  </div>
                  <div className="h-2 w-2 rounded-full bg-primary-500 animate-pulse" />
               </div>
               
               <div className="grid grid-cols-1 gap-4">
-                 <div className="p-6 rounded-[2rem] bg-slate-50 border border-slate-100 group hover:border-red-200 transition-all hover:bg-red-50/30">
+                 <div className="p-6 rounded-2xl bg-slate-50 border border-slate-100 group hover:border-red-200 transition-all hover:bg-red-50/30">
                     <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3 text-right">งานเร่งด่วนรอดำเนินการ</p>
                     <div className="flex items-end justify-between leading-none">
                        <p className="text-4xl font-black text-slate-900 tracking-tighter truncate">
@@ -201,7 +201,7 @@ export default function AssignmentsPage() {
                     </div>
                  </div>
                  
-                 <div className="p-6 rounded-[2rem] bg-slate-50 border border-slate-100 group hover:border-primary-200 transition-all hover:bg-primary-50/30">
+                 <div className="p-6 rounded-2xl bg-slate-50 border border-slate-100 group hover:border-primary-200 transition-all hover:bg-primary-50/30">
                     <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3 text-right">พนักงานที่กำลังทำงาน</p>
                     <div className="flex items-end justify-between leading-none">
                        <p className="text-4xl font-black text-slate-900 tracking-tighter truncate">
@@ -218,7 +218,7 @@ export default function AssignmentsPage() {
 
         {/* Right Aspect: Task Registry */}
         <div className="xl:col-span-9 space-y-8">
-           <Card className="rounded-[3rem] border-slate-100 shadow-sm overflow-hidden p-0" padding="none">
+           <Card className="rounded-2xl border-slate-100 shadow-sm overflow-hidden p-0" padding="none">
               <div className="p-10 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">
                  <div className="absolute top-0 right-0 w-64 h-64 bg-primary-100/30 rounded-full blur-[100px] -mr-32 -mt-32 pointer-events-none" />
                  <div className="relative z-10">
@@ -333,7 +333,7 @@ export default function AssignmentsPage() {
 
       {/* Modernized Assignment Modal */}
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="การมอบหมายงานเชิงปฏิบัติการ">
-        <div className="bg-slate-900 rounded-[2.5rem] p-8 -m-6 mb-6 text-white relative overflow-hidden">
+        <div className="bg-slate-900 rounded-2xl p-8 -m-6 mb-6 text-white relative overflow-hidden">
            <div className="absolute top-0 right-0 p-8 opacity-10">
               <ClipboardList className="w-32 h-32" />
            </div>
@@ -352,7 +352,7 @@ export default function AssignmentsPage() {
 
         {success ? (
           <div className="flex flex-col items-center justify-center py-12 text-center animate-scale-in">
-            <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mb-6 shadow-xl shadow-emerald-900/10">
+            <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mb-6 shadow-sm shadow-emerald-900/10">
               <CheckCircle2 className="w-12 h-12 text-emerald-600" />
             </div>
             <h4 className="text-2xl font-black text-slate-900 uppercase tracking-tight">มอบหมายงานสำเร็จ</h4>
@@ -361,7 +361,7 @@ export default function AssignmentsPage() {
         ) : (
           <div className="space-y-6 pt-4">
             <div className="space-y-2">
-               <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">ที่มาของงาน</label>
+               <label className="text-[10px] font-black text-slate-400 uppercase tracking-wide ml-1">ที่มาของงาน</label>
                <div className="flex gap-4 p-1.5 bg-slate-100 rounded-2xl border border-slate-100">
                  <button 
                    onClick={() => setFormData({...formData, mode: 'template'})}
@@ -465,7 +465,7 @@ export default function AssignmentsPage() {
 
             <div className="space-y-4 pt-4 border-t border-slate-50">
                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">กลุ่มเป้าหมาย</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wide ml-1">กลุ่มเป้าหมาย</label>
                   <div className="flex gap-4 p-1.5 bg-slate-100 rounded-2xl border border-slate-100">
                     <button 
                       onClick={() => setFormData({...formData, target_type: 'employee', target_id: ''})}
@@ -538,7 +538,7 @@ export default function AssignmentsPage() {
             <div className="flex gap-4 pt-6">
               <Button variant="secondary" className="flex-1 h-14 rounded-2xl font-black text-xs uppercase" onClick={() => setIsModalOpen(false)}>ยกเลิก</Button>
               <Button 
-                className="flex-[1.5] h-14 rounded-2xl font-black text-xs uppercase bg-slate-900 shadow-2xl shadow-slate-900/10 active:scale-95"
+                className="flex-[1.5] h-14 rounded-2xl font-black text-xs uppercase bg-slate-900 shadow-lg shadow-slate-900/10 active:scale-95"
                 loading={loading}
                 disabled={formData.mode === 'template' ? (!formData.template_id || !formData.target_id) : (!formData.title || !formData.target_id)}
                 onClick={handleAssign}

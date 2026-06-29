@@ -351,8 +351,6 @@ export default function ManagerSchedulePage() {
   const users = useEmployeeStore((state) => state.users).filter(u => u.status !== 'inactive');
   const getBranchPolicy = useHrStore((state) => state.getBranchPolicy);
   const getShiftTemplatesByBranch = useHrStore((state) => state.getShiftTemplatesByBranch);
-  const branchPolicies = useHrStore((state) => state.branchPolicies);
-  const shiftTemplates = useHrStore((state) => state.shiftTemplates);
   const shiftAssignments = useHrStore((state) => state.shiftAssignments);
   const schemaReady = useHrStore((state) => state.schemaReady);
   const schemaMessage = useHrStore((state) => state.schemaMessage);
@@ -430,7 +428,7 @@ export default function ManagerSchedulePage() {
     });
 
     return map;
-  }, [branches, getBranchPolicy, getShiftTemplatesByBranch, branchPolicies, shiftTemplates]);
+  }, [branches, getBranchPolicy, getShiftTemplatesByBranch]);
 
   const userMap = useMemo(() => {
     return new Map(users.map((user) => [user.id, user]));
@@ -1257,7 +1255,7 @@ export default function ManagerSchedulePage() {
                 คลิกที่เซลล์หรือ Drag ค้างไว้เพื่อเลือกช่วงวันที่ในกะที่ต้องการ ระบบจะรวมพนักงานในสาขานั้นมาให้คุณเลือกทันที
               </p>
             </div>
-            <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full -mr-16 -mt-16 blur-3xl" />
+            <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full -mr-16 -mt-16 " />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -1448,7 +1446,7 @@ export default function ManagerSchedulePage() {
       {/* Beautiful Floating Notification */}
       {notification && (
         <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] animate-slide-up">
-          <div className={`flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl border backdrop-blur-md ${
+          <div className={`flex items-center gap-3 px-6 py-4 rounded-2xl shadow-lg border backdrop-blur-md ${
             notification.type === 'success' 
               ? 'bg-emerald-500/90 text-white border-emerald-400/50' 
               : 'bg-red-500/90 text-white border-red-400/50'
