@@ -16,8 +16,11 @@ import type {
   EmployeeRequest,
   ShiftAssignment,
   ShiftAssignmentStatus,
+  Task,
+  TaskTemplate,
   User,
 } from '@/lib/types';
+import { getMilestoneReward, isAttendanceTask } from '@/lib/taskMilestones';
 
 const DEFAULT_SHIFT_START = '08:30';
 const DEFAULT_SHIFT_END = '17:30';
@@ -81,13 +84,28 @@ export interface PayrollSummary {
   total_worked_minutes: number;
   gross_pay: number;
   ot_pay: number;
+  task_reward: number;
+  attendance_reward: number;
+  expense_reimbursement: number;
   late_deduction: number;
   absence_deduction: number;
   leave_deduction: number;
+  advance_deduction: number;
   manual_bonus: number;
   manual_deduction: number;
+  total_earnings: number;
+  total_deductions: number;
   net_pay: number;
+  money_lines: PayrollMoneyLine[];
   daily_summaries: DailyAttendanceSummary[];
+}
+
+export interface PayrollMoneyLine {
+  id: string;
+  label: string;
+  amount: number;
+  kind: 'earning' | 'deduction';
+  source: 'base' | 'ot' | 'task' | 'attendance' | 'expense' | 'late' | 'absence' | 'leave' | 'advance' | 'manual';
 }
 
 export function normalizeTimeValue(timeValue?: string | null): string {
@@ -161,6 +179,75 @@ function getShiftInterval(shift: ResolvedShiftConfig) {
 
 function formatRecordDate(record: AttendanceRecord) {
   return format(parseISO(record.created_at), 'yyyy-MM-dd');
+}
+
+function formatRecordLikeDate(dateValue?: string | null) {
+  if (!dateValue) {
+    return '';
+  }
+
+  try {
+    return format(parseISO(dateValue), 'yyyy-MM-dd');
+  } catch {
+    return dateValue.slice(0, 10);
+  }
+}
+
+function isDateWithinInclusiveRange(dateValue: string, startDate: string, endDate: string) {
+  return dateValue >= startDate && dateValue <= endDate;
+}
+
+function sumMoneyRequests(params: {
+  requests: EmployeeRequest[];
+  userId: string;
+  requestType: 'advance' | 'expense';
+  startDate: string;
+  endDate: string;
+}) {
+  const { requests, userId, requestType, startDate, endDate } = params;
+
+  return requests.reduce((sum, request) => {
+    if (request.user_id !== userId || request.request_type !== requestType || request.status !== 'approved') {
+      return sum;
+    }
+
+    const effectiveDate = formatRecordLikeDate(request.reviewed_at || request.created_at);
+    if (!isDateWithinInclusiveRange(effectiveDate, startDate, endDate)) {
+      return sum;
+    }
+
+    return sum + Math.max(0, toNumberValue(request.amount, 0));
+  }, 0);
+}
+
+function buildPayrollMoneyLines(params: {
+  grossPay: number;
+  otPay: number;
+  taskReward: number;
+  attendanceReward: number;
+  expenseReimbursement: number;
+  lateDeduction: number;
+  absenceDeduction: number;
+  leaveDeduction: number;
+  advanceDeduction: number;
+  manualBonus: number;
+  manualDeduction: number;
+}) {
+  const rows: PayrollMoneyLine[] = [
+    { id: 'gross-pay', label: 'ค่าจ้างพื้นฐาน', amount: params.grossPay, kind: 'earning', source: 'base' },
+    { id: 'ot-pay', label: 'ค่าล่วงเวลา', amount: params.otPay, kind: 'earning', source: 'ot' },
+    { id: 'attendance-reward', label: 'โบนัสเช็คอิน', amount: params.attendanceReward, kind: 'earning', source: 'attendance' },
+    { id: 'task-reward', label: 'โบนัสงานที่อนุมัติ', amount: params.taskReward, kind: 'earning', source: 'task' },
+    { id: 'expense-reimbursement', label: 'เบิกค่าใช้จ่ายที่อนุมัติ', amount: params.expenseReimbursement, kind: 'earning', source: 'expense' },
+    { id: 'manual-bonus', label: 'โบนัสปรับเพิ่ม', amount: params.manualBonus, kind: 'earning', source: 'manual' },
+    { id: 'late-deduction', label: 'หักเข้างานสาย', amount: params.lateDeduction, kind: 'deduction', source: 'late' },
+    { id: 'absence-deduction', label: 'หักขาดงาน', amount: params.absenceDeduction, kind: 'deduction', source: 'absence' },
+    { id: 'leave-deduction', label: 'หักวันลา', amount: params.leaveDeduction, kind: 'deduction', source: 'leave' },
+    { id: 'advance-deduction', label: 'หักเบิกเงินล่วงหน้า', amount: params.advanceDeduction, kind: 'deduction', source: 'advance' },
+    { id: 'manual-deduction', label: 'รายการหักปรับลด', amount: params.manualDeduction, kind: 'deduction', source: 'manual' },
+  ];
+
+  return rows.filter((row) => row.amount > 0);
 }
 
 export function getAssignmentForUserOnDate(assignments: ShiftAssignment[], userId: string, workDate: string) {
@@ -425,6 +512,8 @@ export function buildPayrollSummary(params: {
   assignments: ShiftAssignment[];
   branchPolicies: BranchAttendancePolicy[];
   requests?: EmployeeRequest[];
+  tasks?: Task[];
+  taskTemplates?: TaskTemplate[];
   compensationProfile?: CompensationProfile | null;
   manualAdjustments?: { bonus: number; deduction: number };
 }) {
@@ -436,6 +525,8 @@ export function buildPayrollSummary(params: {
     assignments,
     branchPolicies,
     requests = [],
+    tasks = [],
+    taskTemplates = [],
     compensationProfile,
     manualAdjustments = { bonus: 0, deduction: 0 },
   } = params;
@@ -470,7 +561,9 @@ export function buildPayrollSummary(params: {
   const payType = compensationProfile?.pay_type || 'daily';
   const baseRate = toNumberValue(compensationProfile?.base_rate, 0);
   const otRate = toNumberValue(compensationProfile?.ot_rate, 0);
-  const lateDeductionRate = toNumberValue(compensationProfile?.late_deduction_rate, 0);
+  const lateDeductionRate = compensationProfile
+    ? toNumberValue(compensationProfile.late_deduction_rate, 1)
+    : 1;
   const absenceDeductionRate = toNumberValue(compensationProfile?.absence_deduction_rate, 0);
   const leaveDeductionRate = toNumberValue(compensationProfile?.leave_deduction_rate, 0);
 
@@ -481,14 +574,69 @@ export function buildPayrollSummary(params: {
       : workedDays * baseRate;
 
   const otPay = (totalOtMinutes / 60) * otRate;
+  const templateById = new Map(taskTemplates.map((template) => [template.id, template]));
+  const approvedTasks = tasks.filter((task) => {
+    if (task.assigned_to !== user.id || task.status !== 'approved') {
+      return false;
+    }
+
+    const taskDate = formatRecordLikeDate(task.due_date || task.created_at);
+    return isDateWithinInclusiveRange(taskDate, startDate, endDate);
+  });
+  const taskRewards = approvedTasks.reduce(
+    (totals, task) => {
+      const template = task.template_id ? templateById.get(task.template_id) : null;
+      const reward = getMilestoneReward(task, template);
+
+      if (isAttendanceTask(task, template)) {
+        totals.attendance += reward;
+      } else {
+        totals.task += reward;
+      }
+
+      return totals;
+    },
+    { task: 0, attendance: 0 },
+  );
+  const taskReward = taskRewards.task;
+  const attendanceReward = taskRewards.attendance;
+  const expenseReimbursement = sumMoneyRequests({
+    requests,
+    userId: user.id,
+    requestType: 'expense',
+    startDate,
+    endDate,
+  });
   const lateDeduction = totalLateMinutes * lateDeductionRate;
   const absenceDeduction = absentDays * absenceDeductionRate;
   const leaveDeduction = leaveDays * leaveDeductionRate;
+  const advanceDeduction = sumMoneyRequests({
+    requests,
+    userId: user.id,
+    requestType: 'advance',
+    startDate,
+    endDate,
+  });
   
   const manualBonus = toNumberValue(manualAdjustments.bonus, 0);
   const manualDeduction = toNumberValue(manualAdjustments.deduction, 0);
 
-  const netPay = grossPay + otPay + manualBonus - lateDeduction - absenceDeduction - leaveDeduction - manualDeduction;
+  const totalEarnings = grossPay + otPay + taskReward + attendanceReward + expenseReimbursement + manualBonus;
+  const totalDeductions = lateDeduction + absenceDeduction + leaveDeduction + advanceDeduction + manualDeduction;
+  const netPay = totalEarnings - totalDeductions;
+  const moneyLines = buildPayrollMoneyLines({
+    grossPay,
+    otPay,
+    taskReward,
+    attendanceReward,
+    expenseReimbursement,
+    lateDeduction,
+    absenceDeduction,
+    leaveDeduction,
+    advanceDeduction,
+    manualBonus,
+    manualDeduction,
+  });
 
   return {
     user_id: user.id,
@@ -506,12 +654,19 @@ export function buildPayrollSummary(params: {
     total_worked_minutes: totalWorkedMinutes,
     gross_pay: grossPay,
     ot_pay: otPay,
+    task_reward: taskReward,
+    attendance_reward: attendanceReward,
+    expense_reimbursement: expenseReimbursement,
     late_deduction: lateDeduction,
     absence_deduction: absenceDeduction,
     leave_deduction: leaveDeduction,
+    advance_deduction: advanceDeduction,
     manual_bonus: manualBonus,
     manual_deduction: manualDeduction,
+    total_earnings: totalEarnings,
+    total_deductions: totalDeductions,
     net_pay: netPay,
+    money_lines: moneyLines,
     daily_summaries: dailySummaries,
   } satisfies PayrollSummary;
 }

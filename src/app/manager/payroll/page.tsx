@@ -11,6 +11,7 @@ import { useAttendanceStore } from '@/store/attendanceStore';
 import { useBranchStore } from '@/store/branchStore';
 import { useEmployeeStore } from '@/store/employeeStore';
 import { useHrStore } from '@/store/hrStore';
+import { useTaskStore } from '@/store/taskStore';
 import { ATTENDANCE_STATUS_LABELS, COMPENSATION_TYPE_LABELS } from '@/lib/constants';
 import { format } from 'date-fns';
 import { exportToCSV } from '@/lib/export';
@@ -37,7 +38,7 @@ function createDefaultForm(): CompensationFormState {
     pay_type: 'daily',
     base_rate: 0,
     ot_rate: 0,
-    late_deduction_rate: 0,
+    late_deduction_rate: 1,
     absence_deduction_rate: 0,
     leave_deduction_rate: 0,
   };
@@ -54,6 +55,7 @@ function formatCurrency(value: number) {
 export default function PayrollPage() {
   const { currentUser } = useAuthStore();
   const attendanceStore = useAttendanceStore();
+  const taskStore = useTaskStore();
   const branchStore = useBranchStore();
   const employeeStore = useEmployeeStore();
   const {
@@ -119,12 +121,9 @@ export default function PayrollPage() {
         records: attendanceStore.records.filter((record) => record.user_id === employee.id),
         assignments: shiftAssignments,
         branchPolicies,
-        requests: employeeRequests.filter(
-          (request) =>
-            request.user_id === employee.id &&
-            request.request_type === 'leave' &&
-            request.status === 'approved',
-        ),
+        requests: employeeRequests.filter((request) => request.user_id === employee.id),
+        tasks: taskStore.tasks.filter((task) => task.assigned_to === employee.id),
+        taskTemplates: taskStore.templates,
         compensationProfile: profile
           ? {
               ...profile,
@@ -139,7 +138,7 @@ export default function PayrollPage() {
         manualAdjustments: adj,
       });
     });
-  }, [branchEmployees, activeEmployeeId, formDrafts, rangeStart, rangeEnd, attendanceStore.records, shiftAssignments, branchPolicies, employeeRequests, getCompensationProfile, manualAdjustments]);
+  }, [branchEmployees, activeEmployeeId, formDrafts, rangeStart, rangeEnd, attendanceStore.records, shiftAssignments, branchPolicies, employeeRequests, taskStore.tasks, taskStore.templates, getCompensationProfile, manualAdjustments]);
 
   const filteredSummaries = useMemo(() => {
     if (!searchQuery) return branchSummaries;
@@ -153,11 +152,12 @@ export default function PayrollPage() {
 
   const branchTotals = useMemo(() => {
     return branchSummaries.reduce((acc, s) => ({
-      gross: acc.gross + s.gross_pay,
-      ot: acc.ot + s.ot_pay,
+      earnings: acc.earnings + s.total_earnings,
+      extra: acc.extra + s.ot_pay + s.task_reward + s.attendance_reward + s.expense_reimbursement + s.manual_bonus,
+      deductions: acc.deductions + s.total_deductions,
       net: acc.net + s.net_pay,
       count: acc.count + 1
-    }), { gross: 0, ot: 0, net: 0, count: 0 });
+    }), { earnings: 0, extra: 0, deductions: 0, net: 0, count: 0 });
   }, [branchSummaries]);
 
   const updateForm = (updates: Partial<CompensationFormState>) => {
@@ -192,7 +192,7 @@ export default function PayrollPage() {
       pay_type: form.pay_type,
       base_rate: toNumberValue(form.base_rate, 0),
       ot_rate: toNumberValue(form.ot_rate, 0),
-      late_deduction_rate: toNumberValue(form.late_deduction_rate, 0),
+      late_deduction_rate: toNumberValue(form.late_deduction_rate, 1),
       absence_deduction_rate: toNumberValue(form.absence_deduction_rate, 0),
       leave_deduction_rate: toNumberValue(form.leave_deduction_rate, 0),
     });
@@ -222,8 +222,12 @@ export default function PayrollPage() {
         'วันที่ขาด': s.absent_days,
         'ระยะเวลาสาย': formatMinutesAsHours(s.total_late_minutes),
         'ค่าล่วงเวลา (OT)': s.ot_pay,
+        'โบนัสเช็คอิน': s.attendance_reward,
+        'โบนัสงานที่อนุมัติ': s.task_reward,
+        'เบิกค่าใช้จ่ายที่อนุมัติ': s.expense_reimbursement,
         'โบนัสพิเศษ': s.manual_bonus,
-        'รายการหักรวม': s.manual_deduction + s.late_deduction + s.absence_deduction + s.leave_deduction,
+        'เบิกเงินล่วงหน้า': s.advance_deduction,
+        'รายการหักรวม': s.total_deductions,
         'ยอดจ่ายสุทธิ': s.net_pay
       };
     });
@@ -382,7 +386,7 @@ export default function PayrollPage() {
               <div className="flex items-end justify-between">
                 <div>
                    <p className="text-4xl font-black text-slate-900 tracking-tighter">
-                     {formatCurrency(viewMode === 'overview' ? branchTotals.gross : (payrollSummary?.gross_pay || 0))}
+                     {formatCurrency(viewMode === 'overview' ? branchTotals.earnings : (payrollSummary?.total_earnings || 0))}
                    </p>
                    <div className="mt-4 flex items-center gap-2 bg-emerald-50 text-emerald-600 px-3 py-1 rounded-full w-fit">
                       {viewMode === 'overview' ? <Users className="w-3.5 h-3.5" /> : <TrendingUp className="w-3.5 h-3.5" />}
@@ -400,15 +404,15 @@ export default function PayrollPage() {
             <div className="p-8 rounded-[2.5rem] bg-emerald-600 shadow-2xl shadow-emerald-900/10 text-white relative overflow-hidden group">
               <div className="absolute right-0 top-0 translate-x-1/4 -translate-y-1/4 h-32 w-32 bg-white/10 rounded-full blur-3xl" />
               <p className="text-[10px] font-black text-emerald-100 uppercase tracking-[0.2em] mb-4">
-                {viewMode === 'overview' ? 'ค่า OT รวมสาขา' : 'ค่าทำงานล่วงเวลา (OT)'}
+                {viewMode === 'overview' ? 'รายได้เพิ่มรวมสาขา' : 'รายได้เพิ่มรวมพนักงาน'}
               </p>
               <div className="flex items-end justify-between relative z-10">
                 <div>
                    <p className="text-4xl font-black text-white tracking-tighter">
-                     +{formatCurrency(viewMode === 'overview' ? branchTotals.ot : (payrollSummary?.ot_pay || 0))}
+                     +{formatCurrency(viewMode === 'overview' ? branchTotals.extra : ((payrollSummary?.ot_pay || 0) + (payrollSummary?.task_reward || 0) + (payrollSummary?.attendance_reward || 0) + (payrollSummary?.expense_reimbursement || 0) + (payrollSummary?.manual_bonus || 0)))}
                    </p>
                    <p className="mt-4 text-[10px] font-bold text-emerald-200 uppercase tracking-widest">
-                     {viewMode === 'overview' ? 'ยอดรวมพนักงานทั้งหมด' : 'บวกรวมกับค่าจ้างพื้นฐาน'}
+                     {viewMode === 'overview' ? 'OT + โบนัสงาน + เบิกค่าใช้จ่าย' : 'OT + เช็คอิน + งาน + ค่าใช้จ่าย'}
                    </p>
                 </div>
                 <div className="h-16 w-16 bg-white/10 rounded-3xl flex items-center justify-center text-emerald-100 transition-transform group-hover:rotate-12">
@@ -639,6 +643,21 @@ export default function PayrollPage() {
                       <span className="text-lg font-black text-emerald-700 tracking-tight">+ {formatCurrency(payrollSummary?.ot_pay || 0)}</span>
                    </div>
 
+                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                     <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4">
+                       <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">โบนัสเช็คอิน</p>
+                       <p className="mt-2 text-base font-black text-emerald-800">+ {formatCurrency(payrollSummary?.attendance_reward || 0)}</p>
+                     </div>
+                     <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4">
+                       <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">งานที่อนุมัติ</p>
+                       <p className="mt-2 text-base font-black text-emerald-800">+ {formatCurrency(payrollSummary?.task_reward || 0)}</p>
+                     </div>
+                     <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4">
+                       <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">เบิกค่าใช้จ่าย</p>
+                       <p className="mt-2 text-base font-black text-emerald-800">+ {formatCurrency(payrollSummary?.expense_reimbursement || 0)}</p>
+                     </div>
+                   </div>
+
                    <div className="space-y-2 py-4 border-y border-slate-50">
                      <div className="flex items-center justify-between px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">รายการหักเงินอัตโนมัติ</div>
                      <div className="flex items-center justify-between p-4 rounded-2xl hover:bg-slate-50 transition-colors">
@@ -653,15 +672,19 @@ export default function PayrollPage() {
                         <span className="text-xs font-bold text-slate-500">การลาแบบไม่รับค่าจ้าง</span>
                         <span className="text-xs font-black text-red-500 leading-none">- {formatCurrency(payrollSummary?.leave_deduction || 0)}</span>
                      </div>
+                     <div className="flex items-center justify-between p-4 rounded-2xl hover:bg-slate-50 transition-colors">
+                        <span className="text-xs font-bold text-slate-500">เบิกเงินล่วงหน้าที่อนุมัติ</span>
+                        <span className="text-xs font-black text-red-500 leading-none">- {formatCurrency(payrollSummary?.advance_deduction || 0)}</span>
+                     </div>
                    </div>
                  </div>
 
                  <div className="mt-8 pt-6 border-t border-slate-100 flex items-center justify-between">
                     <div>
                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">รวมรายการปรับปรุง</p>
-                       <p className={`text-sm font-black ${(payrollSummary?.ot_pay || 0) > ((payrollSummary?.late_deduction || 0) + (payrollSummary?.absence_deduction || 0)) ? 'text-emerald-600' : 'text-red-500'}`}>
-                          {((payrollSummary?.ot_pay || 0) - (payrollSummary?.late_deduction || 0) - (payrollSummary?.absence_deduction || 0) - (payrollSummary?.leave_deduction || 0)) >= 0 ? '+' : ''}
-                          {formatCurrency((payrollSummary?.ot_pay || 0) - (payrollSummary?.late_deduction || 0) - (payrollSummary?.absence_deduction || 0) - (payrollSummary?.leave_deduction || 0))}
+                       <p className={`text-sm font-black ${((payrollSummary?.net_pay || 0) - (payrollSummary?.gross_pay || 0)) >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                          {((payrollSummary?.net_pay || 0) - (payrollSummary?.gross_pay || 0)) >= 0 ? '+' : ''}
+                          {formatCurrency((payrollSummary?.net_pay || 0) - (payrollSummary?.gross_pay || 0))}
                        </p>
                     </div>
                     <div className="h-12 w-12 rounded-2xl bg-slate-900 flex items-center justify-center text-white">
