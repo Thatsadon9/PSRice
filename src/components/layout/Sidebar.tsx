@@ -58,12 +58,10 @@ export default function Sidebar({ items, isOpen, onClose }: SidebarProps) {
       {/* Sidebar */}
       <aside
         className={`
-          fixed top-0 left-0 bottom-0 z-50
-          w-64 bg-white border-r border-slate-200
-          transform transition-transform duration-300 ease-in-out
+          fixed top-0 left-0 bottom-0 z-50 flex w-72 flex-col border-r border-slate-200 bg-white
+          transform transition-transform duration-200 ease-out
           lg:translate-x-0 lg:static lg:z-auto
           ${isOpen ? 'translate-x-0' : '-translate-x-full'}
-          flex flex-col
         `}
       >
         {/* Header */}
@@ -102,10 +100,10 @@ export default function Sidebar({ items, isOpen, onClose }: SidebarProps) {
                   href={item.href}
                   onClick={onClose}
                   className={`
-                    flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium touch-manipulation
-                    transition-all duration-150
+                    flex min-h-10 items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium touch-manipulation
+                    transition-colors duration-150
                     ${isActive
-                      ? 'bg-primary-50 text-primary-800'
+                      ? 'bg-primary-50 text-primary-800 ring-1 ring-primary-100'
                       : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
                     }
                   `}
@@ -133,7 +131,7 @@ export default function Sidebar({ items, isOpen, onClose }: SidebarProps) {
           <button 
             type="button"
             onClick={handleLogout}
-            className="flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-red-600 transition-all duration-150 hover:bg-red-50"
+            className="flex min-h-10 items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-red-600 transition-colors duration-150 hover:bg-red-50"
           >
             <LogOut className="w-[18px] h-[18px] flex-shrink-0" />
             ออกจากระบบ

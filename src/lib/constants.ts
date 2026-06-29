@@ -144,22 +144,21 @@ export const LATE_THRESHOLD_MINUTES = 15;
 export const EMPLOYEE_NAV_ITEMS = [
   { label: 'หน้าแรก', href: '/employee', icon: 'LayoutDashboard' },
   { label: 'ลงเวลา', href: '/employee/check-in', icon: 'Clock' },
-  { label: 'ตารางงาน', href: '/employee/schedule', icon: 'CalendarDays' },
-  { label: 'Milestone', href: '/employee/tasks', icon: 'Trophy' },
-  { label: 'ประวัติ', href: '/employee/history', icon: 'History' },
+  { label: 'งาน', href: '/employee/tasks', icon: 'Trophy' },
   { label: 'โปรไฟล์', href: '/employee/profile', icon: 'UserCircle' },
+  { label: 'เพิ่มเติม', href: '/employee/settings', icon: 'Menu' },
 ];
 
 export const MANAGER_NAV_ITEMS = [
   { label: 'แดชบอร์ด', href: '/manager', icon: 'LayoutDashboard' },
+  { label: 'ตรวจงาน', href: '/manager/review', icon: 'CheckSquare' },
+  { label: 'คำขออนุมัติ', href: '/manager/requests', icon: 'ReceiptText' },
   { label: 'พนักงาน', href: '/manager/employees', icon: 'Users' },
   { label: 'สาขา', href: '/manager/branches', icon: 'Building2' },
   { label: 'ตารางกะ', href: '/manager/schedule', icon: 'CalendarDays' },
+  { label: 'การเข้างาน', href: '/manager/attendance', icon: 'Clock' },
   { label: 'เทมเพลตงาน', href: '/manager/templates', icon: 'FileText' },
   { label: 'มอบหมายงาน', href: '/manager/assignments', icon: 'CalendarCheck' },
-  { label: 'ตรวจงาน', href: '/manager/review', icon: 'CheckSquare' },
-  { label: 'คำขออนุมัติ', href: '/manager/requests', icon: 'ReceiptText' },
-  { label: 'การเข้างาน', href: '/manager/attendance', icon: 'Clock' },
   { label: 'ค่าแรง', href: '/manager/payroll', icon: 'WalletCards' },
   { label: 'รายงาน', href: '/manager/reports', icon: 'BarChart3' },
   { label: 'ตั้งค่า', href: '/manager/settings', icon: 'Settings' },
@@ -167,8 +166,8 @@ export const MANAGER_NAV_ITEMS = [
 
 export const MANAGER_MOBILE_NAV_ITEMS = [
   { label: 'แดชบอร์ด', href: '/manager', icon: 'LayoutDashboard' },
-  { label: 'พนักงาน', href: '/manager/employees', icon: 'Users' },
   { label: 'ตรวจงาน', href: '/manager/review', icon: 'CheckSquare' },
-  { label: 'เข้างาน', href: '/manager/attendance', icon: 'Clock' },
+  { label: 'พนักงาน', href: '/manager/employees', icon: 'Users' },
+  { label: 'ค่าแรง', href: '/manager/payroll', icon: 'WalletCards' },
   { label: 'เพิ่มเติม', href: '/manager/more', icon: 'Menu' },
 ];

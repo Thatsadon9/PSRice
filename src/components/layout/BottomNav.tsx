@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import {
   LayoutDashboard, Clock, ClipboardList, History, UserCircle,
-  Users, CheckSquare, Menu, Building2, CalendarDays, Trophy
+  Users, CheckSquare, Menu, Building2, CalendarDays, Trophy, WalletCards
 } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { useEmployeeStore } from '@/store/employeeStore';
@@ -13,7 +13,7 @@ import { getPendingReviewCountForUser } from '@/lib/reviewHelpers';
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   LayoutDashboard, Clock, ClipboardList, History, UserCircle,
-  Users, CheckSquare, Menu, Building2, CalendarDays, Trophy,
+  Users, CheckSquare, Menu, Building2, CalendarDays, Trophy, WalletCards,
 };
 
 interface NavItem {
@@ -34,8 +34,8 @@ export default function BottomNav({ items }: BottomNavProps) {
   const pendingReviewCount = getPendingReviewCountForUser(submissions, currentUser, users);
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 safe-bottom no-print">
-      <div className="mx-auto flex max-w-lg items-stretch">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200 bg-white/95 backdrop-blur safe-bottom no-print">
+      <div className="mx-auto grid max-w-lg grid-cols-5">
         {items.map(item => {
           const Icon = iconMap[item.icon] || LayoutDashboard;
           const isActive = pathname === item.href ||
@@ -48,11 +48,11 @@ export default function BottomNav({ items }: BottomNavProps) {
               href={item.href}
               aria-current={isActive ? 'page' : undefined}
               className={`
-                relative flex min-h-16 flex-1 flex-col items-center justify-center gap-1 px-2 py-2.5
-                transition-colors duration-150 touch-manipulation
+                relative flex min-h-16 min-w-0 flex-col items-center justify-center gap-1 px-1 py-2
+                text-center transition-colors duration-150 touch-manipulation
                 ${isActive
-                  ? 'text-primary-800 nav-active'
-                  : 'text-slate-400 hover:text-slate-600'
+                  ? 'text-primary-800'
+                  : 'text-slate-500 hover:text-slate-700'
                 }
               `}
             >
@@ -64,7 +64,7 @@ export default function BottomNav({ items }: BottomNavProps) {
                   </span>
                 )}
               </span>
-              <span className="max-w-full truncate px-1 text-[10px] font-medium leading-tight">{item.label}</span>
+              <span className="max-w-full truncate text-[11px] font-medium leading-tight">{item.label}</span>
             </Link>
           );
         })}

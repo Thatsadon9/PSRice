@@ -126,7 +126,7 @@ export default function EmployeeLayout({ children }: { children: React.ReactNode
   return (
     <div className="min-h-dvh bg-slate-50">
       <Header />
-      <main className="pb-20 max-w-lg mx-auto">
+      <main className="mx-auto w-full max-w-lg pb-24">
         {children}
       </main>
       <BottomNav items={EMPLOYEE_NAV_ITEMS} />
