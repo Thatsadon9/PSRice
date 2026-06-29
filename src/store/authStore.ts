@@ -5,15 +5,16 @@
 
 import { create } from 'zustand';
 import type { User } from '@/lib/types';
+import type { PostgrestSingleResponse } from '@supabase/postgrest-js';
 import { AuthChangeEvent, Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 
 let authListenerRegistered = false;
 const AUTH_TIMEOUT_MS = 8000;
 
-function withTimeout<T>(promise: Promise<T>, label: string) {
+function withTimeout<T>(promise: PromiseLike<T>, label: string) {
   return Promise.race([
-    promise,
+    Promise.resolve(promise),
     new Promise<T>((_, reject) => {
       window.setTimeout(() => {
         reject(new Error(`${label} timed out`));
@@ -31,12 +32,12 @@ async function clearInvalidSession() {
 }
 
 async function fetchUserProfile(userId: string) {
-  const { data, error } = await withTimeout<any>(
+  const { data, error } = await withTimeout<PostgrestSingleResponse<User>>(
     supabase
       .from('users')
       .select('*')
       .eq('id', userId)
-      .single() as any,
+      .single<User>(),
     'Fetch user profile',
   );
 

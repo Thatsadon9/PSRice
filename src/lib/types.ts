@@ -33,6 +33,13 @@ export type FileType = 'image' | 'video' | 'document';
 export type NotificationType = 'task' | 'attendance' | 'review' | 'system';
 export type ShiftAssignmentStatus = 'scheduled' | 'day_off' | 'leave' | 'holiday';
 export type CompensationType = 'daily' | 'hourly' | 'monthly';
+export type AppSettingValue =
+  | string
+  | number
+  | boolean
+  | null
+  | AppSettingValue[]
+  | { [key: string]: AppSettingValue };
 export type EmployeeRequestType = 'leave' | 'advance' | 'expense';
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
 
@@ -86,7 +93,7 @@ export interface BranchAttendancePolicy {
 
 export interface AppSetting {
   key: string;
-  value: any;
+  value: AppSettingValue;
   updated_at: string;
 }
 

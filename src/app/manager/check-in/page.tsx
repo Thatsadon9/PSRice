@@ -517,8 +517,9 @@ export default function CheckInPage() {
                         input.type = 'file';
                         input.accept = 'image/*';
                         input.setAttribute('capture', 'user');
-                        input.onchange = (e: any) => {
-                          const file = e.target.files?.[0];
+                        input.onchange = (event: Event) => {
+                          const target = event.target as HTMLInputElement | null;
+                          const file = target?.files?.[0];
                           if (file) {
                             const reader = new FileReader();
                             reader.onloadend = () => {
