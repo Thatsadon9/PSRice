@@ -28,6 +28,7 @@ const DEFAULT_BREAK_MINUTES = 60;
 const DEFAULT_GRACE_MINUTES = 15;
 const DEFAULT_EARLY_OUT_GRACE_MINUTES = 0;
 const DEFAULT_MINIMUM_OT_MINUTES = 30;
+const DEFAULT_CHECK_IN_REWARD = 50;
 
 export interface ResolvedShiftConfig {
   branch_id?: string | null;
@@ -263,6 +264,14 @@ export function getBranchPolicyForBranch(
   }
 
   return branchPolicies.find((policy) => policy.branch_id === branchId);
+}
+
+function getCheckInRewardForBranch(
+  branchPolicies: BranchAttendancePolicy[],
+  branchId?: string | null,
+) {
+  const policy = getBranchPolicyForBranch(branchPolicies, branchId);
+  return toNumberValue(policy?.check_in_reward, DEFAULT_CHECK_IN_REWARD);
 }
 
 export function resolveShiftForUserDate(params: {
@@ -583,23 +592,20 @@ export function buildPayrollSummary(params: {
     const taskDate = formatRecordLikeDate(task.due_date || task.created_at);
     return isDateWithinInclusiveRange(taskDate, startDate, endDate);
   });
-  const taskRewards = approvedTasks.reduce(
-    (totals, task) => {
-      const template = task.template_id ? templateById.get(task.template_id) : null;
-      const reward = getMilestoneReward(task, template);
+  const taskReward = approvedTasks.reduce((sum, task) => {
+    const template = task.template_id ? templateById.get(task.template_id) : null;
+    return isAttendanceTask(task, template) ? sum : sum + getMilestoneReward(task, template);
+  }, 0);
+  const attendanceReward = dailySummaries.reduce((sum, summary) => {
+    if (!summary.has_check_in) {
+      return sum;
+    }
 
-      if (isAttendanceTask(task, template)) {
-        totals.attendance += reward;
-      } else {
-        totals.task += reward;
-      }
-
-      return totals;
-    },
-    { task: 0, attendance: 0 },
-  );
-  const taskReward = taskRewards.task;
-  const attendanceReward = taskRewards.attendance;
+    return sum + getCheckInRewardForBranch(
+      branchPolicies,
+      summary.shift?.branch_id ?? user.branch_id,
+    );
+  }, 0);
   const expenseReimbursement = sumMoneyRequests({
     requests,
     userId: user.id,

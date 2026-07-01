@@ -9,6 +9,7 @@ import {
   Info,
   Pencil,
   Search,
+  Send,
   ShieldCheck,
   TimerReset,
   UserMinus,
@@ -27,14 +28,16 @@ import { useAttendanceStore } from '@/store/attendanceStore';
 import { useBranchStore } from '@/store/branchStore';
 import { useEmployeeStore } from '@/store/employeeStore';
 import { useHrStore } from '@/store/hrStore';
+import { useTaskStore } from '@/store/taskStore';
 import { exportToExcel } from '@/lib/export';
 import {
   calculateDailyAttendanceSummary,
   formatMinutesAsHours,
   type DailyAttendanceSummary,
 } from '@/lib/hr';
+import { isAttendanceTask } from '@/lib/taskMilestones';
 import type { User } from '@/lib/types';
-import { formatThaiDate, getCurrentDateStr } from '@/lib/dateUtils';
+import { formatThaiDate, getCurrentDateStr, isSameCalendarDate } from '@/lib/dateUtils';
 
 function isoToDatetimeLocalValue(iso: string): string {
   const d = new Date(iso);
@@ -174,6 +177,8 @@ export default function AttendanceMonitoringPage() {
   const attendanceRecords = useAttendanceStore((state) => state.records);
   const updateAttendanceTimes = useAttendanceStore((state) => state.updateAttendanceTimes);
   const addManagerManualPunch = useAttendanceStore((state) => state.addManagerManualPunch);
+  const tasks = useTaskStore((state) => state.tasks);
+  const fetchTasks = useTaskStore((state) => state.fetchInitialData);
   const branches = useBranchStore((state) => state.branches);
   const getBranchById = useBranchStore((state) => state.getBranchById);
   const users = useEmployeeStore((state) => state.users).filter(u => u.status !== 'inactive');
@@ -209,6 +214,8 @@ export default function AttendanceMonitoringPage() {
   const [checkInReward, setCheckInReward] = useState(globalRewardAmount.toString());
   const [useDefaultReward, setUseDefaultReward] = useState(true);
   const [rewardUpdating, setRewardUpdating] = useState(false);
+  const [manualCronRunning, setManualCronRunning] = useState(false);
+  const [manualCronMessage, setManualCronMessage] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
   const rewardTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Sync checkInReward when branch changes
@@ -232,74 +239,68 @@ export default function AttendanceMonitoringPage() {
     }
   }, [selectedBranchId, getBranchPolicy, globalRewardAmount]);
 
+  useEffect(() => {
+    setManualCronMessage(null);
+  }, [selectedBranchId, selectedDate]);
+
   const updateReward = async (val: string, isDefault: boolean) => {
     const amount = parseInt(val, 10);
     if (isNaN(amount) || amount < 0) return;
     
     setRewardUpdating(true);
+    const today = getCurrentDateStr();
+    const syncCheckInTaskRewards = async (userIds: string[], rewardAmount: number) => {
+      if (userIds.length === 0) {
+        return;
+      }
+
+      await supabase
+        .from('tasks')
+        .update({ reward_amount: rewardAmount })
+        .like('title', `%${CHECK_IN_TITLE_KEYWORD}%`)
+        .in('status', ['pending', 'in_progress', 'submitted', 'approved'])
+        .eq('due_date', today)
+        .in('assigned_to', userIds);
+    };
     
     if (selectedBranchId === 'all') {
       await updateGlobalSetting('default_check_in_reward', amount.toString());
-
-      // Update global task template (where branch_id is null)
-      await supabase
-        .from('task_templates')
-        .update({ reward_amount: amount })
-        .eq('is_system', true)
-        .is('branch_id', null)
-        .like('title', `%${CHECK_IN_TITLE_KEYWORD}%`);
       
-      const today = getCurrentDateStr();
-      const defaultBranchIds = branchPolicies.filter(p => p.use_default_check_in_reward !== false).map(p => p.branch_id);
-      if (defaultBranchIds.length > 0) {
-          await supabase
-            .from('branch_attendance_policies')
-            .update({ check_in_reward: amount })
-            .in('branch_id', defaultBranchIds);
+      const defaultBranchIds = Array.from(new Set(
+        users
+          .filter((user) => {
+            if (user.role !== 'employee') return false;
+            const policy = branchPolicies.find((item) => item.branch_id === user.branch_id);
+            return policy?.use_default_check_in_reward !== false;
+          })
+          .map((user) => user.branch_id),
+      ));
+      const existingDefaultBranchIds = branchPolicies
+        .filter((policy) => defaultBranchIds.includes(policy.branch_id))
+        .map((policy) => policy.branch_id);
 
-          await supabase
-            .from('task_templates')
-            .update({ reward_amount: amount })
-            .eq('is_system', true)
-            .like('title', `%${CHECK_IN_TITLE_KEYWORD}%`)
-            .in('branch_id', defaultBranchIds);
-
-          const userIds = users.filter(u => defaultBranchIds.includes(u.branch_id)).map(u => u.id);
-          if (userIds.length > 0) {
-             await supabase
-               .from('tasks')
-               .update({ reward_amount: amount })
-               .like('title', `%${CHECK_IN_TITLE_KEYWORD}%`)
-               .eq('status', 'pending')
-               .eq('due_date', today)
-               .in('assigned_to', userIds);
-          }
+      if (existingDefaultBranchIds.length > 0) {
+        await supabase
+          .from('branch_attendance_policies')
+          .update({ check_in_reward: amount })
+          .in('branch_id', existingDefaultBranchIds);
       }
+
+      const userIds = users
+        .filter((user) => user.role === 'employee' && defaultBranchIds.includes(user.branch_id))
+        .map((user) => user.id);
+      await syncCheckInTaskRewards(userIds, amount);
     } else if (selectedBranchId) {
       const effectiveAmount = isDefault ? globalRewardAmount : amount;
       await upsertBranchPolicy(selectedBranchId, { 
          check_in_reward: effectiveAmount,
          use_default_check_in_reward: isDefault
       });
-
-      await supabase
-        .from('task_templates')
-        .update({ reward_amount: effectiveAmount })
-        .eq('is_system', true)
-        .eq('branch_id', selectedBranchId)
-        .like('title', `%${CHECK_IN_TITLE_KEYWORD}%`);
       
-      const today = getCurrentDateStr();
-      const userIds = users.filter(u => u.branch_id === selectedBranchId).map(u => u.id);
-      if (userIds.length > 0) {
-         await supabase
-           .from('tasks')
-           .update({ reward_amount: effectiveAmount })
-           .like('title', `%${CHECK_IN_TITLE_KEYWORD}%`)
-           .eq('status', 'pending')
-           .eq('due_date', today)
-           .in('assigned_to', userIds);
-      }
+      const userIds = users
+        .filter((user) => user.role === 'employee' && user.branch_id === selectedBranchId)
+        .map((user) => user.id);
+      await syncCheckInTaskRewards(userIds, effectiveAmount);
     }
       
     setRewardUpdating(false);
@@ -323,7 +324,56 @@ export default function AttendanceMonitoringPage() {
         updateReward(globalRewardAmount.toString(), true);
      } else {
         updateReward(checkInReward, false);
-     }
+      }
+   };
+
+  const handleManualCronDispatch = async () => {
+    if (manualCronRunning) {
+      return;
+    }
+
+    setManualCronRunning(true);
+    setManualCronMessage(null);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const response = await fetch('/api/cron/daily-tasks', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          work_date: selectedDate,
+          ...(selectedBranchId !== 'all' ? { branch_id: selectedBranchId } : {}),
+        }),
+      });
+
+      const result = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        created?: number;
+        created_check_in_tasks?: number;
+      };
+
+      if (!response.ok) {
+        throw new Error(result.error || 'สั่งส่ง Milestone เช็คอินไม่สำเร็จ');
+      }
+
+      await fetchTasks();
+      const created = result.created_check_in_tasks ?? result.created ?? 0;
+      setManualCronMessage({
+        tone: 'success',
+        text: created > 0 ? `ส่ง Manual แล้ว ${created} รายการ` : 'ตรวจซ้ำแล้ว ไม่พบรายการที่ต้องสร้างเพิ่ม',
+      });
+    } catch (error) {
+      setManualCronMessage({
+        tone: 'error',
+        text: error instanceof Error ? error.message : 'สั่งส่ง Manual ไม่สำเร็จ',
+      });
+    } finally {
+      setManualCronRunning(false);
+    }
   };
 
   const canCorrectAttendance =
@@ -485,6 +535,23 @@ export default function AttendanceMonitoringPage() {
     });
   }, [activeBranchId, currentUser, users]);
 
+  const checkInAssignmentStatus = useMemo(() => {
+    const assignedEmployeeIds = new Set(
+      tasks
+        .filter((task) => isAttendanceTask(task) && isSameCalendarDate(task.due_date, selectedDate))
+        .map((task) => task.assigned_to)
+        .filter((assignedTo): assignedTo is string => typeof assignedTo === 'string'),
+    );
+    const missingEmployees = branchEmployees.filter((employee) => !assignedEmployeeIds.has(employee.id));
+
+    return {
+      assigned: branchEmployees.length - missingEmployees.length,
+      expected: branchEmployees.length,
+      complete: branchEmployees.length > 0 && missingEmployees.length === 0,
+      missing: missingEmployees,
+    };
+  }, [branchEmployees, selectedDate, tasks]);
+
   const employeeRows = useMemo(() => {
     return branchEmployees
       .filter((employee) => {
@@ -602,13 +669,44 @@ export default function AttendanceMonitoringPage() {
                  <Coins className="w-5 h-5" />
               </div>
               <div>
-                 <p className="text-sm font-bold text-emerald-900 flex items-center flex-wrap gap-2">
-                   ค่าตอบแทนเช็คอินรายวัน (บาท/วัน)
-                   {selectedBranchId === 'all' && <span className="text-[10px] bg-emerald-200 text-emerald-800 px-2 py-0.5 rounded-full">ค่าเริ่มต้นทุกสาขา</span>}
-                 </p>
-                 <p className="text-xs font-medium text-emerald-700">มีผลทันทีกับภารกิจเช็คอินของวันนี้และวันถัดไป</p>
-              </div>
-           </div>
+                  <p className="text-sm font-bold text-emerald-900 flex items-center flex-wrap gap-2">
+                    ค่าตอบแทนเช็คอินรายวัน (บาท/วัน)
+                    {selectedBranchId === 'all' && <span className="text-[10px] bg-emerald-200 text-emerald-800 px-2 py-0.5 rounded-full">ค่าเริ่มต้นทุกสาขา</span>}
+                  </p>
+                  <p className="text-xs font-medium text-emerald-700">จัดการผ่านนโยบายการเข้างานโดยตรง ไม่ผูกกับเทมเพลตงาน</p>
+                  <p className={`mt-1 text-[11px] font-semibold ${checkInAssignmentStatus.complete ? 'text-emerald-700' : 'text-amber-700'}`}>
+                    {checkInAssignmentStatus.expected === 0
+                      ? 'สถานะ cron job: ไม่พบพนักงานในขอบเขตที่เลือก'
+                      : checkInAssignmentStatus.complete
+                        ? `สถานะ cron job ${formatThaiDate(selectedDate)}: มอบ Milestone เช็คอินครบแล้ว ${checkInAssignmentStatus.assigned}/${checkInAssignmentStatus.expected} คน`
+                        : `สถานะ cron job ${formatThaiDate(selectedDate)}: ยังขาด ${checkInAssignmentStatus.missing.length} คน (${checkInAssignmentStatus.assigned}/${checkInAssignmentStatus.expected})`}
+                  </p>
+                  {checkInAssignmentStatus.expected > 0 && !checkInAssignmentStatus.complete ? (
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        loading={manualCronRunning}
+                        icon={<Send className="h-3.5 w-3.5" />}
+                        onClick={() => void handleManualCronDispatch()}
+                        className="min-h-8 rounded-lg border-amber-200 bg-white px-2.5 py-1.5 text-xs text-amber-700 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-800"
+                      >
+                        ส่ง Manual
+                      </Button>
+                      {manualCronMessage ? (
+                        <span className={`text-[11px] font-semibold ${manualCronMessage.tone === 'success' ? 'text-emerald-700' : 'text-red-600'}`}>
+                          {manualCronMessage.text}
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : manualCronMessage ? (
+                    <p className={`mt-1 text-[11px] font-semibold ${manualCronMessage.tone === 'success' ? 'text-emerald-700' : 'text-red-600'}`}>
+                      {manualCronMessage.text}
+                    </p>
+                  ) : null}
+               </div>
+            </div>
            <div className="flex items-center gap-3">
               {rewardUpdating && <div className="text-[10px] font-bold text-emerald-600 animate-pulse hidden md:block">กำลังบันทึก...</div>}
               

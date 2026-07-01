@@ -1,6 +1,25 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  closestCenter,
+  DndContext,
+  DragOverlay,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragOverEvent,
+  type DragEndEvent,
+  type DragStartEvent,
+} from '@dnd-kit/core';
+import {
+  rectSortingStrategy,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { useTaskStore } from '@/store/taskStore';
 import { useAuthStore } from '@/store/authStore';
 import { useBranchStore } from '@/store/branchStore';
@@ -19,12 +38,14 @@ import {
   CheckSquare,
   Camera,
   FileText,
+  GripVertical,
 } from 'lucide-react';
 import { PRIORITY_LABELS, PROOF_TYPE_LABELS, RECURRENCE_LABELS } from '@/lib/constants';
 import type { TaskTemplate, Priority, ProofType, RecurrenceType } from '@/lib/types';
 
 const ALL_BRANCH_ID = '__all_branches__';
 const ALL_BRANCH_LABEL = 'ทุกสาขา';
+const EMPTY_ORDER_SCOPE = '__empty_scope__';
 
 type TemplateFormData = {
   title: string;
@@ -52,10 +73,110 @@ function createEmptyTemplate(branchId: string): TemplateFormData {
   };
 }
 
+function applyTemplateOrder(items: TaskTemplate[], order?: string[]) {
+  if (!order?.length) {
+    return items;
+  }
+
+  const positionById = new Map(order.map((id, index) => [id, index]));
+
+  return [...items].sort((first, second) => {
+    const firstPosition = positionById.get(first.id);
+    const secondPosition = positionById.get(second.id);
+
+    if (firstPosition === undefined && secondPosition === undefined) {
+      return 0;
+    }
+
+    if (firstPosition === undefined) {
+      return 1;
+    }
+
+    if (secondPosition === undefined) {
+      return -1;
+    }
+
+    return firstPosition - secondPosition;
+  });
+}
+
+function isSameOrder(first: string[], second: string[]) {
+  return first.length === second.length && first.every((id, index) => id === second[index]);
+}
+
+function getMovedTemplateOrder(
+  currentOrder: string[],
+  visibleIds: string[],
+  draggedId: string,
+  overId: string
+) {
+  const visibleIdSet = new Set(visibleIds);
+  const orderedVisibleIds = [
+    ...currentOrder.filter((id) => visibleIdSet.has(id)),
+    ...visibleIds.filter((id) => !currentOrder.includes(id)),
+  ];
+  const draggedIndex = orderedVisibleIds.indexOf(draggedId);
+  const overIndex = orderedVisibleIds.indexOf(overId);
+
+  if (draggedIndex < 0 || overIndex < 0) {
+    return null;
+  }
+
+  const nextOrder = [...orderedVisibleIds];
+  const [movedId] = nextOrder.splice(draggedIndex, 1);
+  nextOrder.splice(overIndex, 0, movedId);
+
+  return nextOrder;
+}
+
+type SortableTemplateArticleProps = {
+  children: ReactNode;
+  isSavingOrder: boolean;
+  templateId: string;
+};
+
+function SortableTemplateArticle({
+  children,
+  isSavingOrder,
+  templateId,
+}: SortableTemplateArticleProps) {
+  const {
+    attributes,
+    isDragging,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+  } = useSortable({ id: templateId });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <article
+      ref={setNodeRef}
+      style={style}
+      data-template-id={templateId}
+      aria-grabbed={isDragging}
+      {...attributes}
+      {...listeners}
+      className={`
+        relative h-full cursor-grab touch-none select-none active:cursor-grabbing
+        ${isDragging ? 'opacity-30' : ''}
+        ${isSavingOrder ? 'pointer-events-none' : ''}
+      `}
+    >
+      {children}
+    </article>
+  );
+}
+
 export default function TemplateManagementPage() {
   const templates = useTaskStore((state) => state.templates);
   const addTemplate = useTaskStore((state) => state.addTemplate);
   const updateTemplate = useTaskStore((state) => state.updateTemplate);
+  const reorderTemplates = useTaskStore((state) => state.reorderTemplates);
   const deleteTemplate = useTaskStore((state) => state.deleteTemplate);
   const currentUser = useAuthStore((state) => state.currentUser);
   const branches = useBranchStore((state) => state.branches);
@@ -68,6 +189,21 @@ export default function TemplateManagementPage() {
   const [formError, setFormError] = useState('');
   const [checklistItems, setChecklistItems] = useState<{ id: string; label: string }[]>([]);
   const [newChecklistItem, setNewChecklistItem] = useState('');
+  const [templateOrderByScope, setTemplateOrderByScope] = useState<Record<string, string[]>>({});
+  const [activeTemplateId, setActiveTemplateId] = useState<string | null>(null);
+  const [isSavingOrder, setIsSavingOrder] = useState(false);
+  const visibleOrderRef = useRef<string[]>([]);
+  const dragStartOrderRef = useRef<string[]>([]);
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 6,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   const accessibleBranches = useMemo(() => {
     if (!currentUser) {
@@ -87,16 +223,25 @@ export default function TemplateManagementPage() {
     ? fallbackBranchId
     : selectedBranchId || (canUseAllBranches ? ALL_BRANCH_ID : fallbackBranchId);
   const isAllBranchesView = activeBranchId === ALL_BRANCH_ID;
+  const orderScopeKey = isAllBranchesView ? ALL_BRANCH_ID : activeBranchId || EMPTY_ORDER_SCOPE;
 
   const [formData, setFormData] = useState<TemplateFormData>(() => createEmptyTemplate(fallbackBranchId));
 
   const visibleTemplates = useMemo(() => {
-    if (isAllBranchesView) {
-      return templates;
-    }
+    const scopedTemplates = isAllBranchesView
+      ? templates
+      : templates.filter((template) => template.branch_id === activeBranchId);
 
-    return templates.filter((template) => template.branch_id === activeBranchId);
-  }, [activeBranchId, isAllBranchesView, templates]);
+    return applyTemplateOrder(scopedTemplates, templateOrderByScope[orderScopeKey]);
+  }, [activeBranchId, isAllBranchesView, orderScopeKey, templateOrderByScope, templates]);
+
+  useEffect(() => {
+    visibleOrderRef.current = visibleTemplates.map((template) => template.id);
+  }, [visibleTemplates]);
+  const visibleTemplateIds = visibleTemplates.map((template) => template.id);
+  const activeTemplate = activeTemplateId
+    ? templates.find((template) => template.id === activeTemplateId) || null
+    : null;
 
   const priorityOptions = Object.entries(PRIORITY_LABELS).map(([value, label]) => ({ value, label }));
   const proofOptions = Object.entries(PROOF_TYPE_LABELS).map(([value, label]) => ({ value, label }));
@@ -126,6 +271,100 @@ export default function TemplateManagementPage() {
     }
 
     return getBranchById(template.branch_id)?.name || '-';
+  };
+
+  const moveTemplateInView = (draggedId: string, overId: string) => {
+    if (draggedId === overId) {
+      return;
+    }
+
+    const visibleIds = visibleTemplates.map((template) => template.id);
+
+    setTemplateOrderByScope((currentOrders) => {
+      const currentOrder = currentOrders[orderScopeKey] || visibleIds;
+      const nextOrder = getMovedTemplateOrder(currentOrder, visibleIds, draggedId, overId);
+
+      if (!nextOrder) {
+        return currentOrders;
+      }
+
+      visibleOrderRef.current = nextOrder;
+
+      return {
+        ...currentOrders,
+        [orderScopeKey]: nextOrder,
+      };
+    });
+  };
+
+  const persistTemplateOrder = async (templateIds: string[]) => {
+    setIsSavingOrder(true);
+    const success = await reorderTemplates(templateIds);
+    setIsSavingOrder(false);
+
+    if (!success) {
+      setTemplateOrderByScope((currentOrders) => {
+        const nextOrders = { ...currentOrders };
+        delete nextOrders[orderScopeKey];
+        return nextOrders;
+      });
+    }
+  };
+
+  const handleTemplateDragStart = (event: DragStartEvent) => {
+    const currentOrder = visibleTemplates.map((template) => template.id);
+
+    visibleOrderRef.current = currentOrder;
+    dragStartOrderRef.current = currentOrder;
+    setActiveTemplateId(String(event.active.id));
+  };
+
+  const handleTemplateDragOver = (event: DragOverEvent) => {
+    const overTemplateId = event.over?.id;
+
+    if (overTemplateId) {
+      moveTemplateInView(String(event.active.id), String(overTemplateId));
+    }
+  };
+
+  const handleTemplateDragEnd = (event: DragEndEvent) => {
+    let nextOrder = visibleOrderRef.current;
+    const startOrder = dragStartOrderRef.current;
+    const activeId = String(event.active.id);
+    const overId = event.over?.id ? String(event.over.id) : null;
+
+    if (overId && activeId !== overId) {
+      const visibleIds = visibleTemplates.map((template) => template.id);
+      const movedOrder = getMovedTemplateOrder(nextOrder, visibleIds, activeId, overId);
+
+      if (movedOrder) {
+        nextOrder = movedOrder;
+        visibleOrderRef.current = movedOrder;
+        setTemplateOrderByScope((currentOrders) => ({
+          ...currentOrders,
+          [orderScopeKey]: movedOrder,
+        }));
+      }
+    }
+
+    setActiveTemplateId(null);
+
+    if (!isSameOrder(nextOrder, startOrder)) {
+      void persistTemplateOrder(nextOrder);
+    }
+  };
+
+  const handleTemplateDragCancel = () => {
+    const startOrder = dragStartOrderRef.current;
+    setActiveTemplateId(null);
+
+    if (startOrder.length > 0) {
+      visibleOrderRef.current = startOrder;
+      setTemplateOrderByScope((currentOrders) => ({
+        ...currentOrders,
+        [orderScopeKey]: startOrder,
+      }));
+    }
   };
 
   const handleCloseModal = () => {
@@ -234,6 +473,88 @@ export default function TemplateManagementPage() {
     handleCloseModal();
   };
 
+  const renderTemplateCard = (template: TaskTemplate, options?: { floating?: boolean }) => (
+    <Card
+      className={`flex flex-col h-full ${options?.floating ? 'shadow-2xl ring-2 ring-primary-100' : ''}`}
+      statusColor={template.priority === 'critical' ? 'red' : template.priority === 'high' ? 'amber' : 'blue'}
+    >
+      <div className="flex justify-between items-start mb-4">
+        <div className="flex items-center gap-1.5">
+          <span
+            className="flex h-8 w-5 shrink-0 items-center justify-center rounded-md text-slate-300"
+            title="ลากการ์ดเพื่อสลับตำแหน่ง"
+            aria-hidden="true"
+          >
+            <GripVertical className="w-4 h-4" />
+          </span>
+          <div
+            className={`p-2 rounded-lg ${
+              template.priority === 'critical' ? 'bg-red-50 text-red-600' : 'bg-primary-50 text-primary-600'
+            }`}
+          >
+            <ClipboardList className="w-5 h-5" />
+          </div>
+        </div>
+        <div className="flex gap-1">
+          <button
+            type="button"
+            data-no-drag="true"
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={() => handleOpenModal(template)}
+            className="relative z-20 p-1.5 text-slate-400 hover:text-primary-600 hover:bg-slate-50 rounded-lg"
+            aria-label={`Edit ${template.title}`}
+          >
+            <Edit2 className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            data-no-drag="true"
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={async () => {
+              await deleteTemplate(template.id);
+            }}
+            className="relative z-20 p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+            aria-label={`Delete ${template.title}`}
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      <h3 className="font-bold text-slate-900 truncate mb-1">{template.title}</h3>
+      <p className="text-xs text-slate-500 mb-4 h-8 line-clamp-2">{template.description || 'ไม่มีคำอธิบาย'}</p>
+
+      <div className="flex flex-wrap gap-2 mb-4">
+        <Badge variant={template.priority === 'critical' ? 'danger' : template.priority === 'high' ? 'warning' : 'info'}>
+          {PRIORITY_LABELS[template.priority]}
+        </Badge>
+        <Badge variant="slate">{RECURRENCE_LABELS[template.recurrence_rule]}</Badge>
+        <Badge variant="default">{getTemplateBranchLabel(template)}</Badge>
+        <Badge variant={template.is_system ? 'success' : template.assigned_to ? 'info' : 'warning'}>
+          {template.is_system
+            ? template.branch_id
+              ? 'ระบบทั้งสาขา'
+              : 'ระบบทุกสาขา'
+            : getAssigneeName(template.assigned_to) || 'ยังไม่เลือกพนักงาน'}
+        </Badge>
+        <Badge variant="success" dot={template.requires_approval}>
+          {template.requires_approval ? 'ต้องอนุมัติ' : 'ไม่ต้องอนุมัติ'}
+        </Badge>
+      </div>
+
+      <div className="mt-auto pt-3 border-t border-slate-100 flex items-center justify-between">
+        <div className="flex items-center text-[11px] text-slate-500 gap-1">
+          <CheckSquare className="w-3 h-3" />
+          {template.checklist_json?.length || 0} รายการย่อย
+        </div>
+        <div className="flex items-center text-[11px] text-slate-500 gap-1">
+          {template.proof_type_required === 'photo' ? <Camera className="w-3 h-3" /> : <FileText className="w-3 h-3" />}
+          {PROOF_TYPE_LABELS[template.proof_type_required]}
+        </div>
+      </div>
+    </Card>
+  );
+
   if (!currentUser) {
     return null;
   }
@@ -272,75 +593,31 @@ export default function TemplateManagementPage() {
           </div>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {visibleTemplates.map((template) => (
-            <Card
-              key={template.id}
-              className="flex flex-col h-full"
-              statusColor={template.priority === 'critical' ? 'red' : template.priority === 'high' ? 'amber' : 'blue'}
-            >
-              <div className="flex justify-between items-start mb-4">
-                <div
-                  className={`p-2 rounded-lg ${
-                    template.priority === 'critical' ? 'bg-red-50 text-red-600' : 'bg-primary-50 text-primary-600'
-                  }`}
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={handleTemplateDragStart}
+          onDragOver={handleTemplateDragOver}
+          onDragEnd={handleTemplateDragEnd}
+          onDragCancel={handleTemplateDragCancel}
+        >
+          <SortableContext items={visibleTemplateIds} strategy={rectSortingStrategy}>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {visibleTemplates.map((template) => (
+                <SortableTemplateArticle
+                  key={template.id}
+                  templateId={template.id}
+                  isSavingOrder={isSavingOrder}
                 >
-                  <ClipboardList className="w-5 h-5" />
-                </div>
-                <div className="flex gap-1">
-                  <button
-                    onClick={() => handleOpenModal(template)}
-                    className="p-1.5 text-slate-400 hover:text-primary-600 hover:bg-slate-50 rounded-lg"
-                    aria-label={`Edit ${template.title}`}
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={async () => {
-                      await deleteTemplate(template.id);
-                    }}
-                    className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
-                    aria-label={`Delete ${template.title}`}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-
-              <h3 className="font-bold text-slate-900 truncate mb-1">{template.title}</h3>
-              <p className="text-xs text-slate-500 mb-4 h-8 line-clamp-2">{template.description || 'ไม่มีคำอธิบาย'}</p>
-
-              <div className="flex flex-wrap gap-2 mb-4">
-                <Badge variant={template.priority === 'critical' ? 'danger' : template.priority === 'high' ? 'warning' : 'info'}>
-                  {PRIORITY_LABELS[template.priority]}
-                </Badge>
-                <Badge variant="slate">{RECURRENCE_LABELS[template.recurrence_rule]}</Badge>
-                <Badge variant="default">{getTemplateBranchLabel(template)}</Badge>
-                <Badge variant={template.is_system ? 'success' : template.assigned_to ? 'info' : 'warning'}>
-                  {template.is_system
-                    ? template.branch_id
-                      ? 'ระบบทั้งสาขา'
-                      : 'ระบบทุกสาขา'
-                    : getAssigneeName(template.assigned_to) || 'ยังไม่เลือกพนักงาน'}
-                </Badge>
-                <Badge variant="success" dot={template.requires_approval}>
-                  {template.requires_approval ? 'ต้องอนุมัติ' : 'ไม่ต้องอนุมัติ'}
-                </Badge>
-              </div>
-
-              <div className="mt-auto pt-3 border-t border-slate-100 flex items-center justify-between">
-                <div className="flex items-center text-[11px] text-slate-500 gap-1">
-                  <CheckSquare className="w-3 h-3" />
-                  {template.checklist_json?.length || 0} รายการย่อย
-                </div>
-                <div className="flex items-center text-[11px] text-slate-500 gap-1">
-                  {template.proof_type_required === 'photo' ? <Camera className="w-3 h-3" /> : <FileText className="w-3 h-3" />}
-                  {PROOF_TYPE_LABELS[template.proof_type_required]}
-                </div>
-              </div>
-            </Card>
-          ))}
-        </div>
+                  {renderTemplateCard(template)}
+                </SortableTemplateArticle>
+              ))}
+            </div>
+          </SortableContext>
+          <DragOverlay dropAnimation={{ duration: 180, easing: 'cubic-bezier(0.2, 0, 0, 1)' }}>
+            {activeTemplate ? renderTemplateCard(activeTemplate, { floating: true }) : null}
+          </DragOverlay>
+        </DndContext>
       )}
 
       <Modal

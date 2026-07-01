@@ -51,6 +51,61 @@ async function uploadPhotoServerSide(
   }
 }
 
+function getBangkokDateStr(date: Date): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Bangkok',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+}
+
+async function approveCheckInMilestone(userId: string, workDate: string) {
+  if (!supabaseAdmin) return;
+
+  const { data: checkInTasks, error } = await supabaseAdmin
+    .from('tasks')
+    .select('id, title')
+    .eq('assigned_to', userId)
+    .eq('due_date', workDate)
+    .in('status', ['pending', 'in_progress']);
+
+  if (error) {
+    throw error;
+  }
+
+  const matchingTasks = (checkInTasks || []).filter((task) => {
+    return typeof task.title === 'string' && task.title.includes('เช็คอิน');
+  });
+
+  if (matchingTasks.length === 0) {
+    return;
+  }
+
+  const taskIds = matchingTasks.map((task) => task.id);
+  const { error: updateError } = await supabaseAdmin
+    .from('tasks')
+    .update({ status: 'approved' })
+    .in('id', taskIds);
+
+  if (updateError) {
+    throw updateError;
+  }
+
+  const { error: submissionError } = await supabaseAdmin
+    .from('task_submissions')
+    .insert(taskIds.map((taskId) => ({
+      task_id: taskId,
+      submitted_by: userId,
+      note: 'เช็คอินอัตโนมัติจากระบบ',
+      review_status: 'approved',
+    })));
+
+  if (submissionError) {
+    throw submissionError;
+  }
+}
+
 export async function POST(request: Request) {
   try {
     if (!supabaseAdmin) {
@@ -161,6 +216,14 @@ export async function POST(request: Request) {
         );
       }
 
+      if (punchType === 'check_in') {
+        try {
+          await approveCheckInMilestone(targetUserId, getBangkokDateStr(new Date(parsedCreated)));
+        } catch (err) {
+          console.error('Auto-complete manager check-in task error:', err);
+        }
+      }
+
       return NextResponse.json({ success: true, record: created }, { status: 201 });
     }
 
@@ -219,40 +282,9 @@ export async function POST(request: Request) {
       );
     }
 
-    // Auto-complete check-in milestone if applicable
     if (data && body.type === 'check_in') {
       try {
-        const todayStr = getCurrentDateStr();
-        
-        // Find the pending check-in task for today
-        const { data: checkInTasks } = await supabaseAdmin
-          .from('tasks')
-          .select('id, status, template_id, title')
-          .eq('assigned_to', userId)
-          .eq('due_date', todayStr)
-          .in('status', ['pending', 'in_progress']);
-
-        const checkInTask = checkInTasks?.find(t => 
-          t.title && t.title.includes('เช็คอิน')
-        );
-
-        if (checkInTask) {
-          // Update task to approved
-          await supabaseAdmin
-            .from('tasks')
-            .update({ status: 'approved' })
-            .eq('id', checkInTask.id);
-
-          // Create a submission
-          await supabaseAdmin
-            .from('task_submissions')
-            .insert({
-              task_id: checkInTask.id,
-              submitted_by: userId,
-              note: 'เช็คอินอัตโนมัติจากระบบ',
-              review_status: 'approved'
-            });
-        }
+        await approveCheckInMilestone(userId, getCurrentDateStr());
       } catch (err) {
         console.error('Auto-complete check-in task error:', err);
       }

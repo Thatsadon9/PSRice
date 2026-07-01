@@ -11,6 +11,12 @@ const COMPLETED_STATUSES: TaskStatus[] = ['submitted', 'approved'];
 
 type RewardSource = Task | TaskTemplate | null | undefined;
 
+function hasCheckInKeyword(value?: string | null) {
+  if (!value) return false;
+  const normalized = value.toLowerCase();
+  return value.includes('เช็คอิน') || normalized.includes('check-in') || normalized.includes('check in');
+}
+
 function readNumericReward(source: RewardSource) {
   if (!source) return null;
   const record = source as unknown as Record<string, unknown>;
@@ -23,11 +29,7 @@ export function isMilestoneComplete(status: TaskStatus) {
 }
 
 export function isAttendanceTask(task: Task, template?: TaskTemplate | null) {
-  // We can identify an attendance task if it's a system task with 'check-in' or 'เช็คอิน' in the title
-  return (
-    template?.is_system === true &&
-    (task.title?.includes('เช็คอิน') || template?.title?.includes('เช็คอิน'))
-  );
+  return hasCheckInKeyword(task.title) || (template?.is_system === true && hasCheckInKeyword(template.title));
 }
 
 export function getMilestoneReward(task: Task, template?: TaskTemplate | null) {

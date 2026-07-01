@@ -40,6 +40,7 @@ interface TaskState {
   getTemplateById: (templateId: string) => TaskTemplate | undefined;
   addTemplate: (template: Omit<TaskTemplate, 'id' | 'created_at'>) => Promise<boolean>;
   updateTemplate: (templateId: string, updates: Partial<TaskTemplate>) => Promise<boolean>;
+  reorderTemplates: (templateIds: string[]) => Promise<boolean>;
   deleteTemplate: (templateId: string) => Promise<boolean>;
 
   // Submission actions
@@ -69,6 +70,36 @@ function sortByCreatedAtDesc<T extends { created_at: string }>(items: T[]) {
   return [...items].sort((left, right) => {
     return new Date(right.created_at).getTime() - new Date(left.created_at).getTime();
   });
+}
+
+function getTemplateOrder(template: TaskTemplate) {
+  return typeof template.sort_order === 'number' && Number.isFinite(template.sort_order)
+    ? template.sort_order
+    : Number.MAX_SAFE_INTEGER;
+}
+
+function sortTaskTemplates(items: TaskTemplate[]) {
+  return [...items].sort((left, right) => {
+    const orderDiff = getTemplateOrder(left) - getTemplateOrder(right);
+
+    if (orderDiff !== 0) {
+      return orderDiff;
+    }
+
+    return new Date(right.created_at).getTime() - new Date(left.created_at).getTime();
+  });
+}
+
+function getNextTemplateSortOrder(templates: TaskTemplate[], branchId: string | null | undefined) {
+  return templates
+    .filter((template) => template.branch_id === (branchId ?? null))
+    .reduce((maxOrder, template) => {
+      const sortOrder = typeof template.sort_order === 'number' && Number.isFinite(template.sort_order)
+        ? template.sort_order
+        : 0;
+
+      return Math.max(maxOrder, sortOrder);
+    }, 0) + 1;
 }
 
 function sortSubmissions(items: TaskSubmission[]) {
@@ -110,7 +141,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
 
       set({
         tasks: sortByCreatedAtDesc((resTasks.data || []) as Task[]),
-        templates: sortByCreatedAtDesc((resTemplates.data || []) as TaskTemplate[]),
+        templates: sortTaskTemplates((resTemplates.data || []) as TaskTemplate[]),
         submissions: sortSubmissions((resSubmissions.data || []) as TaskSubmission[]),
         submissionFiles: sortByCreatedAtDesc((resFiles.data || []) as SubmissionFile[]),
         isLoading: false
@@ -138,7 +169,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
 
           const template = payload.new as TaskTemplate;
           set((state) => ({
-            templates: sortByCreatedAtDesc(upsertEntity(state.templates, template)),
+            templates: sortTaskTemplates(upsertEntity(state.templates, template)),
           }));
         }
       )
@@ -246,10 +277,16 @@ export const useTaskStore = create<TaskState>((set, get) => ({
   },
 
   addTemplate: async (template) => {
+    const sortOrder = template.sort_order ?? getNextTemplateSortOrder(get().templates, template.branch_id);
+
     // We omit created_at but let Postgres handle it via DEFAULT
-    const { data } = await supabase.from('task_templates').insert(template).select().single();
+    const { data } = await supabase
+      .from('task_templates')
+      .insert({ ...template, sort_order: sortOrder })
+      .select()
+      .single();
     if (data) {
-      set(state => ({ templates: sortByCreatedAtDesc(upsertEntity(state.templates, data as TaskTemplate)) }));
+      set(state => ({ templates: sortTaskTemplates(upsertEntity(state.templates, data as TaskTemplate)) }));
       return true;
     }
     return false;
@@ -259,11 +296,47 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     const { data } = await supabase.from('task_templates').update(updates).eq('id', templateId).select().single();
     if (data) {
       set(state => ({
-        templates: sortByCreatedAtDesc(upsertEntity(state.templates, data as TaskTemplate)),
+        templates: sortTaskTemplates(upsertEntity(state.templates, data as TaskTemplate)),
       }));
       return true;
     }
     return false;
+  },
+
+  reorderTemplates: async (templateIds) => {
+    if (templateIds.length === 0) {
+      return true;
+    }
+
+    const previousTemplates = get().templates;
+    const orderById = new Map(templateIds.map((templateId, index) => [templateId, index + 1]));
+    const nextTemplates = sortTaskTemplates(
+      previousTemplates.map((template) => {
+        const nextOrder = orderById.get(template.id);
+
+        return nextOrder ? { ...template, sort_order: nextOrder } : template;
+      })
+    );
+
+    set({ templates: nextTemplates });
+
+    const results = await Promise.all(
+      templateIds.map((templateId, index) => (
+        supabase
+          .from('task_templates')
+          .update({ sort_order: index + 1 })
+          .eq('id', templateId)
+      ))
+    );
+    const failedResult = results.find((result) => result.error);
+
+    if (failedResult?.error) {
+      console.error('Failed to reorder task templates:', failedResult.error.message || failedResult.error, failedResult.error);
+      set({ templates: previousTemplates });
+      return false;
+    }
+
+    return true;
   },
 
   deleteTemplate: async (templateId: string) => {

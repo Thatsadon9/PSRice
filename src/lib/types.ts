@@ -220,6 +220,7 @@ export interface TaskTemplate {
   assigned_to?: string | null;
   is_system?: boolean;
   reward_amount?: number | null;
+  sort_order?: number | null;
   created_at: string;
 }
 
