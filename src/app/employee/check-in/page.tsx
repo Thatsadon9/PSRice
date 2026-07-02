@@ -274,7 +274,9 @@ export default function CheckInPage() {
     fetchGPS();
   };
 
-  const branchOptions = branchStore.branches.filter((item) => currentUser.role === 'admin' || !item.admin_only);
+  const branchOptions = branchStore.branches.filter(
+    (item) => currentUser.role === 'admin' || !item.admin_only || currentUser.branch_id === item.id || todayShift?.branch_id === item.id
+  );
   const canStartCamera = Boolean(gpsCoords && geofenceResult?.isWithinGeofence && canCheckIn);
   const canSubmit = Boolean(photoData && gpsCoords && branch && geofenceResult?.isWithinGeofence && canCheckIn);
   const pageTitle = isCheckIn ? 'ลงเวลาเข้างาน' : 'ลงเวลาออกงาน';
