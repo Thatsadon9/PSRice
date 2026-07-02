@@ -30,6 +30,9 @@ import Badge from '@/components/ui/Badge';
 import Modal from '@/components/ui/Modal';
 import Input, { TextArea } from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
+import UnitRewardFields from '@/components/tasks/UnitRewardFields';
+import { PROOF_SELECT_OPTIONS } from '@/components/ui/proofSelectOptions';
+import { PRIORITY_SELECT_OPTIONS } from '@/components/ui/prioritySelectOptions';
 import {
   ClipboardList,
   Plus,
@@ -41,7 +44,7 @@ import {
   GripVertical,
 } from 'lucide-react';
 import { PRIORITY_LABELS, PROOF_TYPE_LABELS, RECURRENCE_LABELS } from '@/lib/constants';
-import type { TaskTemplate, Priority, ProofType, RecurrenceType } from '@/lib/types';
+import type { TaskTemplate, Priority, ProofType, RecurrenceType, RewardType } from '@/lib/types';
 
 const ALL_BRANCH_ID = '__all_branches__';
 const ALL_BRANCH_LABEL = 'ทุกสาขา';
@@ -57,6 +60,13 @@ type TemplateFormData = {
   branch_id: string;
   assigned_to: string;
   reward_amount: string;
+  reward_type: RewardType;
+  unit_label: string;
+  unit_rate: string;
+  unit_step: string;
+  unit_min: string;
+  unit_max: string;
+  target_quantity: string;
 };
 
 function createEmptyTemplate(branchId: string): TemplateFormData {
@@ -70,7 +80,23 @@ function createEmptyTemplate(branchId: string): TemplateFormData {
     branch_id: branchId,
     assigned_to: '',
     reward_amount: '',
+    reward_type: 'fixed',
+    unit_label: '',
+    unit_rate: '',
+    unit_step: '1',
+    unit_min: '',
+    unit_max: '',
+    target_quantity: '',
   };
+}
+
+function parseOptionalNumber(value: string) {
+  if (value.trim() === '') {
+    return null;
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : Number.NaN;
 }
 
 function applyTemplateOrder(items: TaskTemplate[], order?: string[]) {
@@ -243,9 +269,11 @@ export default function TemplateManagementPage() {
     ? templates.find((template) => template.id === activeTemplateId) || null
     : null;
 
-  const priorityOptions = Object.entries(PRIORITY_LABELS).map(([value, label]) => ({ value, label }));
-  const proofOptions = Object.entries(PROOF_TYPE_LABELS).map(([value, label]) => ({ value, label }));
   const recurrenceOptions = Object.entries(RECURRENCE_LABELS).map(([value, label]) => ({ value, label }));
+  const rewardTypeOptions = [
+    { value: 'fixed', label: 'เหมาจ่ายเมื่องานผ่าน' },
+    { value: 'unit', label: 'คิดตามจำนวนที่ทำได้' },
+  ];
   const branchOptions = accessibleBranches.map((branch) => ({ value: branch.id, label: branch.name }));
   const branchFilterOptions = canUseAllBranches
     ? [{ value: ALL_BRANCH_ID, label: ALL_BRANCH_LABEL }, ...branchOptions]
@@ -255,7 +283,12 @@ export default function TemplateManagementPage() {
     : branchOptions;
   const employeeOptions = users
     .filter((user) => user.role === 'employee' && user.status === 'active' && user.branch_id === formData.branch_id)
-    .map((user) => ({ value: user.id, label: user.full_name }));
+    .map((user) => ({
+      value: user.id,
+      label: user.full_name,
+      description: getBranchById(user.branch_id)?.name || 'ไม่ระบุสาขา',
+      avatarUrl: user.avatar_url,
+    }));
 
   const getAssigneeName = (userId?: string | null) => {
     if (!userId) {
@@ -390,6 +423,13 @@ export default function TemplateManagementPage() {
         branch_id: template.branch_id || ALL_BRANCH_ID,
         assigned_to: template.assigned_to || '',
         reward_amount: template.reward_amount ? String(template.reward_amount) : '',
+        reward_type: template.reward_type || 'fixed',
+        unit_label: template.unit_label || '',
+        unit_rate: template.unit_rate != null ? String(template.unit_rate) : '',
+        unit_step: template.unit_step != null ? String(template.unit_step) : '1',
+        unit_min: template.unit_min != null ? String(template.unit_min) : '',
+        unit_max: template.unit_max != null ? String(template.unit_max) : '',
+        target_quantity: template.target_quantity != null ? String(template.target_quantity) : '',
       });
       setChecklistItems(template.checklist_json?.map((item) => ({ id: item.id, label: item.label })) || []);
     } else {
@@ -447,13 +487,68 @@ export default function TemplateManagementPage() {
       return;
     }
 
+    const isUnitReward = formData.reward_type === 'unit';
+    const rewardAmount = parseOptionalNumber(formData.reward_amount);
+    const unitRate = parseOptionalNumber(formData.unit_rate);
+    const unitStep = parseOptionalNumber(formData.unit_step) ?? 1;
+    const unitMin = parseOptionalNumber(formData.unit_min);
+    const unitMax = parseOptionalNumber(formData.unit_max);
+    const targetQuantity = parseOptionalNumber(formData.target_quantity);
+
+    if (!isUnitReward && Number.isNaN(rewardAmount)) {
+      setFormError('กรุณากรอกค่าตอบแทนเป็นตัวเลข');
+      return;
+    }
+
+    if (isUnitReward) {
+      if (!formData.unit_label.trim()) {
+        setFormError('กรุณาระบุชื่อหน่วย เช่น กระสอบ, ถุง, รอบ');
+        return;
+      }
+
+      if (Number.isNaN(unitRate) || unitRate === null || unitRate <= 0) {
+        setFormError('กรุณากรอกราคา/หน่วยให้มากกว่า 0');
+        return;
+      }
+
+      if (Number.isNaN(unitStep) || unitStep <= 0) {
+        setFormError('กรุณากรอกสเต็ปจำนวนให้มากกว่า 0');
+        return;
+      }
+
+      if (
+        Number.isNaN(unitMin) ||
+        Number.isNaN(unitMax) ||
+        Number.isNaN(targetQuantity) ||
+        (unitMin !== null && unitMin < 0) ||
+        (unitMax !== null && unitMax < 0) ||
+        (targetQuantity !== null && targetQuantity < 0)
+      ) {
+        setFormError('กรุณากรอกจำนวนขั้นต่ำ/สูงสุด/เป้าหมายเป็นตัวเลขไม่ติดลบ');
+        return;
+      }
+
+      if (unitMin !== null && unitMax !== null && unitMin > unitMax) {
+        setFormError('จำนวนขั้นต่ำต้องไม่มากกว่าจำนวนสูงสุด');
+        return;
+      }
+    }
+
     const payload = {
       ...formData,
       title,
       description,
       branch_id: isGlobalSystemTemplate ? null : formData.branch_id,
       assigned_to: isSystemTemplate ? null : formData.assigned_to,
-      reward_amount: formData.reward_amount === '' ? null : Number(formData.reward_amount),
+      requires_approval: isUnitReward ? true : formData.requires_approval,
+      reward_amount: isUnitReward ? null : rewardAmount,
+      reward_type: formData.reward_type,
+      unit_label: isUnitReward ? formData.unit_label.trim() : null,
+      unit_rate: isUnitReward ? unitRate : null,
+      unit_step: isUnitReward ? unitStep : 1,
+      unit_min: isUnitReward ? unitMin : null,
+      unit_max: isUnitReward ? unitMax : null,
+      target_quantity: isUnitReward ? targetQuantity : null,
       checklist_json: checklistItems.map((item) => ({
         id: item.id,
         label: item.label,
@@ -539,6 +634,13 @@ export default function TemplateManagementPage() {
         </Badge>
         <Badge variant="success" dot={template.requires_approval}>
           {template.requires_approval ? 'ต้องอนุมัติ' : 'ไม่ต้องอนุมัติ'}
+        </Badge>
+        <Badge variant={template.reward_type === 'unit' ? 'info' : 'slate'}>
+          {template.reward_type === 'unit'
+            ? `฿${template.unit_rate ?? 0}/${template.unit_label || 'หน่วย'}`
+            : template.reward_amount != null
+              ? `฿${template.reward_amount}`
+              : 'ค่ามาตรฐาน'}
         </Badge>
       </div>
 
@@ -638,13 +740,33 @@ export default function TemplateManagementPage() {
             onChange={(event) => setFormData({ ...formData, description: event.target.value })}
           />
 
-          <Input
-            label="จำนวนเงินรางวัล (บาท) - ปล่อยว่างเพื่อใช้ค่ามาตรฐาน"
-            type="number"
-            placeholder="เช่น 50, 100"
-            value={formData.reward_amount}
-            onChange={(event) => setFormData({ ...formData, reward_amount: event.target.value })}
+          <Select
+            label="รูปแบบค่าตอบแทน"
+            options={rewardTypeOptions}
+            value={formData.reward_type}
+            onChange={(event) => setFormData({
+              ...formData,
+              reward_type: event.target.value as RewardType,
+              requires_approval: event.target.value === 'unit' ? true : formData.requires_approval,
+            })}
           />
+
+          {formData.reward_type === 'unit' && (
+            <UnitRewardFields
+              values={formData}
+              onChange={(patch) => setFormData((current) => ({ ...current, ...patch }))}
+            />
+          )}
+
+          {formData.reward_type === 'fixed' && (
+            <Input
+              label="จำนวนเงินรางวัล (บาท) - ปล่อยว่างเพื่อใช้ค่ามาตรฐาน"
+              type="number"
+              placeholder="เช่น 50, 100"
+              value={formData.reward_amount}
+              onChange={(event) => setFormData({ ...formData, reward_amount: event.target.value })}
+            />
+          )}
 
           <Select
             label="สาขาเจ้าของต้นแบบ"
@@ -669,12 +791,13 @@ export default function TemplateManagementPage() {
             value={formData.assigned_to}
             onChange={(event) => setFormData({ ...formData, assigned_to: event.target.value })}
             disabled={editingTemplate?.is_system || !formData.branch_id || employeeOptions.length === 0}
+            searchable
           />
 
           <div className="grid grid-cols-2 gap-4">
             <Select
               label="ความสำคัญ"
-              options={priorityOptions}
+              options={PRIORITY_SELECT_OPTIONS}
               value={formData.priority}
               onChange={(event) => setFormData({ ...formData, priority: event.target.value as Priority })}
             />
@@ -689,7 +812,7 @@ export default function TemplateManagementPage() {
           <div className="grid grid-cols-2 gap-4">
             <Select
               label="หลักฐานที่ต้องส่ง"
-              options={proofOptions}
+              options={PROOF_SELECT_OPTIONS}
               value={formData.proof_type_required}
               onChange={(event) => setFormData({ ...formData, proof_type_required: event.target.value as ProofType })}
             />
@@ -698,7 +821,8 @@ export default function TemplateManagementPage() {
                 <input
                   type="checkbox"
                   className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
-                  checked={formData.requires_approval}
+                  checked={formData.reward_type === 'unit' || formData.requires_approval}
+                  disabled={formData.reward_type === 'unit'}
                   onChange={(event) => setFormData({ ...formData, requires_approval: event.target.checked })}
                 />
                 <span className="text-sm font-medium text-slate-700">ต้องรออนุมัติงาน</span>

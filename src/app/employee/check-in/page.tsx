@@ -8,6 +8,7 @@ import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import { Page, PageHeader } from '@/components/ui/Page';
+import Select from '@/components/ui/Select';
 import { useAuthStore } from '@/store/authStore';
 import { useAttendanceStore } from '@/store/attendanceStore';
 import { useBranchStore } from '@/store/branchStore';
@@ -339,23 +340,21 @@ export default function CheckInPage() {
           </div>
         </div>
 
-        <label className="mt-4 block">
-          <span className="text-xs font-medium text-slate-500">สาขาที่ลงเวลา</span>
-          <select
+        <div className="mt-4">
+          <Select
+            label="สาขาที่ลงเวลา"
             value={activeBranchId || ''}
             onChange={(event) => {
               setSelectedBranchId(event.target.value);
               fetchGPS();
             }}
-            className="mt-1 w-full min-h-10 rounded-xl border border-slate-300 bg-white px-3 py-2 pr-10 text-base leading-tight text-slate-900 shadow-sm transition-colors duration-150 appearance-none focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-          >
-            {branchOptions.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name} {item.id === currentUser.branch_id ? '(สาขาหลัก)' : ''}
-              </option>
-            ))}
-          </select>
-        </label>
+            options={branchOptions.map((item) => ({
+              value: item.id,
+              label: item.name,
+              description: item.id === currentUser.branch_id ? 'สาขาหลัก' : undefined,
+            }))}
+          />
+        </div>
 
         {isCrossBranch && (
           <p className="mt-2 text-xs text-amber-700">

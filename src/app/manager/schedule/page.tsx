@@ -1437,17 +1437,18 @@ export default function ManagerSchedulePage() {
                 </p>
               </div>
               <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
-                <select
+                <Select
                   value={modalFilterBranchId}
                   onChange={(e) => setModalFilterBranchId(e.target.value)}
-                  className="rounded-lg border border-slate-200 bg-white py-2 pl-3 pr-8 text-xs font-semibold text-slate-700 shadow-sm focus:ring-2 focus:ring-primary-500 focus:outline-none"
-                >
-                  <option value="CURRENT">สาขานี้ ({modalBranch.name})</option>
-                  <option value="ALL">ทุกสาขา</option>
-                  {branches.filter(b => b.id !== activeSelection.branchId).map(b => (
-                    <option key={b.id} value={b.id}>{b.name}</option>
-                  ))}
-                </select>
+                  className="min-h-9 rounded-lg border-slate-200 py-2 text-xs font-semibold"
+                  options={[
+                    { value: 'CURRENT', label: `สาขานี้ (${modalBranch.name})` },
+                    { value: 'ALL', label: 'ทุกสาขา' },
+                    ...branches
+                      .filter(b => b.id !== activeSelection.branchId)
+                      .map(b => ({ value: b.id, label: b.name })),
+                  ]}
+                />
                 <Button
                   variant="secondary"
                   size="sm"

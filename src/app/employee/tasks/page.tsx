@@ -15,24 +15,36 @@ import {
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
-import { TextArea } from '@/components/ui/Input';
+import Input, { TextArea } from '@/components/ui/Input';
 import Modal from '@/components/ui/Modal';
 import { Page, PageHeader, StatTile } from '@/components/ui/Page';
 import SubmissionFilesGrid, { type PreviewFile } from '@/components/ui/SubmissionFilesGrid';
 import Tabs from '@/components/ui/Tabs';
 import { PROOF_TYPE_LABELS, TASK_STATUS_LABELS } from '@/lib/constants';
-import { formatThaiDate } from '@/lib/dateUtils';
+import { formatThaiDate, getCurrentDateStr } from '@/lib/dateUtils';
 import {
   buildReviewRequestNotifications,
   getReviewRecipients,
   insertNotifications,
 } from '@/lib/reviewHelpers';
 import {
+  calculateUnitReward,
+  formatMilestoneReward,
   formatThaiCurrency,
+  formatUnitQuantity,
+  getEarnedMilestoneReward,
   getMilestoneReward,
+  getUnitLabel,
+  getUnitMax,
+  getUnitMin,
+  getUnitRate,
+  getUnitStep,
+  isExpiredUnsubmittedTask,
   isAttendanceTask,
+  isUnitRewardTask,
   isMilestoneComplete,
   sortMilestoneTasks,
+  validateUnitQuantity,
 } from '@/lib/taskMilestones';
 import type { FileType, ProofType, Task } from '@/lib/types';
 import { useAuthStore } from '@/store/authStore';
@@ -87,6 +99,7 @@ export default function MyTasksPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [quantityInput, setQuantityInput] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const proofUploadsRef = useRef<PendingProofUpload[]>([]);
 
@@ -109,17 +122,18 @@ export default function MyTasksPage() {
   const completedTasks = allTasks.filter((task) => isMilestoneComplete(task.status));
   const earnedReward = allTasks.reduce((sum, task) => {
     const template = task.template_id ? taskStore.getTemplateById(task.template_id) : null;
-    return sum + (isMilestoneComplete(task.status) ? getMilestoneReward(task, template) : 0);
+    return sum + getEarnedMilestoneReward(task, template);
   }, 0);
   const totalReward = allTasks.reduce((sum, task) => {
     const template = task.template_id ? taskStore.getTemplateById(task.template_id) : null;
     return sum + getMilestoneReward(task, template);
   }, 0);
   const progress = allTasks.length > 0 ? Math.round((completedTasks.length / allTasks.length) * 100) : 100;
+  const activeTaskCount = allTasks.filter((task) => ['pending', 'in_progress', 'overdue'].includes(task.status)).length;
 
   const taskTabs = [
     { id: 'today', label: 'วันนี้', count: todayTasks.length },
-    { id: 'active', label: 'ต้องทำ', count: allTasks.filter((task) => ['pending', 'in_progress', 'overdue'].includes(task.status)).length },
+    ...(activeTaskCount > 0 ? [{ id: 'active', label: 'งานค้าง', count: activeTaskCount }] : []),
     { id: 'review', label: 'รอตรวจ', count: allTasks.filter((task) => task.status === 'submitted').length },
     { id: 'fix', label: 'แก้งาน', count: allTasks.filter((task) => task.status === 'rejected').length },
     { id: 'done', label: 'เสร็จแล้ว', count: allTasks.filter((task) => isMilestoneComplete(task.status)).length },
@@ -145,6 +159,20 @@ export default function MyTasksPage() {
   const selectedTemplate = selectedTask?.template_id ? taskStore.getTemplateById(selectedTask.template_id) : null;
   const selectedProofRequired = (selectedTask?.proof_type_required || selectedTemplate?.proof_type_required || 'photo') as ProofType;
   const selectedReward = selectedTask ? getMilestoneReward(selectedTask, selectedTemplate) : 0;
+  const selectedIsUnitReward = Boolean(selectedTask && isUnitRewardTask(selectedTask, selectedTemplate));
+  const selectedUnitLabel = selectedTask ? getUnitLabel(selectedTask, selectedTemplate) : 'หน่วย';
+  const selectedUnitRate = selectedTask ? getUnitRate(selectedTask, selectedTemplate) : 0;
+  const selectedUnitStep = selectedTask ? getUnitStep(selectedTask, selectedTemplate) : 1;
+  const selectedUnitMin = selectedTask ? getUnitMin(selectedTask, selectedTemplate) : null;
+  const selectedUnitMax = selectedTask ? getUnitMax(selectedTask, selectedTemplate) : null;
+  const selectedQuantity = quantityInput.trim() === '' ? null : Number(quantityInput);
+  const selectedQuantityReward = selectedQuantity !== null && Number.isFinite(selectedQuantity)
+    ? calculateUnitReward(selectedQuantity, selectedUnitRate)
+    : 0;
+  const selectedUnitBoundsText = [
+    selectedUnitMin !== null ? `ขั้นต่ำ ${formatUnitQuantity(selectedUnitMin)} ${selectedUnitLabel}` : null,
+    selectedUnitMax !== null ? `สูงสุด ${formatUnitQuantity(selectedUnitMax)} ${selectedUnitLabel}` : null,
+  ].filter((item): item is string => Boolean(item)).join(' · ');
   const previewFiles = proofUploads.map((upload) => ({
     id: upload.id,
     file_url: upload.previewUrl,
@@ -168,6 +196,7 @@ export default function MyTasksPage() {
     proofUploads.forEach((upload) => URL.revokeObjectURL(upload.previewUrl));
     setProofUploads([]);
     setNote('');
+    setQuantityInput('');
     setSubmitError('');
     setSubmitSuccess(false);
     setSelectedTask(task);
@@ -180,10 +209,12 @@ export default function MyTasksPage() {
     setSubmitError('');
     setSubmitSuccess(false);
     setNote('');
+    setQuantityInput('');
   };
 
   const handleChecklistToggle = (itemId: string) => {
     if (!selectedTask?.checklist_state) return;
+    if (selectedTask.status === 'approved' || selectedTask.status === 'submitted') return;
 
     const updated = selectedTask.checklist_state.map((item) =>
       item.id === itemId ? { ...item, completed: !item.completed } : item,
@@ -226,6 +257,14 @@ export default function MyTasksPage() {
       return false;
     }
 
+    if (isExpiredUnsubmittedTask(selectedTask, getCurrentDateStr())) {
+      return false;
+    }
+
+    if (!validateUnitQuantity(selectedQuantity, selectedTask, selectedTemplate).valid) {
+      return false;
+    }
+
     const imageCount = proofUploads.filter((upload) => upload.fileType === 'image').length;
     const videoCount = proofUploads.filter((upload) => upload.fileType === 'video').length;
 
@@ -243,13 +282,34 @@ export default function MyTasksPage() {
     if (!selectedTask) return;
 
     setSubmitError('');
+    if (isExpiredUnsubmittedTask(selectedTask, getCurrentDateStr())) {
+      setSubmitError('งานนี้เลยกำหนดส่งแล้ว ระบบไม่อนุญาตให้ส่งย้อนหลัง');
+      return;
+    }
+
+    const quantityValidation = validateUnitQuantity(selectedQuantity, selectedTask, selectedTemplate);
+    if (!quantityValidation.valid) {
+      setSubmitError(quantityValidation.message || `กรุณากรอกจำนวน${selectedUnitLabel}ที่ทำได้`);
+      return;
+    }
+
     setSubmitting(true);
+
+    const needsApproval = selectedTask.requires_approval ?? selectedTemplate?.requires_approval ?? false;
+    const submittedQuantity = selectedIsUnitReward ? Number(quantityInput) : null;
+    const approvedQuantity = selectedIsUnitReward && !needsApproval ? submittedQuantity : null;
+    const approvedRewardAmount = approvedQuantity !== null
+      ? calculateUnitReward(approvedQuantity, selectedUnitRate)
+      : null;
 
     const submission = await taskStore.addSubmission({
       task_id: selectedTask.id,
       submitted_by: currentUser.id,
       note,
-      review_status: selectedTemplate?.requires_approval ? 'pending' : 'approved',
+      review_status: needsApproval ? 'pending' : 'approved',
+      submitted_quantity: submittedQuantity,
+      approved_quantity: approvedQuantity,
+      approved_reward_amount: approvedRewardAmount,
     });
 
     if (!submission) {
@@ -267,7 +327,7 @@ export default function MyTasksPage() {
       });
     }
 
-    if (selectedTemplate?.requires_approval) {
+    if (needsApproval) {
       const recipients = getReviewRecipients(employeeStore.users, currentUser);
       await insertNotifications(
         buildReviewRequestNotifications({
@@ -280,11 +340,21 @@ export default function MyTasksPage() {
       );
     }
 
-    const nextStatus = selectedTemplate?.requires_approval ? 'submitted' : 'approved';
-    await taskStore.updateTaskStatus(selectedTask.id, nextStatus);
+    const nextStatus = needsApproval ? 'submitted' : 'approved';
+    await taskStore.updateTaskStatus(selectedTask.id, nextStatus, {
+      submitted_quantity: submittedQuantity,
+      approved_quantity: approvedQuantity,
+      approved_reward_amount: approvedRewardAmount,
+    });
     proofUploads.forEach((upload) => URL.revokeObjectURL(upload.previewUrl));
     setProofUploads([]);
-    setSelectedTask({ ...selectedTask, status: nextStatus });
+    setSelectedTask({
+      ...selectedTask,
+      status: nextStatus,
+      submitted_quantity: submittedQuantity,
+      approved_quantity: approvedQuantity,
+      approved_reward_amount: approvedRewardAmount,
+    });
     setSubmitSuccess(true);
     setSubmitting(false);
   };
@@ -340,7 +410,6 @@ export default function MyTasksPage() {
         <div className="space-y-3">
           {visibleTasks.map((task) => {
             const template = task.template_id ? taskStore.getTemplateById(task.template_id) : null;
-            const reward = getMilestoneReward(task, template);
             const actionLabel = task.status === 'approved'
               ? 'ดูรายละเอียด'
               : isAttendanceTask(task, template)
@@ -366,7 +435,7 @@ export default function MyTasksPage() {
                 </div>
                 <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
                   <span>{formatThaiDate(task.due_date || task.created_at)}</span>
-                  <span>{formatThaiCurrency(reward)}</span>
+                  <span>{formatMilestoneReward(task, template)}</span>
                 </div>
                 <Button
                   className="mt-4"
@@ -390,7 +459,9 @@ export default function MyTasksPage() {
                 <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-600" />
                 <h2 className="mt-3 text-lg font-semibold text-slate-950">ส่งงานเรียบร้อยแล้ว</h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  {selectedTemplate?.requires_approval ? 'รอผู้จัดการตรวจสอบ' : `เพิ่มยอดสะสม ${formatThaiCurrency(selectedReward)}`}
+                  {selectedTask.status === 'submitted'
+                    ? 'รอผู้จัดการตรวจสอบ'
+                    : `เพิ่มยอดสะสม ${formatThaiCurrency(selectedIsUnitReward ? selectedQuantityReward : selectedReward)}`}
                 </p>
                 <Button className="mt-5" fullWidth onClick={closeMilestone}>กลับไปดูงาน</Button>
               </div>
@@ -406,13 +477,32 @@ export default function MyTasksPage() {
                   </div>
                 </div>
 
+                {selectedIsUnitReward && (
+                  <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-3">
+                    <Input
+                      label={`จำนวน${selectedUnitLabel}ที่ทำได้`}
+                      type="number"
+                      min={selectedUnitMin ?? 0}
+                      max={selectedUnitMax ?? undefined}
+                      step={selectedUnitStep}
+                      value={quantityInput}
+                      onChange={(event) => setQuantityInput(event.target.value)}
+                      helperText={[
+                        `อัตรา ${formatThaiCurrency(selectedUnitRate)}/${selectedUnitLabel}`,
+                        selectedUnitBoundsText || null,
+                        `ประมาณ ${formatThaiCurrency(selectedQuantityReward)}`,
+                      ].filter((item): item is string => Boolean(item)).join(' · ')}
+                    />
+                  </div>
+                )}
+
                 {selectedTask.checklist_state && selectedTask.checklist_state.length > 0 && (
                   <div className="space-y-2">
                     {selectedTask.checklist_state.map((item) => (
                       <button
                         key={item.id}
                         type="button"
-                        disabled={isMilestoneComplete(selectedTask.status)}
+                        disabled={selectedTask.status === 'approved' || selectedTask.status === 'submitted'}
                         onClick={() => handleChecklistToggle(item.id)}
                         className="flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 text-left disabled:opacity-70"
                       >

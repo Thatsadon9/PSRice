@@ -332,7 +332,19 @@ export default function PayrollPage() {
                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">ขอบเขตการเลือก</label>
                  <div className="space-y-2 bg-slate-50 p-3 rounded-2xl border border-slate-100">
                    <Select label="สาขา" options={branchStore.branches.map((b) => ({ value: b.id, label: b.name }))} value={activeBranchId} onChange={(e) => { setSelectedBranchId(e.target.value); setSelectedEmployeeId(''); }} />
-                   <Select label="พนักงาน" options={branchEmployees.map((e) => ({ value: e.id, label: e.full_name }))} value={activeEmployeeId} onChange={(e) => setSelectedEmployeeId(e.target.value)} disabled={branchEmployees.length === 0} />
+                   <Select
+                     label="พนักงาน"
+                     options={branchEmployees.map((e) => ({
+                       value: e.id,
+                       label: e.full_name,
+                       description: branchStore.getBranchById(e.branch_id)?.name || 'ไม่ระบุสาขา',
+                       avatarUrl: e.avatar_url,
+                     }))}
+                     value={activeEmployeeId}
+                     onChange={(e) => setSelectedEmployeeId(e.target.value)}
+                     disabled={branchEmployees.length === 0}
+                     searchable
+                   />
                  </div>
               </div>
 

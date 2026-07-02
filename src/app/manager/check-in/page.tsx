@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
+import Select from '@/components/ui/Select';
 import { useAuthStore } from '@/store/authStore';
 import { useAttendanceStore } from '@/store/attendanceStore';
 import { useBranchStore } from '@/store/branchStore';
@@ -369,26 +370,22 @@ export default function CheckInPage() {
           )}
 
           <div className="mb-2">
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 pl-2">สถานที่ลงเวลา</label>
-            <div className="relative">
-              <select
-                value={activeBranchId || ''}
-                onChange={(e) => {
-                  setSelectedBranchId(e.target.value);
-                  fetchGPS();
-                }}
-                className="w-full bg-white border-2 border-slate-100 rounded-[2rem] px-5 py-4 text-sm font-black text-slate-900 focus:outline-none focus:border-primary-500 focus:ring-4 focus:ring-primary-500/10 appearance-none shadow-sm transition-all"
-              >
-                {branchStore.branches
-                  .filter(b => currentUser?.role === 'admin' || !b.admin_only || currentUser?.branch_id === b.id)
-                  .map(b => (
-                    <option key={b.id} value={b.id}>{b.name} {b.id === currentUser?.branch_id ? '(สาขาหลัก)' : ''}</option>
-                  ))}
-              </select>
-              <div className="absolute inset-y-0 right-5 flex items-center pointer-events-none text-slate-400">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7"></path></svg>
-              </div>
-            </div>
+            <Select
+              label="สถานที่ลงเวลา"
+              value={activeBranchId || ''}
+              onChange={(e) => {
+                setSelectedBranchId(e.target.value);
+                fetchGPS();
+              }}
+              className="rounded-[2rem] border-2 border-slate-100 px-5 py-4 text-sm font-black shadow-sm focus:ring-primary-500/10"
+              options={branchStore.branches
+                .filter(b => currentUser?.role === 'admin' || !b.admin_only || currentUser?.branch_id === b.id)
+                .map(b => ({
+                  value: b.id,
+                  label: b.name,
+                  description: b.id === currentUser?.branch_id ? 'สาขาหลัก' : undefined,
+                }))}
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-4">

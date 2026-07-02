@@ -29,6 +29,7 @@ export type ReviewStatus = 'pending' | 'approved' | 'rejected';
 export type Priority = 'low' | 'medium' | 'high' | 'critical';
 export type ProofType = 'photo' | 'video' | 'text' | 'checklist' | 'any';
 export type RecurrenceType = 'daily' | 'weekly' | 'monthly' | 'once';
+export type RewardType = 'fixed' | 'unit';
 export type FileType = 'image' | 'video' | 'document';
 export type NotificationType = 'task' | 'attendance' | 'review' | 'system';
 export type ShiftAssignmentStatus = 'scheduled' | 'day_off' | 'leave' | 'holiday';
@@ -220,6 +221,13 @@ export interface TaskTemplate {
   assigned_to?: string | null;
   is_system?: boolean;
   reward_amount?: number | null;
+  reward_type?: RewardType;
+  unit_label?: string | null;
+  unit_rate?: number | null;
+  unit_step?: number | null;
+  unit_min?: number | null;
+  unit_max?: number | null;
+  target_quantity?: number | null;
   sort_order?: number | null;
   created_at: string;
 }
@@ -243,6 +251,16 @@ export interface Task {
   priority?: Priority;
   proof_type_required?: ProofType;
   reward_amount?: number | null;
+  reward_type?: RewardType;
+  unit_label?: string | null;
+  unit_rate?: number | null;
+  unit_step?: number | null;
+  unit_min?: number | null;
+  unit_max?: number | null;
+  target_quantity?: number | null;
+  submitted_quantity?: number | null;
+  approved_quantity?: number | null;
+  approved_reward_amount?: number | null;
   requires_approval?: boolean;
   created_at: string;
 }
@@ -255,6 +273,9 @@ export interface TaskSubmission {
   submitted_at: string;
   review_status: ReviewStatus;
   review_rating?: number | null;
+  submitted_quantity?: number | null;
+  approved_quantity?: number | null;
+  approved_reward_amount?: number | null;
   review_comment?: string;
   reviewed_by?: string;
   reviewed_at?: string;

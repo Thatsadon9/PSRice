@@ -60,7 +60,7 @@ export default function Modal({
 
   if (bottomSheet) {
     return (
-      <div className="fixed inset-0 z-50 flex items-end sm:items-center sm:justify-center">
+      <div className="fixed inset-0 z-[100] flex items-end sm:items-center sm:justify-center">
         <div
           className="fixed inset-0 bg-black/40 backdrop-blur-[2px]"
           onClick={onClose}
@@ -68,13 +68,13 @@ export default function Modal({
         <div
           role="dialog"
           aria-modal="true"
-          className="relative w-full max-h-[min(88vh,760px)] overscroll-contain overflow-y-auto rounded-t-2xl border border-slate-200 bg-white shadow-lg animate-slide-up safe-bottom sm:max-w-md sm:rounded-2xl"
+          className="relative isolate w-full max-h-[min(88vh,760px)] overscroll-contain overflow-y-auto rounded-t-2xl border border-slate-200 bg-white shadow-lg animate-slide-up safe-bottom sm:max-w-md sm:rounded-2xl"
         >
           <div className="flex items-center justify-center pt-3 pb-1 sm:hidden">
             <div className="w-10 h-1 bg-slate-300 rounded-full" />
           </div>
           {title && (
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-white/95 px-5 py-3 backdrop-blur-sm">
+            <div className="sticky top-0 z-30 flex items-center justify-between border-b border-slate-100 bg-white px-5 py-3 shadow-sm shadow-slate-900/5">
               <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
               <button
                 type="button"
@@ -86,14 +86,14 @@ export default function Modal({
               </button>
             </div>
           )}
-          <div className="px-5 py-4">{children}</div>
+          <div className="relative z-0 px-5 py-4">{children}</div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div
         className="fixed inset-0 bg-black/40 backdrop-blur-[2px]"
         onClick={onClose}
@@ -101,10 +101,10 @@ export default function Modal({
       <div
         role="dialog"
         aria-modal="true"
-        className={`relative w-full max-h-[min(88vh,760px)] overscroll-contain overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-lg animate-scale-in ${sizeClasses[size]}`}
+        className={`relative isolate w-full max-h-[min(88vh,760px)] overscroll-contain overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-lg animate-scale-in ${sizeClasses[size]}`}
       >
         {title && (
-          <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-white/95 px-5 py-4 backdrop-blur-sm">
+          <div className="sticky top-0 z-30 flex items-center justify-between border-b border-slate-100 bg-white px-5 py-4 shadow-sm shadow-slate-900/5">
             <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
             <button
               type="button"
@@ -116,7 +116,7 @@ export default function Modal({
             </button>
           </div>
         )}
-        <div className="px-5 py-4">{children}</div>
+        <div className="relative z-0 px-5 py-4">{children}</div>
       </div>
     </div>
   );

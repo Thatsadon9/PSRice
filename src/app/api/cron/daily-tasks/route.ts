@@ -10,6 +10,7 @@ const CHECK_IN_TITLE_KEYWORD = '\u0e40\u0e0a\u0e47\u0e04\u0e2d\u0e34\u0e19';
 const CHECK_IN_TASK_TITLE = 'เช็คอินเข้างาน';
 const CHECK_IN_TASK_DESCRIPTION = 'เช็คอินเข้างานประจำวันให้สำเร็จ';
 const CHECK_IN_REWARD_SYNC_STATUSES = ['pending', 'in_progress', 'submitted', 'approved'];
+const EXPIRED_UNSUBMITTED_STATUSES = ['pending', 'in_progress', 'overdue'];
 
 let supabaseAdminClient: SupabaseClient | null = null;
 
@@ -85,6 +86,46 @@ async function readDailyTasksInputFromBody(request: Request): Promise<DailyTasks
   }
 }
 
+async function deleteExpiredUnsubmittedTasks(
+  supabaseAdmin: SupabaseClient,
+  currentDateStr: string,
+  targetBranchId: string | null,
+) {
+  let assignedUserIds: string[] | null = null;
+
+  if (targetBranchId) {
+    const { data: branchUsers, error: branchUsersError } = await supabaseAdmin
+      .from('users')
+      .select('id')
+      .eq('branch_id', targetBranchId);
+
+    if (branchUsersError) throw branchUsersError;
+
+    assignedUserIds = (branchUsers || [])
+      .map((user) => user.id)
+      .filter((id): id is string => typeof id === 'string');
+
+    if (assignedUserIds.length === 0) {
+      return 0;
+    }
+  }
+
+  let deleteQuery = supabaseAdmin
+    .from('tasks')
+    .delete({ count: 'exact' })
+    .lt('due_date', currentDateStr)
+    .in('status', EXPIRED_UNSUBMITTED_STATUSES);
+
+  if (assignedUserIds) {
+    deleteQuery = deleteQuery.in('assigned_to', assignedUserIds);
+  }
+
+  const { count, error } = await deleteQuery;
+  if (error) throw error;
+
+  return count ?? 0;
+}
+
 export async function GET(request: Request) {
   if (!isAuthorizedCronRequest(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -130,6 +171,22 @@ async function handleDailyTasks(targetBranchId: string | null = null, targetWork
   }
 
   try {
+    const currentDateStr = getCurrentDateStr();
+    const todayStr = targetWorkDate ?? currentDateStr;
+    const deletedExpiredUnsubmittedTasks = await deleteExpiredUnsubmittedTasks(
+      supabaseAdmin,
+      currentDateStr,
+      targetBranchId,
+    );
+
+    if (todayStr < currentDateStr) {
+      return NextResponse.json({
+        message: 'Past daily tasks are closed and cannot be generated again',
+        created: 0,
+        deleted_expired_unsubmitted_tasks: deletedExpiredUnsubmittedTasks,
+      });
+    }
+
     const { data: defaultRewardSetting, error: defaultRewardError } = await supabaseAdmin
       .from('app_settings')
       .select('value')
@@ -168,7 +225,11 @@ async function handleDailyTasks(targetBranchId: string | null = null, targetWork
     const { data: users, error: usersError } = await userQuery;
     if (usersError) throw usersError;
     if (!users || users.length === 0) {
-      return NextResponse.json({ message: 'No active users found', created: 0 });
+      return NextResponse.json({
+        message: 'No active users found',
+        created: 0,
+        deleted_expired_unsubmitted_tasks: deletedExpiredUnsubmittedTasks,
+      });
     }
 
     const usersById = new Map(users.map((user) => [user.id, user]));
@@ -181,7 +242,6 @@ async function handleDailyTasks(targetBranchId: string | null = null, targetWork
       branchEmployeeIdsMap[employee.branch_id].push(employee.id);
     }
 
-    const todayStr = targetWorkDate ?? getCurrentDateStr();
     let syncedExistingCheckInTasks = 0;
 
     for (const [branchId, userIds] of Object.entries(branchEmployeeIdsMap)) {
@@ -315,6 +375,13 @@ async function handleDailyTasks(targetBranchId: string | null = null, targetWork
           due_date: todayStr,
           status: 'pending',
           reward_amount: template.reward_amount,
+          reward_type: template.reward_type || 'fixed',
+          unit_label: template.unit_label ?? null,
+          unit_rate: template.unit_rate ?? null,
+          unit_step: template.unit_step ?? 1,
+          unit_min: template.unit_min ?? null,
+          unit_max: template.unit_max ?? null,
+          target_quantity: template.target_quantity ?? null,
           requires_approval: template.requires_approval ?? true,
         });
 
@@ -358,6 +425,7 @@ async function handleDailyTasks(targetBranchId: string | null = null, targetWork
       created: createdCheckInTasks + createdTemplateTasks,
       created_check_in_tasks: createdCheckInTasks,
       created_template_tasks: createdTemplateTasks,
+      deleted_expired_unsubmitted_tasks: deletedExpiredUnsubmittedTasks,
       synced_check_in_tasks: syncedExistingCheckInTasks,
       check_in_assignment_status: {
         expected: expectedCheckInAssignees,

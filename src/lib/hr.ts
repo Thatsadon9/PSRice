@@ -20,7 +20,7 @@ import type {
   TaskTemplate,
   User,
 } from '@/lib/types';
-import { getMilestoneReward, isAttendanceTask } from '@/lib/taskMilestones';
+import { getEarnedMilestoneReward, isAttendanceTask } from '@/lib/taskMilestones';
 
 const DEFAULT_SHIFT_START = '08:30';
 const DEFAULT_SHIFT_END = '17:30';
@@ -594,7 +594,7 @@ export function buildPayrollSummary(params: {
   });
   const taskReward = approvedTasks.reduce((sum, task) => {
     const template = task.template_id ? templateById.get(task.template_id) : null;
-    return isAttendanceTask(task, template) ? sum : sum + getMilestoneReward(task, template);
+    return isAttendanceTask(task, template) ? sum : sum + getEarnedMilestoneReward(task, template);
   }, 0);
   const attendanceReward = dailySummaries.reduce((sum, summary) => {
     if (!summary.has_check_in) {

@@ -22,10 +22,14 @@ import { SHIFT_ASSIGNMENT_STATUS_LABELS } from '@/lib/constants';
 import { formatThaiDate, getCurrentDateStr } from '@/lib/dateUtils';
 import { resolveShiftForUserDate } from '@/lib/hr';
 import {
+  formatMilestoneReward,
   formatThaiCurrency,
+  getEarnedMilestoneReward,
   getMilestoneReward,
+  isExpiredUnsubmittedTask,
   isAttendanceTask,
   isMilestoneComplete,
+  isMilestonePendingReview,
   sortMilestoneTasks,
 } from '@/lib/taskMilestones';
 import { useAuthStore } from '@/store/authStore';
@@ -88,14 +92,16 @@ export default function EmployeeDashboard() {
 
   const todayAttendance = attendanceStore.getTodayRecordForUser(currentUser.id);
   const attendanceStatus = attendanceStore.getTodayStatus(currentUser.id);
-  const myTasks = tasks.filter((task) => task.assigned_to === currentUser.id);
+  const myTasks = tasks.filter((task) => (
+    task.assigned_to === currentUser.id && !isExpiredUnsubmittedTask(task, todayDate)
+  ));
   const activeTasks = myTasks.filter((task) => ['pending', 'in_progress', 'rejected', 'overdue'].includes(task.status));
   const todayTasks = useTaskStore.getState().getTodayTasksByUser(currentUser.id);
   const milestoneTasks = sortMilestoneTasks(todayTasks, (task) => getTaskTemplate(task.template_id));
   const completedMilestones = milestoneTasks.filter((task) => isMilestoneComplete(task.status));
   const totalMilestoneReward = milestoneTasks.reduce((sum, task) => {
     const template = getTaskTemplate(task.template_id);
-    return sum + (isMilestoneComplete(task.status) ? getMilestoneReward(task, template) : 0);
+    return sum + getEarnedMilestoneReward(task, template);
   }, 0);
   const potentialMilestoneReward = milestoneTasks.reduce((sum, task) => {
     const template = getTaskTemplate(task.template_id);
@@ -217,7 +223,8 @@ export default function EmployeeDashboard() {
               {milestoneTasks.slice(0, 4).map((task, index) => {
                 const template = getTaskTemplate(task.template_id);
                 const isComplete = isMilestoneComplete(task.status);
-                const reward = getMilestoneReward(task, template);
+                const isPendingReview = isMilestonePendingReview(task.status);
+                const rewardLabel = formatMilestoneReward(task, template);
                 const href = !isComplete && isAttendanceTask(task, template)
                   ? '/employee/check-in'
                   : `/employee/tasks/${task.id}`;
@@ -226,20 +233,32 @@ export default function EmployeeDashboard() {
                   <Link key={task.id} href={href} className="block">
                     <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 transition-colors hover:border-emerald-200 hover:bg-emerald-50/40">
                       <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${
-                        isComplete ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-500'
+                        isComplete
+                          ? 'bg-emerald-500 text-white'
+                          : isPendingReview
+                            ? 'bg-amber-100 text-amber-700'
+                            : 'bg-slate-100 text-slate-500'
                       }`}>
-                        {isComplete ? <CheckCircle2 className="h-5 w-5" /> : (isAttendanceTask(task, template) ? <Clock className="h-5 w-5" /> : index + 1)}
+                        {isComplete
+                          ? <CheckCircle2 className="h-5 w-5" />
+                          : isPendingReview
+                            ? <Clock className="h-5 w-5" />
+                            : (isAttendanceTask(task, template) ? <Clock className="h-5 w-5" /> : index + 1)}
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-semibold text-slate-950">{task.title || template?.title}</p>
                         <p className="mt-1 text-xs text-slate-500">กำหนด {formatThaiDate(task.due_date)}</p>
                       </div>
                       <div className={`shrink-0 rounded-xl px-2.5 py-1.5 text-xs font-semibold ${
-                        isComplete ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-50 text-slate-500'
+                        isComplete
+                          ? 'bg-emerald-50 text-emerald-700'
+                          : isPendingReview
+                            ? 'bg-amber-50 text-amber-700'
+                            : 'bg-slate-50 text-slate-500'
                       }`}>
                         <span className="inline-flex items-center gap-1">
                           <Coins className="h-3.5 w-3.5" />
-                          {formatThaiCurrency(reward)}
+                          {rewardLabel}
                         </span>
                       </div>
                       <ChevronRight className="h-4 w-4 shrink-0 text-slate-300" />

@@ -18,14 +18,27 @@ import Card from '@/components/ui/Card';
 import { Page, PageHeader } from '@/components/ui/Page';
 import SubmissionFilesGrid, { type PreviewFile } from '@/components/ui/SubmissionFilesGrid';
 import StarRating from '@/components/ui/StarRating';
-import { TextArea } from '@/components/ui/Input';
+import Input, { TextArea } from '@/components/ui/Input';
 import {
   PRIORITY_LABELS,
   PROOF_TYPE_LABELS,
   REVIEW_STATUS_LABELS,
   TASK_STATUS_LABELS,
 } from '@/lib/constants';
-import { formatThaiDate, formatRelativeTime } from '@/lib/dateUtils';
+import { formatThaiDate, formatRelativeTime, getCurrentDateStr } from '@/lib/dateUtils';
+import {
+  calculateUnitReward,
+  formatThaiCurrency,
+  formatUnitQuantity,
+  getUnitLabel,
+  getUnitMax,
+  getUnitMin,
+  getUnitRate,
+  getUnitStep,
+  isExpiredUnsubmittedTask,
+  isUnitRewardTask,
+  validateUnitQuantity,
+} from '@/lib/taskMilestones';
 import { parseReviewFeedback } from '@/lib/reviewFeedback';
 import type { FileType, Priority, ProofType } from '@/lib/types';
 import {
@@ -85,6 +98,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
   const [submitted, setSubmitted] = useState(false);
   const [proofUploads, setProofUploads] = useState<PendingProofUpload[]>([]);
   const [submitError, setSubmitError] = useState('');
+  const [quantityInput, setQuantityInput] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const proofUploadsRef = useRef<PendingProofUpload[]>([]);
 
@@ -123,6 +137,21 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
       </Page>
     );
   }
+
+  const isUnitReward = isUnitRewardTask(task, template);
+  const unitLabel = getUnitLabel(task, template);
+  const unitRate = getUnitRate(task, template);
+  const unitStep = getUnitStep(task, template);
+  const unitMin = getUnitMin(task, template);
+  const unitMax = getUnitMax(task, template);
+  const submittedQuantity = quantityInput.trim() === '' ? null : Number(quantityInput);
+  const quantityReward = submittedQuantity !== null && Number.isFinite(submittedQuantity)
+    ? calculateUnitReward(submittedQuantity, unitRate)
+    : 0;
+  const unitBoundsText = [
+    unitMin !== null ? `ขั้นต่ำ ${formatUnitQuantity(unitMin)} ${unitLabel}` : null,
+    unitMax !== null ? `สูงสุด ${formatUnitQuantity(unitMax)} ${unitLabel}` : null,
+  ].filter((item): item is string => Boolean(item)).join(' · ');
 
   const getStatusVariant = (status: string) => {
     switch (status) {
@@ -199,15 +228,34 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
 
   const handleSubmit = async () => {
     setSubmitError('');
+    if (isExpiredUnsubmittedTask(task, getCurrentDateStr())) {
+      setSubmitError('งานนี้เลยกำหนดส่งแล้ว ระบบไม่อนุญาตให้ส่งย้อนหลัง');
+      return;
+    }
+
+    const quantityValidation = validateUnitQuantity(submittedQuantity, task, template);
+    if (!quantityValidation.valid) {
+      setSubmitError(quantityValidation.message || `กรุณากรอกจำนวน${unitLabel}ที่ทำได้`);
+      return;
+    }
+
     setSubmitting(true);
 
     const needsApproval = task.requires_approval ?? template?.requires_approval ?? false;
+    const finalSubmittedQuantity = isUnitReward ? Number(quantityInput) : null;
+    const approvedQuantity = isUnitReward && !needsApproval ? finalSubmittedQuantity : null;
+    const approvedRewardAmount = approvedQuantity !== null
+      ? calculateUnitReward(approvedQuantity, unitRate)
+      : null;
 
     const submission = await taskStore.addSubmission({
       task_id: task.id,
       submitted_by: currentUser.id,
       note,
       review_status: needsApproval ? 'pending' : 'approved',
+      submitted_quantity: finalSubmittedQuantity,
+      approved_quantity: approvedQuantity,
+      approved_reward_amount: approvedRewardAmount,
     });
 
     if (!submission) {
@@ -239,7 +287,11 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
       );
     }
 
-    await taskStore.updateTaskStatus(task.id, needsApproval ? 'submitted' : 'approved');
+    await taskStore.updateTaskStatus(task.id, needsApproval ? 'submitted' : 'approved', {
+      submitted_quantity: finalSubmittedQuantity,
+      approved_quantity: approvedQuantity,
+      approved_reward_amount: approvedRewardAmount,
+    });
     proofUploads.forEach((upload) => {
       URL.revokeObjectURL(upload.previewUrl);
     });
@@ -250,6 +302,14 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
 
   const canSubmit = (() => {
     if (task.status === 'approved' || task.status === 'submitted') {
+      return false;
+    }
+
+    if (isExpiredUnsubmittedTask(task, getCurrentDateStr())) {
+      return false;
+    }
+
+    if (!validateUnitQuantity(submittedQuantity, task, template).valid) {
       return false;
     }
 
@@ -442,6 +502,25 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                       <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">แตะเพื่อเพิ่มหลักฐานจากเครื่องหรือถ่ายใหม่</p>
                     </div>
                   </button>
+                </div>
+              )}
+
+              {isUnitReward && (
+                <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4">
+                  <Input
+                    label={`จำนวน${unitLabel}ที่ทำได้`}
+                    type="number"
+                    min={unitMin ?? 0}
+                    max={unitMax ?? undefined}
+                    step={unitStep}
+                    value={quantityInput}
+                    onChange={(event) => setQuantityInput(event.target.value)}
+                    helperText={[
+                      `อัตรา ${formatThaiCurrency(unitRate)}/${unitLabel}`,
+                      unitBoundsText || null,
+                      `ประมาณ ${formatThaiCurrency(quantityReward)}`,
+                    ].filter((item): item is string => Boolean(item)).join(' · ')}
+                  />
                 </div>
               )}
 
