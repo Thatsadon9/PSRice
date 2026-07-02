@@ -143,7 +143,7 @@ export const LATE_THRESHOLD_MINUTES = 15;
 
 export const EMPLOYEE_NAV_ITEMS = [
   { label: 'หน้าแรก', href: '/employee', icon: 'LayoutDashboard' },
-  { label: 'ลงเวลา', href: '/employee/check-in', icon: 'Clock' },
+  { label: 'คำขอ', href: '/employee/requests', icon: 'ReceiptText' },
   { label: 'งาน', href: '/employee/tasks', icon: 'Trophy' },
   { label: 'โปรไฟล์', href: '/employee/profile', icon: 'UserCircle' },
   { label: 'เพิ่มเติม', href: '/employee/settings', icon: 'Menu' },
