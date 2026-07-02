@@ -352,6 +352,7 @@ export default function ManagerSchedulePage() {
   const users = useEmployeeStore((state) => state.users).filter(u => u.status !== 'inactive');
   const getBranchPolicy = useHrStore((state) => state.getBranchPolicy);
   const getShiftTemplatesByBranch = useHrStore((state) => state.getShiftTemplatesByBranch);
+  const shiftTemplates = useHrStore((state) => state.shiftTemplates);
   const shiftAssignments = useHrStore((state) => state.shiftAssignments);
   const schemaReady = useHrStore((state) => state.schemaReady);
   const schemaMessage = useHrStore((state) => state.schemaMessage);
@@ -377,6 +378,7 @@ export default function ManagerSchedulePage() {
   const [savingConfigKey, setSavingConfigKey] = useState<string | null>(null);
   const [showConfig, setShowConfig] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [shiftToDelete, setShiftToDelete] = useState<{ id: string; name: string } | null>(null);
   const [modalFilterBranchId, setModalFilterBranchId] = useState<string>('CURRENT');
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
@@ -421,7 +423,7 @@ export default function ManagerSchedulePage() {
 
     branches.forEach((branch) => {
       const policy = getBranchPolicy(branch.id);
-      const templates = getShiftTemplatesByBranch(branch.id);
+      const templates = shiftTemplates.filter((template) => template.branch_id === branch.id);
       
       const slots: Record<string, SlotConfig> = {};
       
@@ -448,7 +450,7 @@ export default function ManagerSchedulePage() {
     });
 
     return map;
-  }, [branches, getBranchPolicy, getShiftTemplatesByBranch]);
+  }, [branches, getBranchPolicy, shiftTemplates]);
 
   const userMap = useMemo(() => {
     return new Map(users.map((user) => [user.id, user]));
@@ -853,6 +855,9 @@ export default function ManagerSchedulePage() {
   const handleAddNewShiftTemplate = async () => {
     if (!configBranch) return;
 
+    const savingKey = `slot:${configBranch.id}:new`;
+    setSavingConfigKey(savingKey);
+
     const success = await addShiftTemplate({
       branch_id: configBranch.id,
       name: 'กะใหม่',
@@ -872,13 +877,26 @@ export default function ManagerSchedulePage() {
     } else {
       showNotification('ไม่สามารถเพิ่มกะใหม่ได้', 'error');
     }
+
+    setSavingConfigKey(null);
   };
 
-  const handleDeleteShiftTemplate = async (templateId: string) => {
+  const handleDeleteShiftTemplate = (templateId: string) => {
     if (!configBranch) return;
-    if (!confirm('คุณต้องการลบกะนี้ใช่หรือไม่? (การลบกะจะไม่ลบประวัติงานที่มอบหมายไปแล้ว)')) return;
+    const slotDraft = slotDrafts[templateId];
+    const name = slotDraft?.name || 'ไม่ระบุชื่อ';
+    setShiftToDelete({ id: templateId, name });
+  };
 
+  const handleConfirmDeleteShift = async () => {
+    if (!shiftToDelete || !configBranch) return;
+    const { id: templateId } = shiftToDelete;
+    
+    setSavingConfigKey(`delete:${templateId}`);
     const success = await deleteShiftTemplate(templateId);
+    setSavingConfigKey(null);
+    setShiftToDelete(null);
+
     if (success) {
       showNotification('ลบกะเรียบร้อยแล้ว');
     } else {
@@ -1257,6 +1275,7 @@ export default function ManagerSchedulePage() {
                     variant="outline"
                     onClick={() => void handleAddNewShiftTemplate()}
                     disabled={savingConfigKey !== null}
+                    loading={savingConfigKey === `slot:${configBranch.id}:new`}
                   >
                     + เพิ่มกะใหม่
                   </Button>
@@ -1541,6 +1560,51 @@ export default function ManagerSchedulePage() {
             </div>
           </div>
         ) : null}
+      </Modal>
+
+      {/* Delete Shift Template Confirmation Modal */}
+      <Modal
+        isOpen={!!shiftToDelete}
+        onClose={() => setShiftToDelete(null)}
+        title="ยืนยันการลบกะทำงาน"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <div className="flex items-start gap-4 p-4 rounded-2xl bg-red-50 border border-red-100">
+            <div className="shrink-0 w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-600">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-red-900 uppercase tracking-tight">การดำเนินการที่มีความเสี่ยง</p>
+              <p className="text-sm text-red-700 mt-0.5">
+                คุณกำลังจะลบกะ <span className="font-bold underline">{shiftToDelete?.name}</span> ออกจากสาขานี้อย่างถาวร
+              </p>
+            </div>
+          </div>
+
+          <p className="text-sm text-slate-600 px-1 leading-relaxed">
+            การลบกะนี้จะไม่ส่งผลย้อนหลังต่อประวัติงานเดิมที่พนักงานเคยได้รับมอบหมายไปแล้วในปฏิทิน แต่จะไม่สามารถกู้คืนหรือใช้ตั้งค่าในอนาคตได้อีก
+          </p>
+
+          <div className="flex gap-3 pt-4">
+            <Button
+              variant="secondary"
+              fullWidth
+              onClick={() => setShiftToDelete(null)}
+              disabled={savingConfigKey !== null}
+            >
+              ยกเลิก
+            </Button>
+            <Button
+              variant="danger"
+              fullWidth
+              onClick={() => void handleConfirmDeleteShift()}
+              loading={savingConfigKey !== null}
+            >
+              ยืนยันการลบกะ
+            </Button>
+          </div>
+        </div>
       </Modal>
 
       {/* Beautiful Floating Notification */}
