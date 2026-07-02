@@ -10,6 +10,7 @@ const PRIORITY_REWARD: Record<Priority, number> = {
 const COMPLETED_STATUSES: TaskStatus[] = ['submitted', 'approved'];
 
 type RewardSource = Task | TaskTemplate | null | undefined;
+type TemplateResolver = (task: Task) => TaskTemplate | null | undefined;
 
 function hasCheckInKeyword(value?: string | null) {
   if (!value) return false;
@@ -22,6 +23,16 @@ function readNumericReward(source: RewardSource) {
   const record = source as unknown as Record<string, unknown>;
   const value = record.reward_amount ?? record.reward ?? record.amount ?? record.bonus_amount;
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function readTemplateSortOrder(template?: TaskTemplate | null) {
+  return typeof template?.sort_order === 'number' && Number.isFinite(template.sort_order)
+    ? template.sort_order
+    : Number.MAX_SAFE_INTEGER;
+}
+
+function readTaskDateTime(task: Task) {
+  return new Date(task.due_date || task.created_at).getTime();
 }
 
 export function isMilestoneComplete(status: TaskStatus) {
@@ -46,13 +57,28 @@ export function getMilestoneReward(task: Task, template?: TaskTemplate | null) {
   return PRIORITY_REWARD[priority] ?? PRIORITY_REWARD.medium;
 }
 
-export function sortMilestoneTasks(tasks: Task[]) {
+export function sortMilestoneTasks(tasks: Task[], getTemplate?: TemplateResolver) {
   return [...tasks].sort((left, right) => {
-    const leftTime = new Date(left.due_date || left.created_at).getTime();
-    const rightTime = new Date(right.due_date || right.created_at).getTime();
+    const leftTime = readTaskDateTime(left);
+    const rightTime = readTaskDateTime(right);
 
     if (leftTime !== rightTime) {
       return leftTime - rightTime;
+    }
+
+    const leftTemplate = getTemplate?.(left) ?? null;
+    const rightTemplate = getTemplate?.(right) ?? null;
+    const leftIsAttendance = isAttendanceTask(left, leftTemplate);
+    const rightIsAttendance = isAttendanceTask(right, rightTemplate);
+
+    if (leftIsAttendance !== rightIsAttendance) {
+      return leftIsAttendance ? -1 : 1;
+    }
+
+    const templateOrderDiff = readTemplateSortOrder(leftTemplate) - readTemplateSortOrder(rightTemplate);
+
+    if (templateOrderDiff !== 0) {
+      return templateOrderDiff;
     }
 
     return new Date(left.created_at).getTime() - new Date(right.created_at).getTime();

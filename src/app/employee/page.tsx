@@ -63,6 +63,10 @@ export default function EmployeeDashboard() {
   const shiftAssignments = useHrStore((state) => state.shiftAssignments);
 
   const todayDate = getCurrentDateStr();
+  const templateById = useMemo(() => {
+    return new Map(templates.map((template) => [template.id, template]));
+  }, [templates]);
+  const getTaskTemplate = (templateId?: string) => templateId ? templateById.get(templateId) : null;
 
   const upcomingSchedule = useMemo(() => {
     if (!currentUser) return [];
@@ -87,14 +91,14 @@ export default function EmployeeDashboard() {
   const myTasks = tasks.filter((task) => task.assigned_to === currentUser.id);
   const activeTasks = myTasks.filter((task) => ['pending', 'in_progress', 'rejected', 'overdue'].includes(task.status));
   const todayTasks = useTaskStore.getState().getTodayTasksByUser(currentUser.id);
-  const milestoneTasks = sortMilestoneTasks(todayTasks);
+  const milestoneTasks = sortMilestoneTasks(todayTasks, (task) => getTaskTemplate(task.template_id));
   const completedMilestones = milestoneTasks.filter((task) => isMilestoneComplete(task.status));
   const totalMilestoneReward = milestoneTasks.reduce((sum, task) => {
-    const template = task.template_id ? templates.find((item) => item.id === task.template_id) : null;
+    const template = getTaskTemplate(task.template_id);
     return sum + (isMilestoneComplete(task.status) ? getMilestoneReward(task, template) : 0);
   }, 0);
   const potentialMilestoneReward = milestoneTasks.reduce((sum, task) => {
-    const template = task.template_id ? templates.find((item) => item.id === task.template_id) : null;
+    const template = getTaskTemplate(task.template_id);
     return sum + getMilestoneReward(task, template);
   }, 0);
   const milestoneProgress = milestoneTasks.length > 0
@@ -211,7 +215,7 @@ export default function EmployeeDashboard() {
           ) : (
             <div className="mt-4 space-y-2">
               {milestoneTasks.slice(0, 4).map((task, index) => {
-                const template = task.template_id ? templates.find((item) => item.id === task.template_id) : null;
+                const template = getTaskTemplate(task.template_id);
                 const isComplete = isMilestoneComplete(task.status);
                 const reward = getMilestoneReward(task, template);
                 const href = !isComplete && isAttendanceTask(task, template)

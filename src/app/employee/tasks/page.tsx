@@ -92,12 +92,18 @@ export default function MyTasksPage() {
 
   const allTasks = useMemo(() => {
     if (!currentUser) return [];
-    return sortMilestoneTasks(taskStore.getTasksByUser(currentUser.id));
+    return sortMilestoneTasks(
+      taskStore.getTasksByUser(currentUser.id),
+      (task) => task.template_id ? taskStore.getTemplateById(task.template_id) : null,
+    );
   }, [currentUser, taskStore]);
 
   const todayTasks = useMemo(() => {
     if (!currentUser) return [];
-    return sortMilestoneTasks(taskStore.getTodayTasksByUser(currentUser.id));
+    return sortMilestoneTasks(
+      taskStore.getTodayTasksByUser(currentUser.id),
+      (task) => task.template_id ? taskStore.getTemplateById(task.template_id) : null,
+    );
   }, [currentUser, taskStore]);
 
   const completedTasks = allTasks.filter((task) => isMilestoneComplete(task.status));
