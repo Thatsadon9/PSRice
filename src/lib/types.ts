@@ -32,6 +32,8 @@ export type RecurrenceType = 'daily' | 'weekly' | 'monthly' | 'once';
 export type RewardType = 'fixed' | 'unit';
 export type FileType = 'image' | 'video' | 'document';
 export type NotificationType = 'task' | 'attendance' | 'review' | 'system';
+export type NotificationCategory = 'action' | 'update' | 'system';
+export type NotificationStatus = 'unread' | 'read' | 'done' | 'archived';
 export type ShiftAssignmentStatus = 'scheduled' | 'day_off' | 'leave' | 'holiday';
 export type CompensationType = 'daily' | 'hourly' | 'monthly';
 export type AppSettingValue =
@@ -216,6 +218,7 @@ export interface TaskTemplate {
   proof_type_required: ProofType;
   requires_approval: boolean;
   recurrence_rule: RecurrenceType;
+  recurrence_days?: number[] | null;
   checklist_json: ChecklistItem[];
   branch_id: string | null;
   assigned_to?: string | null;
@@ -298,6 +301,15 @@ export interface Notification {
   type: NotificationType;
   is_read: boolean;
   link?: string;
+  category?: NotificationCategory | null;
+  priority?: Priority | null;
+  status?: NotificationStatus | null;
+  entity_type?: string | null;
+  entity_id?: string | null;
+  actor_user_id?: string | null;
+  branch_id?: string | null;
+  group_key?: string | null;
+  archived_at?: string | null;
   created_at: string;
 }
 

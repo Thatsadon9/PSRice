@@ -30,7 +30,12 @@ export default function Header({ onMenuClick, showMenu = false }: HeaderProps) {
     }
 
     return notifications.filter((notification) => {
-      return notification.user_id === currentUserId && !isEffectivelyReadNotification(notification, submissions);
+      return (
+        notification.user_id === currentUserId &&
+        notification.status !== 'archived' &&
+        !notification.archived_at &&
+        !isEffectivelyReadNotification(notification, submissions)
+      );
     }).length;
   }, [currentUserId, notifications, submissions]);
 

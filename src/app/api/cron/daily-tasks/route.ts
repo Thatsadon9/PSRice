@@ -65,6 +65,34 @@ function normalizeWorkDate(value: unknown) {
   return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
 }
 
+function getIsoWeekdayFromDateString(value: string) {
+  const [year, month, day] = value.split('-').map((part) => Number(part));
+  const utcDay = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+  return utcDay === 0 ? 7 : utcDay;
+}
+
+function normalizeRecurrenceDays(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((day) => Number(day))
+    .filter((day) => Number.isInteger(day) && day >= 1 && day <= 7);
+}
+
+function shouldGenerateTemplateForDate(template: Record<string, unknown>, isoWeekday: number) {
+  if (template.recurrence_rule === 'daily') {
+    return true;
+  }
+
+  if (template.recurrence_rule !== 'weekly') {
+    return false;
+  }
+
+  return normalizeRecurrenceDays(template.recurrence_days).includes(isoWeekday);
+}
+
 function readDailyTasksInputFromUrl(request: Request): DailyTasksInput {
   const { searchParams } = new URL(request.url);
   return {
@@ -306,7 +334,7 @@ async function handleDailyTasks(targetBranchId: string | null = null, targetWork
     let templateQuery = supabaseAdmin
       .from('task_templates')
       .select('*')
-      .eq('recurrence_rule', 'daily');
+      .in('recurrence_rule', ['daily', 'weekly']);
     if (targetBranchId) {
       templateQuery = templateQuery.or(`branch_id.eq.${targetBranchId},branch_id.is.null`);
     }
@@ -314,11 +342,16 @@ async function handleDailyTasks(targetBranchId: string | null = null, targetWork
     const { data: templates, error: templatesError } = await templateQuery;
     if (templatesError) throw templatesError;
 
-    const dailyTemplates = (templates || []).filter((template) => {
+    const todayIsoWeekday = getIsoWeekdayFromDateString(todayStr);
+    const scheduledTemplates = (templates || []).filter((template) => {
       const title = typeof template.title === 'string' ? template.title : '';
-      return !title.includes(CHECK_IN_TITLE_KEYWORD);
+      return !title.includes(CHECK_IN_TITLE_KEYWORD) && shouldGenerateTemplateForDate(template, todayIsoWeekday);
     });
-    const skippedCheckInTemplates = (templates || []).length - dailyTemplates.length;
+    const skippedCheckInTemplates = (templates || []).filter((template) => {
+      const title = typeof template.title === 'string' ? template.title : '';
+      return title.includes(CHECK_IN_TITLE_KEYWORD);
+    }).length;
+    const skippedUnscheduledTemplates = (templates || []).length - skippedCheckInTemplates - scheduledTemplates.length;
 
     const { data: existingTasks, error: existingTasksError } = await supabaseAdmin
       .from('tasks')
@@ -337,7 +370,7 @@ async function handleDailyTasks(targetBranchId: string | null = null, targetWork
     let skippedInactiveAssignees = 0;
     let skippedBranchMismatch = 0;
 
-    for (const template of dailyTemplates) {
+    for (const template of scheduledTemplates) {
       const branchId = typeof template.branch_id === 'string' ? template.branch_id : null;
       const assignedUserId = typeof template.assigned_to === 'string' ? template.assigned_to : '';
       const targetUserIds = assignedUserId ? [assignedUserId] : [];
@@ -387,8 +420,8 @@ async function handleDailyTasks(targetBranchId: string | null = null, targetWork
 
         newNotifications.push({
           user_id: userId,
-          title: 'งานใหม่รายวัน',
-          message: `ระบบได้มอบหมายงานรายวัน "${template.title}" ให้คุณ (กำหนดส่ง: วันนี้)`,
+          title: 'งานใหม่',
+          message: `ระบบได้มอบหมายงาน "${template.title}" ให้คุณ (กำหนดส่ง: วันนี้)`,
           type: 'task',
           link: '/employee/tasks',
         });
@@ -433,6 +466,7 @@ async function handleDailyTasks(targetBranchId: string | null = null, targetWork
         complete: assignedCheckInAssignees >= expectedCheckInAssignees,
       },
       skipped_check_in_templates: skippedCheckInTemplates,
+      skipped_unscheduled_templates: skippedUnscheduledTemplates,
       skipped_unassigned_templates: skippedUnassignedTemplates,
       skipped_inactive_assignees: skippedInactiveAssignees,
       skipped_branch_mismatches: skippedBranchMismatch,

@@ -96,6 +96,23 @@ export const RECURRENCE_LABELS: Record<RecurrenceType, string> = {
   once: 'ครั้งเดียว',
 };
 
+export const WEEKDAY_OPTIONS = [
+  { value: 1, label: 'จ.' },
+  { value: 2, label: 'อ.' },
+  { value: 3, label: 'พ.' },
+  { value: 4, label: 'พฤ.' },
+  { value: 5, label: 'ศ.' },
+  { value: 6, label: 'ส.' },
+  { value: 7, label: 'อา.' },
+] as const;
+
+export const DEFAULT_WEEKLY_RECURRENCE_DAYS = [1, 2, 3, 4, 5];
+
+export const WEEKDAY_SHORT_LABELS = WEEKDAY_OPTIONS.reduce<Record<number, string>>((labels, day) => {
+  labels[day.value] = day.label;
+  return labels;
+}, {});
+
 export const ROLE_LABELS: Record<string, string> = {
   admin: 'ผู้ดูแลระบบ',
   manager: 'ผู้จัดการ',

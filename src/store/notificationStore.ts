@@ -16,6 +16,8 @@ interface NotificationState {
   getUnreadCount: (userId: string) => number;
   markAsRead: (notificationId: string) => Promise<void>;
   markAllAsRead: (userId: string) => Promise<void>;
+  archiveNotification: (notificationId: string) => Promise<void>;
+  archiveReadNotifications: (userId: string) => Promise<void>;
   addNotification: (notification: Omit<Notification, 'id' | 'created_at'>) => Promise<void>;
   subscribeToNotifications: (userId: string) => () => void;
 }
@@ -56,7 +58,12 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   },
 
   getUnreadCount: (userId: string) => {
-    return get().notifications.filter(n => n.user_id === userId && !n.is_read).length;
+    return get().notifications.filter(n => (
+      n.user_id === userId &&
+      !n.is_read &&
+      n.status !== 'archived' &&
+      !n.archived_at
+    )).length;
   },
 
   markAsRead: async (notificationId: string) => {
@@ -95,6 +102,69 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     } catch (err) {
       console.error('Failed to mark all notifications as read:', err);
     }
+  },
+
+  archiveNotification: async (notificationId: string) => {
+    const archivedAt = new Date().toISOString();
+
+    set(state => ({
+      notifications: state.notifications.map(n =>
+        n.id === notificationId
+          ? { ...n, is_read: true, status: 'archived', archived_at: archivedAt }
+          : n
+      ),
+    }));
+
+    const { error } = await supabase
+      .from('notifications')
+      .update({ is_read: true, status: 'archived', archived_at: archivedAt })
+      .eq('id', notificationId);
+
+    if (!error) {
+      return;
+    }
+
+    console.warn('Notification archive fields unavailable, falling back to read-only update:', error.message || error);
+    const { error: fallbackError } = await supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('id', notificationId);
+
+    if (fallbackError) {
+      console.error('Failed to archive notification:', fallbackError);
+    }
+  },
+
+  archiveReadNotifications: async (userId: string) => {
+    const archivedAt = new Date().toISOString();
+    const readableIds = get().notifications
+      .filter((notification) => notification.user_id === userId && notification.is_read && !notification.archived_at)
+      .map((notification) => notification.id);
+
+    if (readableIds.length === 0) {
+      return;
+    }
+
+    set(state => ({
+      notifications: state.notifications.map(n =>
+        readableIds.includes(n.id)
+          ? { ...n, status: 'archived', archived_at: archivedAt }
+          : n
+      ),
+    }));
+
+    const { error } = await supabase
+      .from('notifications')
+      .update({ status: 'archived', archived_at: archivedAt })
+      .eq('user_id', userId)
+      .eq('is_read', true)
+      .is('archived_at', null);
+
+    if (!error) {
+      return;
+    }
+
+    console.warn('Bulk notification archive fields unavailable:', error.message || error);
   },
 
   addNotification: async (notification) => {

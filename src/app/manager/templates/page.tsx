@@ -43,7 +43,14 @@ import {
   FileText,
   GripVertical,
 } from 'lucide-react';
-import { PRIORITY_LABELS, PROOF_TYPE_LABELS, RECURRENCE_LABELS } from '@/lib/constants';
+import {
+  DEFAULT_WEEKLY_RECURRENCE_DAYS,
+  PRIORITY_LABELS,
+  PROOF_TYPE_LABELS,
+  RECURRENCE_LABELS,
+  WEEKDAY_OPTIONS,
+  WEEKDAY_SHORT_LABELS,
+} from '@/lib/constants';
 import type { TaskTemplate, Priority, ProofType, RecurrenceType, RewardType } from '@/lib/types';
 
 const ALL_BRANCH_ID = '__all_branches__';
@@ -56,6 +63,7 @@ type TemplateFormData = {
   priority: Priority;
   proof_type_required: ProofType;
   recurrence_rule: RecurrenceType;
+  recurrence_days: number[];
   requires_approval: boolean;
   branch_id: string;
   assigned_to: string;
@@ -76,6 +84,7 @@ function createEmptyTemplate(branchId: string): TemplateFormData {
     priority: 'medium',
     proof_type_required: 'photo',
     recurrence_rule: 'daily',
+    recurrence_days: DEFAULT_WEEKLY_RECURRENCE_DAYS,
     requires_approval: true,
     branch_id: branchId,
     assigned_to: '',
@@ -97,6 +106,33 @@ function parseOptionalNumber(value: string) {
 
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : Number.NaN;
+}
+
+function normalizeRecurrenceDays(days: unknown) {
+  if (!Array.isArray(days)) {
+    return [];
+  }
+
+  return Array.from(
+    new Set(
+      days
+        .map((day) => Number(day))
+        .filter((day) => Number.isInteger(day) && day >= 1 && day <= 7),
+    ),
+  ).sort((left, right) => left - right);
+}
+
+function formatRecurrenceLabel(template: TaskTemplate) {
+  if (template.recurrence_rule !== 'weekly') {
+    return RECURRENCE_LABELS[template.recurrence_rule];
+  }
+
+  const days = normalizeRecurrenceDays(template.recurrence_days);
+  if (days.length === 0) {
+    return RECURRENCE_LABELS.weekly;
+  }
+
+  return `${RECURRENCE_LABELS.weekly}: ${days.map((day) => WEEKDAY_SHORT_LABELS[day]).join(' ')}`;
 }
 
 function applyTemplateOrder(items: TaskTemplate[], order?: string[]) {
@@ -412,6 +448,7 @@ export default function TemplateManagementPage() {
     setNewChecklistItem('');
 
     if (template) {
+      const templateRecurrenceDays = normalizeRecurrenceDays(template.recurrence_days);
       setEditingTemplate(template);
       setFormData({
         title: template.title,
@@ -419,6 +456,9 @@ export default function TemplateManagementPage() {
         priority: template.priority,
         proof_type_required: template.proof_type_required,
         recurrence_rule: template.recurrence_rule,
+        recurrence_days: templateRecurrenceDays.length > 0
+          ? templateRecurrenceDays
+          : DEFAULT_WEEKLY_RECURRENCE_DAYS,
         requires_approval: template.requires_approval,
         branch_id: template.branch_id || ALL_BRANCH_ID,
         assigned_to: template.assigned_to || '',
@@ -469,6 +509,14 @@ export default function TemplateManagementPage() {
 
     const isSystemTemplate = editingTemplate?.is_system === true;
     const isGlobalSystemTemplate = isSystemTemplate && formData.branch_id === ALL_BRANCH_ID;
+    const recurrenceDays = formData.recurrence_rule === 'weekly'
+      ? normalizeRecurrenceDays(formData.recurrence_days)
+      : null;
+
+    if (formData.recurrence_rule === 'weekly' && (!recurrenceDays || recurrenceDays.length === 0)) {
+      setFormError('กรุณาเลือกวันที่ต้องการมอบหมายงานอย่างน้อย 1 วัน');
+      return;
+    }
 
     if (!formData.branch_id || (!isGlobalSystemTemplate && formData.branch_id === ALL_BRANCH_ID)) {
       setFormError('กรุณาเลือกสาขาที่เป็นเจ้าของต้นแบบ');
@@ -540,6 +588,7 @@ export default function TemplateManagementPage() {
       description,
       branch_id: isGlobalSystemTemplate ? null : formData.branch_id,
       assigned_to: isSystemTemplate ? null : formData.assigned_to,
+      recurrence_days: recurrenceDays,
       requires_approval: isUnitReward ? true : formData.requires_approval,
       reward_amount: isUnitReward ? null : rewardAmount,
       reward_type: formData.reward_type,
@@ -566,6 +615,20 @@ export default function TemplateManagementPage() {
     }
 
     handleCloseModal();
+  };
+
+  const toggleRecurrenceDay = (day: number) => {
+    setFormData((current) => {
+      const selectedDays = normalizeRecurrenceDays(current.recurrence_days);
+      const nextDays = selectedDays.includes(day)
+        ? selectedDays.filter((selectedDay) => selectedDay !== day)
+        : [...selectedDays, day].sort((left, right) => left - right);
+
+      return {
+        ...current,
+        recurrence_days: nextDays,
+      };
+    });
   };
 
   const renderTemplateCard = (template: TaskTemplate, options?: { floating?: boolean }) => (
@@ -623,7 +686,7 @@ export default function TemplateManagementPage() {
         <Badge variant={template.priority === 'critical' ? 'danger' : template.priority === 'high' ? 'warning' : 'info'}>
           {PRIORITY_LABELS[template.priority]}
         </Badge>
-        <Badge variant="slate">{RECURRENCE_LABELS[template.recurrence_rule]}</Badge>
+        <Badge variant="slate">{formatRecurrenceLabel(template)}</Badge>
         <Badge variant="default">{getTemplateBranchLabel(template)}</Badge>
         <Badge variant={template.is_system ? 'success' : template.assigned_to ? 'info' : 'warning'}>
           {template.is_system
@@ -805,9 +868,56 @@ export default function TemplateManagementPage() {
               label="ความถี่"
               options={recurrenceOptions}
               value={formData.recurrence_rule}
-              onChange={(event) => setFormData({ ...formData, recurrence_rule: event.target.value as RecurrenceType })}
+              onChange={(event) => {
+                const nextRecurrence = event.target.value as RecurrenceType;
+                setFormData({
+                  ...formData,
+                  recurrence_rule: nextRecurrence,
+                  recurrence_days: nextRecurrence === 'weekly' && formData.recurrence_days.length === 0
+                    ? DEFAULT_WEEKLY_RECURRENCE_DAYS
+                    : formData.recurrence_days,
+                });
+              }}
             />
           </div>
+
+          {formData.recurrence_rule === 'weekly' && (
+            <div className="rounded-2xl border border-primary-100 bg-primary-50/40 p-3">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-bold text-slate-800">วันที่มอบหมายในสัปดาห์</p>
+                  <p className="text-xs text-slate-500">เลือกได้หลายวัน ระบบจะมอบหมายเฉพาะวันที่เลือก</p>
+                </div>
+                <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-primary-700 ring-1 ring-primary-100">
+                  {normalizeRecurrenceDays(formData.recurrence_days).length} วัน
+                </span>
+              </div>
+
+              <div className="grid grid-cols-7 gap-1.5" role="group" aria-label="เลือกวันที่มอบหมายในสัปดาห์">
+                {WEEKDAY_OPTIONS.map((day) => {
+                  const isSelected = normalizeRecurrenceDays(formData.recurrence_days).includes(day.value);
+
+                  return (
+                    <button
+                      key={day.value}
+                      type="button"
+                      aria-pressed={isSelected}
+                      onClick={() => toggleRecurrenceDay(day.value)}
+                      className={`
+                        flex h-10 items-center justify-center rounded-xl text-sm font-black transition-all duration-150
+                        ${isSelected
+                          ? 'bg-primary-600 text-white shadow-[0_8px_18px_rgba(5,150,105,0.22)] ring-1 ring-primary-500'
+                          : 'bg-white text-slate-500 ring-1 ring-slate-200 hover:text-primary-700 hover:ring-primary-200'
+                        }
+                      `}
+                    >
+                      {day.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <Select

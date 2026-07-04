@@ -1,13 +1,13 @@
 'use client';
 
-import { motion, useMotionValue, useTransform } from 'framer-motion';
+import { LayoutGroup, motion, useMotionValue, useTransform } from 'framer-motion';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import {
   LayoutDashboard, Clock, ClipboardList, Users, CheckSquare,
   Building2, FileText, CalendarCheck, BarChart3, Settings, X, LogOut,
-  CalendarDays, WalletCards, ReceiptText,
+  CalendarDays, WalletCards, ReceiptText, Menu, Trophy, UserCircle,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { useRouter } from 'next/navigation';
@@ -18,7 +18,14 @@ import { getPendingReviewCountForUser } from '@/lib/reviewHelpers';
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   LayoutDashboard, Clock, ClipboardList, Users, CheckSquare,
   Building2, FileText, CalendarCheck, BarChart3, Settings,
-  CalendarDays, WalletCards, ReceiptText,
+  CalendarDays, WalletCards, ReceiptText, Menu, Trophy, UserCircle,
+};
+
+const sidebarMorphTransition = {
+  type: 'spring' as const,
+  stiffness: 420,
+  damping: 34,
+  mass: 0.72,
 };
 
 interface NavItem {
@@ -113,43 +120,89 @@ export default function Sidebar({ items, isOpen, onClose, onOpen }: SidebarProps
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto py-3 px-3">
-          <div className="space-y-0.5">
-            {items.map(item => {
-              const Icon = iconMap[item.icon] || LayoutDashboard;
-              const isActive = pathname === item.href ||
-                (item.href !== '/manager' && pathname.startsWith(item.href));
-              const isReviewItem = item.href === '/manager/review';
+          <LayoutGroup id="manager-sidebar-nav">
+            <div className="space-y-1">
+              {items.map(item => {
+                const Icon = iconMap[item.icon] || LayoutDashboard;
+                const isActive = pathname === item.href ||
+                  (item.href !== '/manager' && pathname.startsWith(item.href));
+                const isReviewItem = item.href === '/manager/review';
 
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={onClose}
-                  className={`
-                    flex min-h-10 items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium touch-manipulation
-                    transition-colors duration-150
-                    ${isActive
-                      ? 'bg-primary-50 text-primary-800 ring-1 ring-primary-100'
-                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                    }
-                  `}
-                >
-                  <span className="relative flex-shrink-0">
-                    <Icon className="w-[18px] h-[18px]" />
-                    {isReviewItem && pendingReviewCount > 0 && (
-                      <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-red-500 ring-2 ring-white" />
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={onClose}
+                    aria-current={isActive ? 'page' : undefined}
+                    className={`
+                      group relative flex min-h-11 items-center gap-3 overflow-hidden rounded-2xl px-3 py-2 text-sm font-medium touch-manipulation
+                      transition-colors duration-200
+                      ${isActive ? 'text-primary-900' : 'text-slate-600 hover:text-slate-950'}
+                    `}
+                  >
+                    {isActive && (
+                      <>
+                        <motion.span
+                          layoutId="manager-sidebar-active-pill"
+                          className="absolute inset-0 rounded-2xl border border-primary-100 bg-gradient-to-r from-primary-50 via-emerald-50 to-white shadow-[0_10px_26px_rgba(15,118,110,0.10)]"
+                          transition={sidebarMorphTransition}
+                        />
+                        <motion.span
+                          layoutId="manager-sidebar-active-rail"
+                          className="absolute left-0 top-2 bottom-2 w-1 rounded-full bg-primary-500 shadow-[0_0_16px_rgba(16,185,129,0.45)]"
+                          transition={sidebarMorphTransition}
+                        />
+                        <motion.span
+                          layoutId="manager-sidebar-active-glow"
+                          className="absolute right-3 top-1/2 h-7 w-7 -translate-y-1/2 rounded-full bg-primary-200/45 blur-xl"
+                          transition={sidebarMorphTransition}
+                        />
+                      </>
                     )}
-                  </span>
-                  <span className="flex-1 truncate">{item.label}</span>
-                  {isReviewItem && pendingReviewCount > 0 && (
-                    <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold text-white">
-                      {pendingReviewCount > 99 ? '99+' : pendingReviewCount}
-                    </span>
-                  )}
-                </Link>
-              );
-            })}
-          </div>
+
+                    <motion.span
+                      className={`
+                        relative z-10 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl
+                        transition-colors duration-200
+                        ${isActive
+                          ? 'bg-white text-primary-700 shadow-sm ring-1 ring-primary-100'
+                          : 'text-slate-500 group-hover:bg-slate-50 group-hover:text-slate-900'
+                        }
+                      `}
+                      animate={{
+                        scale: isActive ? 1.04 : 1,
+                        y: isActive ? -1 : 0,
+                      }}
+                      transition={sidebarMorphTransition}
+                    >
+                      <Icon className="h-[18px] w-[18px]" />
+                    </motion.span>
+
+                    {isReviewItem && pendingReviewCount > 0 && (
+                      <span className="absolute left-[38px] top-2.5 z-20 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white" />
+                    )}
+
+                    <motion.span
+                      className={`relative z-10 flex-1 truncate ${isReviewItem && pendingReviewCount > 0 ? 'pr-12' : ''}`}
+                      animate={{
+                        x: isActive ? 2 : 0,
+                        fontWeight: isActive ? 800 : 500,
+                      }}
+                      transition={sidebarMorphTransition}
+                    >
+                      {item.label}
+                    </motion.span>
+
+                    {isReviewItem && pendingReviewCount > 0 && (
+                      <span className="absolute right-3 top-1/2 z-20 inline-flex min-w-6 -translate-y-1/2 items-center justify-center rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm">
+                        {pendingReviewCount > 99 ? '99+' : pendingReviewCount}
+                      </span>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+          </LayoutGroup>
         </nav>
 
         {/* Footer */}

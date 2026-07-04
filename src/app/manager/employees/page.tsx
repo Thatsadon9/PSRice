@@ -1,18 +1,54 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useEmployeeStore } from '@/store/employeeStore';
 import { useBranchStore } from '@/store/branchStore';
 import { useAuthStore } from '@/store/authStore';
+import { useAttendanceStore } from '@/store/attendanceStore';
+import { useHrStore } from '@/store/hrStore';
+import { useTaskStore } from '@/store/taskStore';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import Modal from '@/components/ui/Modal';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
-import { UserPlus, Search, Edit2, Trash2, Building2, Mail, Shield, User, AlertCircle, UserMinus, KeyRound } from 'lucide-react';
-import { ROLE_LABELS } from '@/lib/constants';
-import type { User as UserType, UserRole } from '@/lib/types';
+import {
+  UserPlus,
+  Search,
+  Edit2,
+  Trash2,
+  Building2,
+  Mail,
+  Shield,
+  User,
+  AlertCircle,
+  UserMinus,
+  KeyRound,
+  WalletCards,
+  TrendingUp,
+  TrendingDown,
+  Trophy,
+  CheckCircle2,
+  Clock,
+  Coins,
+  ClipboardList,
+  CalendarDays,
+} from 'lucide-react';
+import { ROLE_LABELS, TASK_STATUS_LABELS } from '@/lib/constants';
+import { getCurrentDateStr, formatThaiDate, isSameCalendarDate } from '@/lib/dateUtils';
+import { buildPayrollSummary, formatMinutesAsHours, getMonthDateRange } from '@/lib/hr';
+import {
+  formatMilestoneReward,
+  formatThaiCurrency,
+  getEarnedMilestoneReward,
+  getMilestoneReward,
+  isAttendanceTask,
+  isMilestoneComplete,
+  isMilestonePendingReview,
+  sortMilestoneTasks,
+} from '@/lib/taskMilestones';
+import type { TaskStatus, User as UserType, UserRole } from '@/lib/types';
 
 type EmployeeFormData = {
   full_name: string;
@@ -36,6 +72,34 @@ function createEmptyFormData(branchId: string): EmployeeFormData {
   };
 }
 
+function getTaskStatusVariant(status: TaskStatus) {
+  switch (status) {
+    case 'approved':
+      return 'success' as const;
+    case 'submitted':
+      return 'warning' as const;
+    case 'rejected':
+    case 'overdue':
+      return 'danger' as const;
+    case 'in_progress':
+      return 'info' as const;
+    default:
+      return 'slate' as const;
+  }
+}
+
+function getTaskStatusIcon(status: TaskStatus) {
+  if (isMilestoneComplete(status)) {
+    return <CheckCircle2 className="h-4 w-4" />;
+  }
+
+  if (isMilestonePendingReview(status)) {
+    return <Clock className="h-4 w-4" />;
+  }
+
+  return <ClipboardList className="h-4 w-4" />;
+}
+
 export default function EmployeeManagementPage() {
   const users = useEmployeeStore((state) => state.users);
   const addUser = useEmployeeStore((state) => state.addUser);
@@ -46,16 +110,25 @@ export default function EmployeeManagementPage() {
   const branches = useBranchStore((state) => state.branches);
   const getBranchById = useBranchStore((state) => state.getBranchById);
   const currentUser = useAuthStore((state) => state.currentUser);
+  const attendanceRecords = useAttendanceStore((state) => state.records);
+  const tasks = useTaskStore((state) => state.tasks);
+  const templates = useTaskStore((state) => state.templates);
+  const branchPolicies = useHrStore((state) => state.branchPolicies);
+  const employeeRequests = useHrStore((state) => state.employeeRequests);
+  const shiftAssignments = useHrStore((state) => state.shiftAssignments);
+  const getCompensationProfile = useHrStore((state) => state.getCompensationProfile);
 
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserType | null>(null);
+  const [selectedEmployee, setSelectedEmployee] = useState<UserType | null>(null);
   const [userToDelete, setUserToDelete] = useState<UserType | null>(null);
   const [userToResetPassword, setUserToResetPassword] = useState<UserType | null>(null);
   const [newPassword, setNewPassword] = useState('');
   const [resetError, setResetError] = useState('');
   const [resetSuccess, setResetSuccess] = useState('');
   const [formError, setFormError] = useState('');
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isAdmin = currentUser?.role === 'admin';
 
@@ -103,6 +176,70 @@ export default function EmployeeManagementPage() {
 
   const activeEmployees = useMemo(() => filteredEmployees.filter(u => u.status !== 'inactive'), [filteredEmployees]);
   const inactiveEmployees = useMemo(() => filteredEmployees.filter(u => u.status === 'inactive'), [filteredEmployees]);
+  const todayDate = getCurrentDateStr();
+  const monthRange = useMemo(() => getMonthDateRange(new Date()), []);
+  const templateById = useMemo(() => {
+    return new Map(templates.map((template) => [template.id, template]));
+  }, [templates]);
+  const getTaskTemplate = (templateId?: string | null) => (
+    templateId ? templateById.get(templateId) ?? null : null
+  );
+
+  const selectedBranch = selectedEmployee?.branch_id ? getBranchById(selectedEmployee.branch_id) : null;
+  const selectedPayrollSummary = useMemo(() => {
+    if (!selectedEmployee) {
+      return null;
+    }
+
+    return buildPayrollSummary({
+      user: selectedEmployee,
+      startDate: monthRange.start,
+      endDate: monthRange.end,
+      records: attendanceRecords,
+      assignments: shiftAssignments,
+      branchPolicies,
+      requests: employeeRequests.filter((request) => request.user_id === selectedEmployee.id),
+      tasks,
+      taskTemplates: templates,
+      compensationProfile: getCompensationProfile(selectedEmployee.id) ?? null,
+    });
+  }, [
+    attendanceRecords,
+    branchPolicies,
+    employeeRequests,
+    getCompensationProfile,
+    monthRange.end,
+    monthRange.start,
+    selectedEmployee,
+    shiftAssignments,
+    tasks,
+    templates,
+  ]);
+
+  const selectedMilestoneTasks = useMemo(() => {
+    if (!selectedEmployee) {
+      return [];
+    }
+
+    return sortMilestoneTasks(
+      tasks.filter((task) => task.assigned_to === selectedEmployee.id && isSameCalendarDate(task.due_date, todayDate)),
+      (task) => (task.template_id ? templateById.get(task.template_id) ?? null : null),
+    );
+  }, [selectedEmployee, tasks, templateById, todayDate]);
+
+  const selectedCompletedMilestones = selectedMilestoneTasks.filter((task) => isMilestoneComplete(task.status));
+  const selectedPendingReviewMilestones = selectedMilestoneTasks.filter((task) => isMilestonePendingReview(task.status));
+  const selectedEarnedReward = selectedMilestoneTasks.reduce((sum, task) => {
+    const template = getTaskTemplate(task.template_id);
+    return sum + getEarnedMilestoneReward(task, template);
+  }, 0);
+  const selectedPotentialReward = selectedMilestoneTasks.reduce((sum, task) => {
+    const template = getTaskTemplate(task.template_id);
+    return sum + getMilestoneReward(task, template);
+  }, 0);
+  const selectedMilestoneProgress = selectedMilestoneTasks.length > 0
+    ? Math.round((selectedCompletedMilestones.length / selectedMilestoneTasks.length) * 100)
+    : 100;
 
   const branchOptions = accessibleBranches.map((branch) => ({ value: branch.id, label: branch.name }));
   const roleOptions = (isAdmin ? ['admin', 'manager', 'employee'] : ['employee']).map((role) => ({
@@ -249,6 +386,32 @@ export default function EmployeeManagementPage() {
     }
   };
 
+  const openEmployeeDetail = (employee: UserType) => {
+    setSelectedEmployee(employee);
+  };
+
+  const clearLongPressTimer = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
+  const handleRowTouchStart = (employee: UserType) => {
+    clearLongPressTimer();
+    longPressTimerRef.current = setTimeout(() => {
+      openEmployeeDetail(employee);
+      longPressTimerRef.current = null;
+    }, 420);
+  };
+
+  const handleRowKeyDown = (event: KeyboardEvent<HTMLTableRowElement>, employee: UserType) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      openEmployeeDetail(employee);
+    }
+  };
+
   if (!currentUser) {
     return null;
   }
@@ -305,7 +468,15 @@ export default function EmployeeManagementPage() {
                   return (
                     <tr
                       key={employee.id}
-                      className={`hover:bg-slate-50 transition-colors group ${!canManage ? 'opacity-70' : ''}`}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => openEmployeeDetail(employee)}
+                      onKeyDown={(event) => handleRowKeyDown(event, employee)}
+                      onTouchStart={() => handleRowTouchStart(employee)}
+                      onTouchEnd={clearLongPressTimer}
+                      onTouchMove={clearLongPressTimer}
+                      onTouchCancel={clearLongPressTimer}
+                      className={`group cursor-pointer transition-colors hover:bg-primary-50/40 focus-visible:bg-primary-50/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-200 ${!canManage ? 'opacity-70' : ''}`}
                     >
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
@@ -341,7 +512,11 @@ export default function EmployeeManagementPage() {
                           {branch?.name || 'ไม่ระบุ'}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-right">
+                      <td
+                        className="px-6 py-4 text-right"
+                        onClick={(event) => event.stopPropagation()}
+                        onTouchStart={(event) => event.stopPropagation()}
+                      >
                         {canManage ? (
                           <div className="flex items-center justify-end gap-1">
                             <button
@@ -411,7 +586,15 @@ export default function EmployeeManagementPage() {
                   return (
                     <tr
                       key={employee.id}
-                      className={`hover:bg-slate-50 transition-colors group ${!canManage ? 'opacity-70' : ''}`}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => openEmployeeDetail(employee)}
+                      onKeyDown={(event) => handleRowKeyDown(event, employee)}
+                      onTouchStart={() => handleRowTouchStart(employee)}
+                      onTouchEnd={clearLongPressTimer}
+                      onTouchMove={clearLongPressTimer}
+                      onTouchCancel={clearLongPressTimer}
+                      className={`group cursor-pointer transition-colors hover:bg-slate-50 focus-visible:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-200 ${!canManage ? 'opacity-70' : ''}`}
                     >
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
@@ -447,7 +630,11 @@ export default function EmployeeManagementPage() {
                           {branch?.name || 'ไม่ระบุ'}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-right">
+                      <td
+                        className="px-6 py-4 text-right"
+                        onClick={(event) => event.stopPropagation()}
+                        onTouchStart={(event) => event.stopPropagation()}
+                      >
                         {canManage ? (
                           <div className="flex items-center justify-end gap-1">
                             <button
@@ -490,6 +677,255 @@ export default function EmployeeManagementPage() {
           </div>
         </Card>
       )}
+
+      <Modal
+        isOpen={Boolean(selectedEmployee)}
+        onClose={() => setSelectedEmployee(null)}
+        title="ข้อมูลพนักงาน"
+        size="full"
+      >
+        {selectedEmployee && (
+          <div className="space-y-5">
+            <div className="overflow-hidden rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 via-white to-slate-50">
+              <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 items-center gap-4">
+                  <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl border-4 border-white bg-primary-100 shadow-sm">
+                    {selectedEmployee.avatar_url ? (
+                      <div
+                        role="img"
+                        aria-label={selectedEmployee.full_name}
+                        className="h-full w-full bg-cover bg-center bg-no-repeat"
+                        style={{ backgroundImage: `url(${selectedEmployee.avatar_url})` }}
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-2xl font-black text-primary-700">
+                        {selectedEmployee.full_name.charAt(0)}
+                      </div>
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="truncate text-xl font-black tracking-tight text-slate-950">
+                        {selectedEmployee.full_name}
+                      </h2>
+                      <Badge variant={selectedEmployee.status === 'inactive' ? 'slate' : 'success'} dot>
+                        {selectedEmployee.status === 'inactive' ? 'พักการใช้งาน' : 'ใช้งานอยู่'}
+                      </Badge>
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1 ring-1 ring-slate-100">
+                        <Mail className="h-3.5 w-3.5" />
+                        {selectedEmployee.email}
+                      </span>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1 ring-1 ring-slate-100">
+                        <Building2 className="h-3.5 w-3.5" />
+                        {selectedBranch?.name || 'ไม่ระบุสาขา'}
+                      </span>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1 ring-1 ring-slate-100">
+                        <Shield className="h-3.5 w-3.5" />
+                        {ROLE_LABELS[selectedEmployee.role]}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 sm:min-w-[300px]">
+                  <div className="rounded-2xl bg-white/85 p-3 text-center ring-1 ring-slate-100">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">งานวันนี้</p>
+                    <p className="mt-1 text-xl font-black text-slate-950">{selectedMilestoneTasks.length}</p>
+                  </div>
+                  <div className="rounded-2xl bg-white/85 p-3 text-center ring-1 ring-slate-100">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">รอตรวจ</p>
+                    <p className="mt-1 text-xl font-black text-amber-600">{selectedPendingReviewMilestones.length}</p>
+                  </div>
+                  <div className="rounded-2xl bg-white/85 p-3 text-center ring-1 ring-slate-100">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">สำเร็จ</p>
+                    <p className="mt-1 text-xl font-black text-emerald-600">{selectedCompletedMilestones.length}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+              <section className="space-y-4">
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3">
+                      <div className="rounded-2xl bg-emerald-50 p-3 text-emerald-600">
+                        <WalletCards className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-slate-500">ยอดเงินเดือนนี้</p>
+                        <p className="mt-1 text-3xl font-black tracking-tight text-slate-950">
+                          {formatThaiCurrency(selectedPayrollSummary?.net_pay || 0)}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          รอบ {selectedPayrollSummary?.start_date} ถึง {selectedPayrollSummary?.end_date}
+                        </p>
+                      </div>
+                    </div>
+                    <Badge variant="success">สุทธิ</Badge>
+                  </div>
+
+                  <div className="mt-5 grid grid-cols-2 gap-3">
+                    <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4">
+                      <div className="flex items-center gap-2 text-emerald-700">
+                        <TrendingUp className="h-4 w-4" />
+                        <span className="text-[10px] font-bold uppercase tracking-widest">รายได้รวม</span>
+                      </div>
+                      <p className="mt-2 text-lg font-black text-emerald-900">
+                        {formatThaiCurrency(selectedPayrollSummary?.total_earnings || 0)}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-red-100 bg-red-50/70 p-4">
+                      <div className="flex items-center gap-2 text-red-600">
+                        <TrendingDown className="h-4 w-4" />
+                        <span className="text-[10px] font-bold uppercase tracking-widest">หักรวม</span>
+                      </div>
+                      <p className="mt-2 text-lg font-black text-red-700">
+                        {formatThaiCurrency(selectedPayrollSummary?.total_deductions || 0)}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                      <div className="flex items-center gap-2 text-slate-500">
+                        <Coins className="h-4 w-4" />
+                        <span className="text-[10px] font-bold uppercase tracking-widest">โบนัสงาน</span>
+                      </div>
+                      <p className="mt-2 text-lg font-black text-slate-900">
+                        {formatThaiCurrency((selectedPayrollSummary?.attendance_reward || 0) + (selectedPayrollSummary?.task_reward || 0))}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                      <div className="flex items-center gap-2 text-slate-500">
+                        <CalendarDays className="h-4 w-4" />
+                        <span className="text-[10px] font-bold uppercase tracking-widest">วันทำงาน</span>
+                      </div>
+                      <p className="mt-2 text-lg font-black text-slate-900">
+                        {selectedPayrollSummary?.worked_days || 0}/{selectedPayrollSummary?.scheduled_days || 0}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 space-y-2 border-t border-slate-100 pt-4">
+                    <div className="flex items-center justify-between text-xs font-semibold text-slate-500">
+                      <span>มาสาย {formatMinutesAsHours(selectedPayrollSummary?.total_late_minutes || 0)}</span>
+                      <span className="text-red-500">- {formatThaiCurrency(selectedPayrollSummary?.late_deduction || 0)}</span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-sm">
+                      <span className="text-slate-600">ค่าเช็คอิน</span>
+                      <span className="font-bold text-emerald-700">+ {formatThaiCurrency(selectedPayrollSummary?.attendance_reward || 0)}</span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-sm">
+                      <span className="text-slate-600">ค่าตอบแทนงาน</span>
+                      <span className="font-bold text-emerald-700">+ {formatThaiCurrency(selectedPayrollSummary?.task_reward || 0)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {selectedPayrollSummary && selectedPayrollSummary.money_lines.length > 0 && (
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <p className="text-sm font-black text-slate-900">รายการเงินเดือนนี้</p>
+                    <div className="mt-3 space-y-2">
+                      {selectedPayrollSummary.money_lines.slice(0, 8).map((line) => (
+                        <div key={line.id} className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-sm">
+                          <span className="text-slate-600">{line.label}</span>
+                          <span className={line.kind === 'earning' ? 'font-bold text-emerald-700' : 'font-bold text-red-600'}>
+                            {line.kind === 'earning' ? '+' : '-'} {formatThaiCurrency(line.amount)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </section>
+
+              <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-start gap-3">
+                    <div className="rounded-2xl bg-emerald-50 p-3 text-emerald-600">
+                      <Trophy className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-black text-slate-900">Milestone วันนี้</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        ได้แล้ว {formatThaiCurrency(selectedEarnedReward)} จากเป้าหมาย {formatThaiCurrency(selectedPotentialReward)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-2xl font-black text-emerald-600">{selectedMilestoneProgress}%</p>
+                    <p className="text-xs font-semibold text-slate-400">Progress</p>
+                  </div>
+                </div>
+
+                <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-slate-100">
+                  <div
+                    className="h-full rounded-full bg-emerald-500 transition-all duration-500"
+                    style={{ width: `${selectedMilestoneProgress}%` }}
+                  />
+                </div>
+
+                {selectedMilestoneTasks.length === 0 ? (
+                  <div className="mt-5 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
+                    <CheckCircle2 className="mx-auto h-9 w-9 text-emerald-500" />
+                    <p className="mt-3 text-sm font-bold text-slate-950">วันนี้ยังไม่มีงานใน Milestone</p>
+                    <p className="mt-1 text-xs text-slate-500">เมื่องานถูกมอบหมาย ระบบจะแสดงสถานะของพนักงานคนนี้ที่นี่</p>
+                  </div>
+                ) : (
+                  <div className="mt-5 space-y-2">
+                    {selectedMilestoneTasks.map((task, index) => {
+                      const template = getTaskTemplate(task.template_id);
+                      const isComplete = isMilestoneComplete(task.status);
+                      const isPendingReview = isMilestonePendingReview(task.status);
+                      const rewardLabel = formatMilestoneReward(task, template);
+
+                      return (
+                        <div
+                          key={task.id}
+                          className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3"
+                        >
+                          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-black ${
+                            isComplete
+                              ? 'bg-emerald-500 text-white'
+                              : isPendingReview
+                                ? 'bg-amber-100 text-amber-700'
+                                : 'bg-slate-100 text-slate-500'
+                          }`}>
+                            {isComplete || isPendingReview || isAttendanceTask(task, template)
+                              ? getTaskStatusIcon(task.status)
+                              : index + 1}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="truncate text-sm font-bold text-slate-950">{task.title || template?.title || 'ไม่มีชื่องาน'}</p>
+                              <Badge variant={getTaskStatusVariant(task.status)}>
+                                {TASK_STATUS_LABELS[task.status]}
+                              </Badge>
+                            </div>
+                            <p className="mt-1 text-xs text-slate-500">กำหนด {formatThaiDate(task.due_date)}</p>
+                          </div>
+                          <div className={`shrink-0 rounded-xl px-2.5 py-1.5 text-xs font-bold ${
+                            isComplete
+                              ? 'bg-emerald-50 text-emerald-700'
+                              : isPendingReview
+                                ? 'bg-amber-50 text-amber-700'
+                                : 'bg-slate-50 text-slate-500'
+                          }`}>
+                            <span className="inline-flex items-center gap-1">
+                              <Coins className="h-3.5 w-3.5" />
+                              {rewardLabel}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       <Modal
         isOpen={isModalOpen}
