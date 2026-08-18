@@ -869,7 +869,7 @@ export default function EmployeeManagementPage() {
                   <div className="mt-5 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
                     <CheckCircle2 className="mx-auto h-9 w-9 text-emerald-500" />
                     <p className="mt-3 text-sm font-bold text-slate-950">วันนี้ยังไม่มีงานใน Milestone</p>
-                    <p className="mt-1 text-xs text-slate-500">เมื่องานถูกมอบหมาย ระบบจะแสดงสถานะของพนักงานคนนี้ที่นี่</p>
+                    <p className="mt-1 text-xs text-slate-500">ยังไม่มีงานใน Milestone</p>
                   </div>
                 ) : (
                   <div className="mt-5 space-y-2">

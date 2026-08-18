@@ -1043,7 +1043,7 @@ function EmptyState({
 
   const description = hasFilters
     ? 'ลองล้างตัวกรองหรือขยายช่วงเวลาเพื่อดูรายการเพิ่มเติม'
-    : 'เมื่อมีรายการใหม่ ระบบจะจัดเข้ากลุ่มให้ดูง่ายอัตโนมัติ';
+    : 'รายการใหม่จัดกลุ่มอัตโนมัติ';
 
   return (
     <div className="flex min-h-[360px] flex-col items-center justify-center px-4 text-center">

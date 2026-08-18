@@ -13,6 +13,9 @@
   --color-primary-900: #064e3b;
 
   --font-sans: var(--font-ibm-plex-sans-thai), var(--font-inter), system-ui, -apple-system, sans-serif;
+
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* Base styles */
@@ -24,6 +27,7 @@ html {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  scroll-behavior: smooth;
 }
 
 body {
@@ -44,6 +48,29 @@ input,
 select,
 textarea {
   font: inherit;
+}
+
+button,
+a[href] {
+  touch-action: manipulation;
+}
+
+button:not(:disabled),
+a[href],
+[role="button"] {
+  transition-property: color, background-color, border-color, opacity, box-shadow, scale;
+  transition-duration: 150ms;
+  transition-timing-function: var(--ease-standard);
+}
+
+button:not(:disabled):not(.fixed):not(.absolute):active,
+a[href]:active,
+[role="button"]:active {
+  scale: 0.985;
+}
+
+button:disabled {
+  cursor: not-allowed;
 }
 
 .app-scrollbar {
@@ -90,7 +117,7 @@ textarea {
 
 /* Animations */
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(8px); }
+  from { opacity: 0; transform: translateY(5px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
@@ -105,8 +132,23 @@ textarea {
 }
 
 @keyframes scaleIn {
-  from { opacity: 0; transform: scale(0.95); }
+  from { opacity: 0; transform: translateY(4px) scale(0.985); }
   to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes overlayIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes drawerRightIn {
+  from { opacity: 0.8; transform: translateX(22px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes drawerLeftIn {
+  from { opacity: 0.8; transform: translateX(-22px); }
+  to { opacity: 1; transform: translateX(0); }
 }
 
 @keyframes pulse-ring {
@@ -118,20 +160,29 @@ textarea {
   to { transform: rotate(360deg); }
 }
 
+@keyframes catalogProgress {
+  from { transform: translateX(-110%); }
+  to { transform: translateX(410%); }
+}
+
+.catalog-progress {
+  animation: catalogProgress 1s var(--ease-emphasized) infinite;
+}
+
 .animate-fade-in {
-  animation: fadeIn 0.3s ease-out;
+  animation: fadeIn 220ms var(--ease-emphasized) both;
 }
 
 .animate-slide-up {
-  animation: slideUp 0.3s ease-out;
+  animation: slideUp 240ms var(--ease-emphasized) both;
 }
 
 .animate-slide-down {
-  animation: slideDown 0.3s ease-out;
+  animation: slideDown 220ms var(--ease-emphasized) both;
 }
 
 .animate-scale-in {
-  animation: scaleIn 0.2s ease-out;
+  animation: scaleIn 180ms var(--ease-emphasized) both;
 }
 
 .animate-spin {
@@ -151,7 +202,7 @@ textarea {
 
 /* Card hover effect */
 .card-hover {
-  transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+  transition: transform 180ms var(--ease-emphasized), border-color 150ms var(--ease-standard), box-shadow 180ms var(--ease-standard);
 }
 
 .card-hover:hover {
@@ -165,7 +216,37 @@ textarea {
 
 /* Global inputs transition */
 input, select, textarea {
-  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  transition: border-color 150ms var(--ease-standard), box-shadow 150ms var(--ease-standard), background-color 150ms var(--ease-standard);
+}
+
+:where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea):focus-visible {
+  box-shadow: 0 0 0 3px rgb(16 185 129 / 0.12);
+}
+
+tbody > tr {
+  transition: background-color 140ms var(--ease-standard);
+}
+
+/* Consistent entrance motion for custom dialogs used across Commerce. */
+.fixed.inset-0[class*="bg-slate-950"],
+.fixed.inset-0[class*="bg-black"] {
+  animation: overlayIn 150ms ease-out both;
+}
+
+.fixed.inset-0.flex.justify-end > section {
+  animation: drawerRightIn 220ms var(--ease-emphasized) both;
+}
+
+.fixed.inset-0.grid.place-items-center > :is(section, form, div):not(.absolute) {
+  animation: scaleIn 180ms var(--ease-emphasized) both;
+}
+
+.motion-drawer-left-in {
+  animation: drawerLeftIn 220ms var(--ease-emphasized) both;
+}
+
+.motion-dialog-in {
+  animation: scaleIn 180ms var(--ease-emphasized) both;
 }
 
 /* Bottom nav active indicator */
@@ -226,6 +307,21 @@ input, select, textarea {
   .mobile-full {
     width: 100%;
     border-radius: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
   }
 }
 

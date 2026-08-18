@@ -15,6 +15,7 @@ import { useTaskStore } from '@/store/taskStore';
 import { ATTENDANCE_STATUS_LABELS, COMPENSATION_TYPE_LABELS } from '@/lib/constants';
 import { format } from 'date-fns';
 import { exportToCSV } from '@/lib/export';
+import { formatThaiDate } from '@/lib/dateUtils';
 import { buildPayrollSummary, formatMinutesAsHours, getMonthDateRange, toNumberValue } from '@/lib/hr';
 import type { CompensationProfile } from '@/lib/types';
 import { AlertTriangle, Calculator, ReceiptText, Save, WalletCards, DollarSign, TrendingUp, ArrowRight, Zap, Users, Search, Download, ChevronRight, PlusCircle, MinusCircle } from 'lucide-react';
@@ -684,9 +685,29 @@ export default function PayrollPage() {
                         <span className="text-xs font-bold text-slate-500">การลาแบบไม่รับค่าจ้าง</span>
                         <span className="text-xs font-black text-red-500 leading-none">- {formatCurrency(payrollSummary?.leave_deduction || 0)}</span>
                      </div>
-                     <div className="flex items-center justify-between p-4 rounded-2xl hover:bg-slate-50 transition-colors">
-                        <span className="text-xs font-bold text-slate-500">เบิกเงินล่วงหน้าที่อนุมัติ</span>
-                        <span className="text-xs font-black text-red-500 leading-none">- {formatCurrency(payrollSummary?.advance_deduction || 0)}</span>
+                     <div className="rounded-2xl p-4 hover:bg-slate-50 transition-colors">
+                        <div className="flex items-center justify-between gap-3">
+                           <span className="text-xs font-bold text-slate-500">
+                              เบิกเงินล่วงหน้าที่อนุมัติ
+                              {payrollSummary && payrollSummary.advance_requests.length > 0
+                                ? ` (${payrollSummary.advance_requests.length} รายการ)`
+                                : ''}
+                           </span>
+                           <span className="text-xs font-black text-red-500 leading-none">- {formatCurrency(payrollSummary?.advance_deduction || 0)}</span>
+                        </div>
+                        {payrollSummary && payrollSummary.advance_requests.length > 0 && (
+                          <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
+                            {payrollSummary.advance_requests.map((request) => (
+                              <div key={request.id} className="flex items-center justify-between gap-3 text-[11px]">
+                                <div className="min-w-0">
+                                  <p className="truncate font-semibold text-slate-600">{request.title}</p>
+                                  <p className="text-slate-400">วันที่เบิก {formatThaiDate(request.request_date)}</p>
+                                </div>
+                                <span className="shrink-0 font-bold text-red-500">- {formatCurrency(request.amount)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                      </div>
                    </div>
                  </div>

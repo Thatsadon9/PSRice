@@ -1,12 +1,13 @@
 'use client';
 
 import { useMemo } from 'react';
-import { Bell, Menu, LogOut } from 'lucide-react';
+import { Bell, LayoutGrid, Menu, LogOut } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { useNotificationStore } from '@/store/notificationStore';
 import { useTaskStore } from '@/store/taskStore';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import { ROLE_LABELS } from '@/lib/constants';
 import { isEffectivelyReadNotification } from '@/lib/reviewHelpers';
 import { getHomeHref, getNotificationsHref } from '@/lib/viewMode';
@@ -18,6 +19,7 @@ interface HeaderProps {
 }
 
 export default function Header({ onMenuClick, showMenu = false }: HeaderProps) {
+  const router = useRouter();
   const currentUser = useAuthStore((state) => state.currentUser);
   const adminViewMode = useAuthStore((state) => state.adminViewMode);
   const notifications = useNotificationStore((state) => state.notifications);
@@ -81,6 +83,16 @@ export default function Header({ onMenuClick, showMenu = false }: HeaderProps) {
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
+          <Link
+            href="/hub"
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl px-2 text-slate-600 transition-colors hover:bg-slate-100 md:px-3"
+            aria-label="เปลี่ยนระบบ"
+            title="เปลี่ยนระบบ"
+          >
+            <LayoutGrid className="h-5 w-5" />
+            <span className="hidden text-xs font-bold md:block">ระบบ</span>
+          </Link>
+
           <AdminViewModeSwitch />
 
           <Link 
@@ -101,7 +113,7 @@ export default function Header({ onMenuClick, showMenu = false }: HeaderProps) {
             onClick={async () => {
               const { logout } = useAuthStore.getState();
               await logout();
-              window.location.href = '/login';
+              router.replace('/login');
             }}
             className="inline-flex h-11 min-w-11 items-center justify-center gap-2 rounded-xl px-0 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 md:px-3"
             aria-label="Logout"

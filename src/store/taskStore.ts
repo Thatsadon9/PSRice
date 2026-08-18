@@ -6,7 +6,7 @@
 import { create } from 'zustand';
 import type { Task, TaskTemplate, TaskSubmission, SubmissionFile, TaskStatus, ReviewStatus, ChecklistItem } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
-import { uploadFile, dataURLtoBlob } from '@/lib/storage';
+import { uploadFile, dataURLtoBlob, removeStoredFile } from '@/lib/storage';
 import { getCurrentDateStr, isSameCalendarDate } from '@/lib/dateUtils';
 import { serializeReviewFeedback } from '@/lib/reviewFeedback';
 import { markReviewRequestNotificationsAsRead } from '@/lib/reviewHelpers';
@@ -634,6 +634,8 @@ export const useTaskStore = create<TaskState>((set, get) => ({
   },
 
   addFile: async (file) => {
+    let newlyUploadedUrl: string | null = null;
+
     try {
       let finalFileUrl = file.file_url || '';
 
@@ -641,12 +643,14 @@ export const useTaskStore = create<TaskState>((set, get) => ({
         const uploadedUrl = await uploadFile('proofs', buildUploadPath(file), file.upload_blob);
         if (uploadedUrl) {
           finalFileUrl = uploadedUrl;
+          newlyUploadedUrl = uploadedUrl;
         }
       } else if (file.file_url?.startsWith('data:')) {
         const blob = dataURLtoBlob(file.file_url);
         const uploadedUrl = await uploadFile('proofs', buildUploadPath({ ...file, upload_blob: blob }), blob);
         if (uploadedUrl) {
           finalFileUrl = uploadedUrl;
+          newlyUploadedUrl = uploadedUrl;
         }
       }
 
@@ -669,6 +673,9 @@ export const useTaskStore = create<TaskState>((set, get) => ({
         submissionFiles: sortByCreatedAtDesc(upsertEntity(state.submissionFiles, data as SubmissionFile)),
       }));
     } catch (err) {
+      if (newlyUploadedUrl) {
+        await removeStoredFile('proofs', newlyUploadedUrl);
+      }
       console.error('Failed to add submission file:', err);
     }
   },

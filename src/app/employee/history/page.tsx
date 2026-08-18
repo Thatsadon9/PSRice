@@ -10,6 +10,7 @@ import {
   CalendarDays,
   ClipboardList,
   Clock,
+  ImageOff,
   MapPin,
 } from 'lucide-react';
 import Badge from '@/components/ui/Badge';
@@ -162,7 +163,16 @@ export default function HistoryPage() {
                       <div className="p-4 flex items-center justify-between gap-4">
                         <div className="flex items-center gap-4 flex-1 min-w-0">
                           <div className="h-16 w-12 shrink-0 overflow-hidden rounded-xl bg-slate-50 border border-slate-100">
-                            <img src={record.photo_url} alt="Proof" className="h-full w-full object-cover grayscale-[20%]" />
+                            {record.photo_url ? (
+                              <img src={record.photo_url} alt="Proof" className="h-full w-full object-cover grayscale-[20%]" />
+                            ) : (
+                              <div
+                                className="flex h-full w-full items-center justify-center text-slate-300"
+                                title="รูปถูกลบตามระยะเวลาจัดเก็บแล้ว"
+                              >
+                                <ImageOff className="h-4 w-4" />
+                              </div>
+                            )}
                           </div>
                           <div className="min-w-0">
                             <p className="text-sm font-black text-slate-900">

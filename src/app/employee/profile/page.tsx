@@ -34,7 +34,7 @@ import { Page, PageHeader } from '@/components/ui/Page';
 import { ROLE_LABELS, SHIFT_ASSIGNMENT_STATUS_LABELS } from '@/lib/constants';
 import { getCurrentDateStr } from '@/lib/dateUtils';
 import { buildPayrollSummary, formatMinutesAsHours, getMonthDateRange, resolveShiftForUserDate } from '@/lib/hr';
-import { createSignedFileUrl, uploadFile, uploadPrivateFile } from '@/lib/storage';
+import { createSignedFileUrl, removeStoredFile, uploadFile, uploadPrivateFile } from '@/lib/storage';
 import { getAccessToken } from '@/lib/supabase';
 import type { User } from '@/lib/types';
 import { useAuthStore } from '@/store/authStore';
@@ -337,25 +337,34 @@ export default function ProfilePage() {
     setUploadingTarget('avatar');
     setProfileError('');
     setProfileSuccess('');
+    const previousAvatarUrl = form.avatar_url;
+    let uploadedAvatarUrl: string | null = null;
 
     try {
-      const avatarUrl = await uploadFile(
+      uploadedAvatarUrl = await uploadFile(
         'avatars',
         buildStoragePath(currentUser.id, 'avatar', file),
         file,
       );
 
-      if (!avatarUrl) {
+      if (!uploadedAvatarUrl) {
         throw new Error('อัปโหลดรูปโปรไฟล์ไม่สำเร็จ');
       }
 
       await submitProfilePatch(
-        { avatar_url: avatarUrl },
+        { avatar_url: uploadedAvatarUrl },
         'อัปโหลดรูปโปรไฟล์เรียบร้อย',
       );
 
-      setForm((prev) => ({ ...prev, avatar_url: avatarUrl }));
+      setForm((prev) => ({ ...prev, avatar_url: uploadedAvatarUrl! }));
+
+      if (previousAvatarUrl && previousAvatarUrl !== uploadedAvatarUrl) {
+        await removeStoredFile('avatars', previousAvatarUrl);
+      }
     } catch (error) {
+      if (uploadedAvatarUrl && uploadedAvatarUrl !== previousAvatarUrl) {
+        await removeStoredFile('avatars', uploadedAvatarUrl);
+      }
       setProfileError(error instanceof Error ? error.message : 'อัปโหลดรูปโปรไฟล์ไม่สำเร็จ');
     } finally {
       setUploadingTarget(null);
@@ -378,21 +387,30 @@ export default function ProfilePage() {
     setUploadingTarget(target);
     setProfileError('');
     setProfileSuccess('');
+    const previousPath = form[target];
+    let uploadedPath: string | null = null;
 
     try {
-      const path = await uploadPrivateFile(
+      uploadedPath = await uploadPrivateFile(
         'employee-documents',
         buildStoragePath(currentUser.id, prefix, file),
         file,
       );
 
-      if (!path) {
+      if (!uploadedPath) {
         throw new Error('อัปโหลดเอกสารไม่สำเร็จ');
       }
 
-      await submitProfilePatch({ [target]: path }, successMessage);
-      setForm((prev) => ({ ...prev, [target]: path }));
+      await submitProfilePatch({ [target]: uploadedPath }, successMessage);
+      setForm((prev) => ({ ...prev, [target]: uploadedPath! }));
+
+      if (previousPath && previousPath !== uploadedPath) {
+        await removeStoredFile('employee-documents', previousPath);
+      }
     } catch (error) {
+      if (uploadedPath && uploadedPath !== previousPath) {
+        await removeStoredFile('employee-documents', uploadedPath);
+      }
       setProfileError(error instanceof Error ? error.message : 'อัปโหลดเอกสารไม่สำเร็จ');
     } finally {
       setUploadingTarget(null);
@@ -768,7 +786,7 @@ export default function ProfilePage() {
             </div>
             <div className="flex-1 text-left">
                <p className="text-sm font-semibold text-slate-900">เปลี่ยนรูปโปรไฟล์</p>
-               <p className="text-xs text-slate-500">อัปโหลดรูปภาพใหม่ของคุณ</p>
+               <p className="text-xs text-slate-500">อัปโหลดรูปโปรไฟล์ใหม่</p>
             </div>
             <ChevronRight className="h-4 w-4 text-slate-400" />
           </button>

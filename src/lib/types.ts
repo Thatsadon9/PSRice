@@ -190,7 +190,7 @@ export interface AttendanceRecord {
   user_id: string;
   branch_id: string;
   type: AttendanceType;
-  photo_url: string;
+  photo_url: string | null;
   latitude: number;
   longitude: number;
   gps_accuracy: number;

@@ -29,6 +29,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { capturePhoto, openCamera, stopCamera } from '@/lib/camera';
+import { imageFileToDataUrl } from '@/lib/imageOptimization';
 
 type Step = 'status' | 'camera' | 'confirm' | 'result';
 
@@ -478,17 +479,18 @@ export default function CheckInPage() {
                       input.type = 'file';
                       input.accept = 'image/*';
                       input.setAttribute('capture', 'user');
-                      input.onchange = (event: Event) => {
+                      input.onchange = async (event: Event) => {
                         const target = event.target as HTMLInputElement;
                         const file = target.files?.[0];
                         if (file) {
-                          const reader = new FileReader();
-                          reader.onloadend = () => {
+                          try {
+                            const dataUrl = await imageFileToDataUrl(file);
                             stopCameraStream();
-                            setPhotoData(reader.result as string);
+                            setPhotoData(dataUrl);
                             setStep('confirm');
-                          };
-                          reader.readAsDataURL(file);
+                          } catch (error) {
+                            setCameraError(error instanceof Error ? error.message : 'ไม่สามารถอ่านรูปภาพได้');
+                          }
                         }
                       };
                       input.click();

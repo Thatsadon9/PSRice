@@ -125,7 +125,7 @@ export default function EmployeeDashboard() {
       <PageHeader
         eyebrow={formatThaiDate(new Date().toISOString())}
         title={`สวัสดี, ${firstName}`}
-        description="ดูงานวันนี้ ลงเวลา และติดตามรายได้ปัจจุบันของคุณ"
+        description="งานวันนี้ เวลาเข้างาน และรายได้ปัจจุบัน"
       />
 
       <Card className="border-emerald-100 p-4">
@@ -216,7 +216,7 @@ export default function EmployeeDashboard() {
             <div className="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center">
               <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-500" />
               <p className="mt-2 text-sm font-semibold text-slate-950">วันนี้ยังไม่มีงานใน Milestone</p>
-              <p className="mt-1 text-xs text-slate-500">เมื่อมีงานใหม่ ระบบจะแสดงรายการที่นี่</p>
+              <p className="mt-1 text-xs text-slate-500">ยังไม่มีงานวันนี้</p>
             </div>
           ) : (
             <div className="mt-4 space-y-2">

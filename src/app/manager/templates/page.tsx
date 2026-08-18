@@ -886,7 +886,7 @@ export default function TemplateManagementPage() {
               <div className="mb-2 flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-bold text-slate-800">วันที่มอบหมายในสัปดาห์</p>
-                  <p className="text-xs text-slate-500">เลือกได้หลายวัน ระบบจะมอบหมายเฉพาะวันที่เลือก</p>
+                  <p className="text-xs text-slate-500">รองรับการเลือกหลายวัน</p>
                 </div>
                 <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-primary-700 ring-1 ring-primary-100">
                   {normalizeRecurrenceDays(formData.recurrence_days).length} วัน

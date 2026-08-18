@@ -2,7 +2,7 @@
 // WorkFlow Pro — Export Utilities
 // ==========================================
 
-import * as XLSX from 'xlsx';
+import * as XLSX from '@e965/xlsx';
 
 export function exportToCSV(data: Record<string, unknown>[], filename: string): void {
   if (data.length === 0) return;

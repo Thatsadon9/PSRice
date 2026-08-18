@@ -14,6 +14,55 @@ let authListenerRegistered = false;
 const AUTH_TIMEOUT_MS = 8000;
 const ADMIN_VIEW_MODE_STORAGE_KEY = 'psrice.adminViewMode';
 
+interface ServiceErrorLike {
+  code?: string;
+  message?: string;
+  status?: number;
+}
+
+function isServiceRestricted(error: ServiceErrorLike | null | undefined, status?: number) {
+  const message = error?.message?.toLowerCase() || '';
+  const responseStatus = status ?? error?.status;
+
+  return responseStatus === 402
+    || message.includes('exceed_storage_size_quota')
+    || message.includes('service for this project is restricted')
+    || message.includes('project is restricted');
+}
+
+function isTemporaryServiceFailure(error: ServiceErrorLike | null | undefined, status?: number) {
+  const responseStatus = status ?? error?.status;
+  const message = error?.message?.toLowerCase() || '';
+
+  return isServiceRestricted(error, status)
+    || responseStatus === 429
+    || (typeof responseStatus === 'number' && responseStatus >= 500)
+    || message.includes('failed to fetch')
+    || message.includes('timed out');
+}
+
+function getAuthenticationErrorMessage(error: ServiceErrorLike | null | undefined) {
+  const message = error?.message?.toLowerCase() || '';
+
+  if (isServiceRestricted(error)) {
+    return 'ระบบส่วนกลางถูกระงับชั่วคราวเนื่องจากพื้นที่จัดเก็บเต็ม กรุณาติดต่อผู้ดูแลระบบ';
+  }
+
+  if (error?.status === 429) {
+    return 'มีการพยายามเข้าสู่ระบบถี่เกินไป กรุณารอสักครู่แล้วลองใหม่';
+  }
+
+  if (message.includes('failed to fetch')) {
+    return 'ไม่สามารถเชื่อมต่อระบบยืนยันตัวตนได้ กรุณาตรวจสอบอินเทอร์เน็ตแล้วลองใหม่';
+  }
+
+  if (error?.code === 'invalid_credentials' || message.includes('invalid login credentials')) {
+    return 'อีเมลหรือรหัสผ่านไม่ถูกต้อง';
+  }
+
+  return 'ระบบยืนยันตัวตนขัดข้องชั่วคราว กรุณาติดต่อผู้ดูแลระบบ';
+}
+
 function readStoredAdminViewMode(): AdminViewMode {
   if (typeof window === 'undefined') {
     return 'manager';
@@ -60,7 +109,7 @@ async function clearInvalidSession() {
 }
 
 async function fetchUserProfile(userId: string) {
-  const { data, error } = await withTimeout<PostgrestSingleResponse<User>>(
+  return withTimeout<PostgrestSingleResponse<User>>(
     supabase
       .from('users')
       .select('*')
@@ -68,12 +117,6 @@ async function fetchUserProfile(userId: string) {
       .single<User>(),
     'Fetch user profile',
   );
-
-  if (error || !data) {
-    return null;
-  }
-
-  return data as User;
 }
 
 async function getInactiveAccountMessage(email: string) {
@@ -149,11 +192,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return;
       }
 
-      const userData = await fetchUserProfile(session.user.id);
+      const profileResponse = await fetchUserProfile(session.user.id);
+      const userData = profileResponse.data;
 
-      if (!userData) {
+      if (profileResponse.error || !userData) {
         console.error('Failed to fetch public user metadata for active session');
-        await clearInvalidSession();
+
+        if (!isTemporaryServiceFailure(profileResponse.error, profileResponse.status)) {
+          await clearInvalidSession();
+        }
+
         set({ currentUser: null, isAuthenticated: false, isLoading: false });
         return;
       }
@@ -229,9 +277,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return;
     }
 
-    const userData = await fetchUserProfile(targetUserId);
+    const profileResponse = await fetchUserProfile(targetUserId);
+    const userData = profileResponse.data;
 
-    if (!userData || userData.status !== 'active') {
+    if (profileResponse.error || !userData) {
+      if (!isTemporaryServiceFailure(profileResponse.error, profileResponse.status)) {
+        await clearInvalidSession();
+      }
+
+      set({ currentUser: null, isAuthenticated: false, isLoading: false });
+      return;
+    }
+
+    if (userData.status !== 'active') {
       await clearInvalidSession();
       set({ currentUser: null, isAuthenticated: false, isLoading: false });
       return;
@@ -306,7 +364,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (error || !data.user) {
         return {
           success: false,
-          message: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง',
+          message: getAuthenticationErrorMessage(error),
         };
       }
 
@@ -318,10 +376,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         .single();
 
       if (userError || !userData) {
-        await clearInvalidSession();
+        if (!isTemporaryServiceFailure(userError)) {
+          await clearInvalidSession();
+        }
+
         return {
           success: false,
-          message: 'ไม่พบบัญชีผู้ใช้ในระบบ',
+          message: isServiceRestricted(userError)
+            ? 'ระบบส่วนกลางถูกระงับชั่วคราวเนื่องจากพื้นที่จัดเก็บเต็ม กรุณาติดต่อผู้ดูแลระบบ'
+            : 'ไม่พบบัญชีผู้ใช้ในระบบ',
         };
       }
 
@@ -343,14 +406,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
       return { success: true };
     } catch (error) {
-      const message = error instanceof Error ? error.message : '';
-      const isNetworkError = message.toLowerCase().includes('failed to fetch');
-
       return {
         success: false,
-        message: isNetworkError
-          ? 'ไม่สามารถเชื่อมต่อ Supabase ได้ กรุณาตรวจสอบ NEXT_PUBLIC_SUPABASE_URL และ NEXT_PUBLIC_SUPABASE_ANON_KEY ใน .env.local แล้วรีสตาร์ท dev server'
-          : 'ไม่สามารถเข้าสู่ระบบได้ในขณะนี้',
+        message: getAuthenticationErrorMessage(error instanceof Error ? error : undefined),
       };
     }
   },

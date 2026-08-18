@@ -1,0 +1,14 @@
+import { NextResponse } from 'next/server';
+import { canManageCommerce, getCommerceRequestContext, requireSupabaseAdmin } from '@/lib/commerceServer';
+
+export async function GET(request: Request) {
+  const context = await getCommerceRequestContext(request); if (!context) return NextResponse.json({ error: 'ไม่มีสิทธิ์' }, { status: 403 });
+  const q = new URL(request.url).searchParams.get('q')?.trim() || '';
+  let query = requireSupabaseAdmin().from('customers').select('id, full_name, phone, email, member_code, referral_code, customer_type, points_balance, credit_limit, credit_balance, is_active, created_at').eq('is_active', true).order('created_at', { ascending: false }).limit(100);
+  if (q) query = query.or(`full_name.ilike.%${q}%,phone.ilike.%${q}%,member_code.ilike.%${q}%,referral_code.ilike.%${q}%`);
+  const { data, error } = await query; if (error) return NextResponse.json({ error: error.message }, { status: 500 }); return NextResponse.json({ customers: data || [] });
+}
+
+export async function POST(request: Request) {
+  try { const context = await getCommerceRequestContext(request); if (!context || !canManageCommerce(context.profile)) return NextResponse.json({ error: 'ไม่มีสิทธิ์จัดการลูกค้า' }, { status: 403 }); const body = await request.json() as Record<string, unknown>; const fullName = typeof body.full_name === 'string' ? body.full_name.trim() : ''; const phone = typeof body.phone === 'string' ? body.phone.trim() : ''; const type = ['retail','member','wholesale','dealer'].includes(String(body.customer_type)) ? String(body.customer_type) : 'retail'; const referredByCode = typeof body.referred_by_code === 'string' ? body.referred_by_code.trim().toUpperCase() : ''; if (!fullName) return NextResponse.json({ error: 'กรุณาระบุชื่อลูกค้า' }, { status: 400 }); const admin=requireSupabaseAdmin(); const {data:referrer}=referredByCode?await admin.from('customers').select('id').eq('referral_code',referredByCode).eq('is_active',true).maybeSingle():{data:null}; if(referredByCode&&!referrer)return NextResponse.json({error:'ไม่พบรหัสแนะนำนี้'},{status:400}); const memberCode = type === 'member' ? `PS${Date.now().toString().slice(-8)}` : null; const referralCode = type === 'member' ? `REF${Math.random().toString(36).slice(2, 8).toUpperCase()}` : null; const { data, error } = await admin.from('customers').insert({ full_name: fullName, phone: phone || null, email: typeof body.email === 'string' ? body.email.trim() || null : null, customer_type: type, member_code: memberCode, referral_code: referralCode, referred_by_customer_id:referrer?.id||null, credit_limit: Number(body.credit_limit) || 0 }).select().single(); if (error) return NextResponse.json({ error: error.message }, { status: 400 }); return NextResponse.json({ customer: data }, { status: 201 }); } catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : 'เพิ่มลูกค้าไม่สำเร็จ' }, { status: 500 }); }
+}

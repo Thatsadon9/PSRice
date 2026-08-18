@@ -147,7 +147,7 @@ export default function ManagerDashboard() {
         {decisionQueue.length === 0 ? (
           <Card className="p-8 text-center">
             <CheckSquare className="mx-auto h-10 w-10 text-slate-300" />
-            <p className="mt-3 text-sm font-medium text-slate-500">ไม่มีรายการรอตรวจตอนนี้</p>
+            <p className="mt-3 text-sm font-medium text-slate-500">ไม่มีรายการรอตรวจ</p>
           </Card>
         ) : (
           <div className="grid gap-3 lg:grid-cols-2">

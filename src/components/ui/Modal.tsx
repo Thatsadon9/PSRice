@@ -10,6 +10,9 @@ interface ModalProps {
   title?: string;
   size?: 'sm' | 'md' | 'lg' | 'full';
   bottomSheet?: boolean;
+  dialogRole?: 'dialog' | 'alertdialog';
+  ariaLabelledBy?: string;
+  ariaDescribedBy?: string;
 }
 
 const sizeClasses = {
@@ -26,6 +29,9 @@ export default function Modal({
   title,
   size = 'md',
   bottomSheet = false,
+  dialogRole = 'dialog',
+  ariaLabelledBy,
+  ariaDescribedBy,
 }: ModalProps) {
   useEffect(() => {
     if (isOpen) {
@@ -66,8 +72,10 @@ export default function Modal({
           onClick={onClose}
         />
         <div
-          role="dialog"
+          role={dialogRole}
           aria-modal="true"
+          aria-labelledby={ariaLabelledBy}
+          aria-describedby={ariaDescribedBy}
           className="relative isolate w-full max-h-[min(88vh,760px)] overscroll-contain overflow-y-auto rounded-t-2xl border border-slate-200 bg-white shadow-lg animate-slide-up safe-bottom sm:max-w-md sm:rounded-2xl"
         >
           <div className="flex items-center justify-center pt-3 pb-1 sm:hidden">
@@ -99,8 +107,10 @@ export default function Modal({
         onClick={onClose}
       />
       <div
-        role="dialog"
+        role={dialogRole}
         aria-modal="true"
+        aria-labelledby={ariaLabelledBy}
+        aria-describedby={ariaDescribedBy}
         className={`relative isolate w-full max-h-[min(88vh,760px)] overscroll-contain overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-lg animate-scale-in ${sizeClasses[size]}`}
       >
         {title && (

@@ -96,6 +96,25 @@ export async function getAuthenticatedAuthUser(request: Request): Promise<Supaba
   return user;
 }
 
+export async function getAuthenticatedUserId(request: Request): Promise<string | null> {
+  if (!supabaseUrl || !supabaseAnonKey) return null;
+
+  const accessToken = getBearerToken(request);
+  if (accessToken) {
+    const authClient = createStatelessClient(supabaseAnonKey);
+    const { data, error } = await authClient.auth.getClaims(accessToken);
+    const subject = data?.claims?.sub;
+    if (!error && typeof subject === 'string' && subject) return subject;
+    return null;
+  }
+
+  const requestClient = await createRequestClient();
+  if (!requestClient) return null;
+  const { data, error } = await requestClient.auth.getClaims();
+  const subject = data?.claims?.sub;
+  return !error && typeof subject === 'string' && subject ? subject : null;
+}
+
 export async function getAuthenticatedRequestContext(
   request: Request,
 ): Promise<{ authUser: SupabaseAuthUser; profile: User } | null> {

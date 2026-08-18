@@ -182,7 +182,7 @@ export default function RegisterPage() {
                 <div>
                   <p className="text-sm font-medium text-slate-900">หลังส่งคำขอ</p>
                   <p className="text-xs text-slate-500 mt-1">
-                    ระบบจะสร้างบัญชีให้ทันทีในสถานะรออนุมัติ เมื่อผู้จัดการอนุมัติแล้วจึงจะเข้าสู่ระบบได้
+                    บัญชีใหม่มีสถานะรออนุมัติ และใช้งานได้หลังผู้จัดการอนุมัติ
                   </p>
                 </div>
               </div>
@@ -203,7 +203,7 @@ export default function RegisterPage() {
 
         <div className="mt-5 text-center text-primary-200 text-xs flex items-center justify-center gap-2">
           <Building2 className="w-3.5 h-3.5" />
-          ระบบจะส่งคำขอไปยังผู้จัดการและแอดมินที่เกี่ยวข้องโดยอัตโนมัติ
+          คำขอส่งถึงผู้จัดการและผู้ดูแลที่เกี่ยวข้องอัตโนมัติ
         </div>
       </div>
     </div>

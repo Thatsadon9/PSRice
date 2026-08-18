@@ -1371,7 +1371,7 @@ export default function ManagerSchedulePage() {
                 <h3 className="font-bold">จัดพนักงานได้รวดเร็ว</h3>
               </div>
               <p className="text-sm text-slate-300 leading-relaxed">
-                คลิกที่เซลล์หรือ Drag ค้างไว้เพื่อเลือกช่วงวันที่ในกะที่ต้องการ ระบบจะรวมพนักงานในสาขานั้นมาให้คุณเลือกทันที
+                คลิกหรือลากผ่านเซลล์เพื่อเลือกช่วงวันที่และพนักงานในสาขา
               </p>
             </div>
             <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full -mr-16 -mt-16 " />

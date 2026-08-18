@@ -18,7 +18,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useEmployeeStore } from '@/store/employeeStore';
 import { useHrStore } from '@/store/hrStore';
 import { APPROVAL_STATUS_LABELS, EMPLOYEE_REQUEST_TYPE_LABELS } from '@/lib/constants';
-import { uploadFile } from '@/lib/storage';
+import { removeStoredFile, uploadFile } from '@/lib/storage';
 import { insertNotifications } from '@/lib/reviewHelpers';
 import { buildEmployeeRequestCreatedNotifications, getRequestApprovers } from '@/lib/requestHelpers';
 
@@ -112,12 +112,18 @@ export default function EmployeeRequestsPage() {
 
     setFormError('');
     setSubmitting(true);
+    let uploadedUrls: string[] = [];
+    let requestCreated = false;
 
     try {
-      const uploadedUrls = (await Promise.all(files.map(async (file) => {
+      uploadedUrls = (await Promise.all(files.map(async (file, index) => {
         const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-        return uploadFile('proofs', `requests/${currentUser.id}/${Date.now()}-${sanitizedName}`, file);
+        return uploadFile('proofs', `requests/${currentUser.id}/${Date.now()}-${index}-${sanitizedName}`, file);
       }))).filter((url): url is string => Boolean(url));
+
+      if (uploadedUrls.length !== files.length) {
+        throw new Error('อัปโหลดไฟล์แนบไม่ครบ กรุณาลองใหม่อีกครั้ง');
+      }
 
       const title = form.title.trim() || EMPLOYEE_REQUEST_TYPE_LABELS[form.request_type];
       const success = await addEmployeeRequest({
@@ -135,9 +141,9 @@ export default function EmployeeRequestsPage() {
       });
 
       if (!success) {
-        setSubmitting(false);
-        return;
+        throw new Error('สร้างคำขอไม่สำเร็จ');
       }
+      requestCreated = true;
 
       const approvers = getRequestApprovers(users, currentUser.branch_id);
       await insertNotifications(buildEmployeeRequestCreatedNotifications({
@@ -162,7 +168,11 @@ export default function EmployeeRequestsPage() {
       resetForm();
       setIsModalOpen(false);
     } catch (error) {
+      if (!requestCreated && uploadedUrls.length > 0) {
+        await Promise.all(uploadedUrls.map((url) => removeStoredFile('proofs', url)));
+      }
       console.error('Failed to submit employee request', error);
+      setFormError(error instanceof Error ? error.message : 'สร้างคำขอไม่สำเร็จ');
     }
 
     setSubmitting(false);

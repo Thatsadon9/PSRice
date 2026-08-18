@@ -489,7 +489,7 @@ export default function ReviewDetailPage({ params }: { params: Promise<{ id: str
 
                     {approvedQuantityValidation.valid ? (
                       <p className="text-xs leading-5 text-slate-500">
-                        รับเฉพาะจำนวนเต็ม ถ้าปรับไม่ตรงกับที่พนักงานส่ง ระบบจะให้ยืนยันก่อนอนุมัติ
+                        จำนวนเต็มเท่านั้น · ยืนยันเพิ่มเติมเมื่อแก้จำนวน
                       </p>
                     ) : (
                       <p className="text-xs leading-5 text-red-600">
@@ -580,7 +580,7 @@ export default function ReviewDetailPage({ params }: { params: Promise<{ id: str
 
             <div className="border-t border-slate-100 px-5 py-4">
               <p className="text-center text-[11px] leading-relaxed text-slate-400">
-                เมื่ออนุมัติหรือปฏิเสธงานแล้ว ระบบจะอัปเดตสถานะงาน ส่งคะแนน และส่งการแจ้งเตือนไปยังพนักงานทันที
+                การอนุมัติมีผลต่อสถานะ คะแนน และการแจ้งเตือน
               </p>
             </div>
           </Card>

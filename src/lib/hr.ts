@@ -92,6 +92,7 @@ export interface PayrollSummary {
   absence_deduction: number;
   leave_deduction: number;
   advance_deduction: number;
+  advance_requests: PayrollRequestLine[];
   manual_bonus: number;
   manual_deduction: number;
   total_earnings: number;
@@ -99,6 +100,14 @@ export interface PayrollSummary {
   net_pay: number;
   money_lines: PayrollMoneyLine[];
   daily_summaries: DailyAttendanceSummary[];
+}
+
+export interface PayrollRequestLine {
+  id: string;
+  title: string;
+  amount: number;
+  request_date: string;
+  approved_date: string | null;
 }
 
 export interface PayrollMoneyLine {
@@ -198,7 +207,7 @@ function isDateWithinInclusiveRange(dateValue: string, startDate: string, endDat
   return dateValue >= startDate && dateValue <= endDate;
 }
 
-function sumMoneyRequests(params: {
+function getMoneyRequestsForPayroll(params: {
   requests: EmployeeRequest[];
   userId: string;
   requestType: 'advance' | 'expense';
@@ -206,19 +215,41 @@ function sumMoneyRequests(params: {
   endDate: string;
 }) {
   const { requests, userId, requestType, startDate, endDate } = params;
+  const seenRequestIds = new Set<string>();
 
-  return requests.reduce((sum, request) => {
+  return requests.filter((request) => {
     if (request.user_id !== userId || request.request_type !== requestType || request.status !== 'approved') {
-      return sum;
+      return false;
     }
 
-    const effectiveDate = formatRecordLikeDate(request.reviewed_at || request.created_at);
+    // Salary advances belong to the period in which the employee requested/received
+    // the money. Using reviewed_at moved late-approved requests into the next period
+    // and could make that period appear to contain the same advance twice.
+    const effectiveDate = formatRecordLikeDate(
+      requestType === 'advance'
+        ? request.created_at
+        : request.reviewed_at || request.created_at,
+    );
     if (!isDateWithinInclusiveRange(effectiveDate, startDate, endDate)) {
-      return sum;
+      return false;
     }
 
-    return sum + Math.max(0, toNumberValue(request.amount, 0));
-  }, 0);
+    // Realtime and the initial fetch can briefly contain the same database row.
+    // Payroll must never count one request ID more than once.
+    if (seenRequestIds.has(request.id)) {
+      return false;
+    }
+
+    seenRequestIds.add(request.id);
+    return true;
+  });
+}
+
+function sumMoneyRequests(requests: EmployeeRequest[]) {
+  return requests.reduce(
+    (sum, request) => sum + Math.max(0, toNumberValue(request.amount, 0)),
+    0,
+  );
 }
 
 function buildPayrollMoneyLines(params: {
@@ -606,23 +637,25 @@ export function buildPayrollSummary(params: {
       summary.shift?.branch_id ?? user.branch_id,
     );
   }, 0);
-  const expenseReimbursement = sumMoneyRequests({
+  const expenseRequests = getMoneyRequestsForPayroll({
     requests,
     userId: user.id,
     requestType: 'expense',
     startDate,
     endDate,
   });
+  const expenseReimbursement = sumMoneyRequests(expenseRequests);
   const lateDeduction = totalLateMinutes * lateDeductionRate;
   const absenceDeduction = absentDays * absenceDeductionRate;
   const leaveDeduction = leaveDays * leaveDeductionRate;
-  const advanceDeduction = sumMoneyRequests({
+  const advanceRequests = getMoneyRequestsForPayroll({
     requests,
     userId: user.id,
     requestType: 'advance',
     startDate,
     endDate,
   });
+  const advanceDeduction = sumMoneyRequests(advanceRequests);
   
   const manualBonus = toNumberValue(manualAdjustments.bonus, 0);
   const manualDeduction = toNumberValue(manualAdjustments.deduction, 0);
@@ -667,6 +700,13 @@ export function buildPayrollSummary(params: {
     absence_deduction: absenceDeduction,
     leave_deduction: leaveDeduction,
     advance_deduction: advanceDeduction,
+    advance_requests: advanceRequests.map((request) => ({
+      id: request.id,
+      title: request.title,
+      amount: Math.max(0, toNumberValue(request.amount, 0)),
+      request_date: formatRecordLikeDate(request.created_at),
+      approved_date: request.reviewed_at ? formatRecordLikeDate(request.reviewed_at) : null,
+    })),
     manual_bonus: manualBonus,
     manual_deduction: manualDeduction,
     total_earnings: totalEarnings,

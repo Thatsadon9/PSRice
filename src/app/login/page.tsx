@@ -6,7 +6,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Mail, Lock, AlertCircle } from "lucide-react";
 import { useAuthStore } from "@/store/authStore";
-import { getLandingPath } from "@/lib/viewMode";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Modal from "@/components/ui/Modal";
@@ -28,8 +27,7 @@ export default function LoginPage() {
     const result = await login(email, password);
 
     if (result.success) {
-      const { currentUser, adminViewMode } = useAuthStore.getState();
-      router.push(getLandingPath(currentUser, adminViewMode));
+      router.push('/hub');
     } else {
       setAuthAlert(result.message || "อีเมลหรือรหัสผ่านไม่ถูกต้อง");
     }
@@ -57,12 +55,12 @@ export default function LoginPage() {
             />
           </div>
           <h1 className="text-2xl font-bold text-white">PS Rice Wholesale</h1>
-          <p className="text-emerald-100 text-sm mt-1 mb-2">ระบบจัดการงานพนักงานระดับองค์กร</p>
+          <p className="text-emerald-100 text-sm mt-1 mb-2">พื้นที่ทำงานรวมของพีเอสไรซ์</p>
         </div>
 
         <div className="bg-white rounded-2xl shadow-2xl p-6 animate-fade-in" style={{ animationDelay: "0.1s" }}>
           <h2 className="text-lg font-semibold text-slate-900 mb-1">เข้าสู่ระบบ</h2>
-          <p className="text-sm text-slate-500 mb-5">กรุณากรอกอีเมลและรหัสผ่าน</p>
+          <p className="text-sm text-slate-500 mb-5">เข้าสู่ระบบเพื่อเลือกพื้นที่ทำงาน</p>
 
           <form onSubmit={handleLogin} className="space-y-4">
             <Input
@@ -152,7 +150,7 @@ export default function LoginPage() {
             <Lock className="w-8 h-8" />
           </div>
           <p className="text-slate-700 text-sm leading-relaxed">
-            หากคุณลืมรหัสผ่าน หรือไม่สามารถเข้าสู่ระบบได้<br />กรุณาติดต่อ <strong className="text-primary-700">ผู้จัดการสาขา</strong> ของคุณเพื่อทำการรีเซ็ตรหัสผ่านใหม่
+            หากลืมรหัสผ่านหรือไม่สามารถเข้าสู่ระบบได้<br />ติดต่อ <strong className="text-primary-700">ผู้จัดการสาขา</strong> เพื่อรีเซ็ตรหัสผ่าน
           </p>
           <Button fullWidth onClick={() => setShowForgotModal(false)} className="mt-4">เข้าใจแล้ว</Button>
         </div>

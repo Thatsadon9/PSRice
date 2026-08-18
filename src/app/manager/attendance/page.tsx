@@ -993,7 +993,7 @@ export default function AttendanceMonitoringPage() {
               {formatThaiDate(editTarget.summary.work_date || selectedDate)}
             </p>
             <p className="text-xs text-slate-500 leading-relaxed">
-              ผู้จัดการ/แอดมินปรับเวลารายการเดิมได้ และเพิ่มรายการใหม่เมื่อพนักงานยังไม่มีเช็คอิน/เอาต์ — ระบบจะบันทึกหมายเหตุจากผู้ดำเนินการอัตโนมัติ
+              ปรับเวลาเดิมหรือเพิ่มรายการที่ขาด · บันทึกผู้ดำเนินการอัตโนมัติ
             </p>
 
             <div className="space-y-1.5">

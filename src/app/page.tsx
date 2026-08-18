@@ -3,20 +3,22 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
-import { getLandingPath } from '@/lib/viewMode';
 
 export default function Home() {
   const router = useRouter();
-  const { isAuthenticated, currentUser } = useAuthStore();
-  const adminViewMode = useAuthStore((state) => state.adminViewMode);
+  const { isAuthenticated, currentUser, isLoading } = useAuthStore();
 
   useEffect(() => {
+    if (isLoading) {
+      return;
+    }
+
     if (isAuthenticated && currentUser) {
-      router.replace(getLandingPath(currentUser, adminViewMode));
+      router.replace('/hub');
     } else {
       router.replace('/login');
     }
-  }, [adminViewMode, isAuthenticated, currentUser, router]);
+  }, [currentUser, isAuthenticated, isLoading, router]);
 
   return (
     <div className="flex items-center justify-center min-h-dvh">

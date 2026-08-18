@@ -1,4 +1,25 @@
 import { supabase } from './supabase';
+import { optimizeImage, replaceFileExtension } from './imageOptimization';
+
+function getImagePreset(bucket: string, path: string) {
+  if (bucket === 'avatars') return 'avatar' as const;
+  if (bucket === 'employee-documents') return 'document' as const;
+  if (path.startsWith('attendance/')) return 'attendance' as const;
+  return 'proof' as const;
+}
+
+async function prepareUpload(bucket: string, path: string, file: Blob | File) {
+  if (!file.type.startsWith('image/')) {
+    return { path, file };
+  }
+
+  const optimized = await optimizeImage(file, getImagePreset(bucket, path));
+
+  return {
+    path: optimized.optimized ? replaceFileExtension(path, optimized.extension) : path,
+    file: optimized.blob,
+  };
+}
 
 /**
  * Uploads a file (Blob/File) to a Supabase Storage bucket.
@@ -12,11 +33,13 @@ export async function uploadFile(
   file: Blob | File
 ): Promise<string | null> {
   try {
+    const prepared = await prepareUpload(bucket, path, file);
     const { data, error } = await supabase.storage
       .from(bucket)
-      .upload(path, file, {
-        cacheControl: '3600',
-        upsert: true,
+      .upload(prepared.path, prepared.file, {
+        cacheControl: '31536000',
+        contentType: prepared.file.type || undefined,
+        upsert: false,
       });
 
     if (error) {
@@ -42,11 +65,13 @@ export async function uploadPrivateFile(
   file: Blob | File
 ): Promise<string | null> {
   try {
+    const prepared = await prepareUpload(bucket, path, file);
     const { data, error } = await supabase.storage
       .from(bucket)
-      .upload(path, file, {
-        cacheControl: '3600',
-        upsert: true,
+      .upload(prepared.path, prepared.file, {
+        cacheControl: '31536000',
+        contentType: prepared.file.type || undefined,
+        upsert: false,
       });
 
     if (error) {
@@ -59,6 +84,42 @@ export async function uploadPrivateFile(
     console.error('Failed to upload private file:', err);
     return null;
   }
+}
+
+function resolveStoredObjectPath(bucket: string, urlOrPath: string) {
+  if (!urlOrPath) return null;
+
+  if (!urlOrPath.startsWith('http://') && !urlOrPath.startsWith('https://')) {
+    return urlOrPath.replace(/^\/+/, '');
+  }
+
+  try {
+    const fileUrl = new URL(urlOrPath);
+    const projectUrl = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL || '');
+    const marker = `/storage/v1/object/public/${bucket}/`;
+
+    if (fileUrl.hostname !== projectUrl.hostname || !fileUrl.pathname.includes(marker)) {
+      return null;
+    }
+
+    return decodeURIComponent(fileUrl.pathname.split(marker)[1] || '');
+  } catch {
+    return null;
+  }
+}
+
+export async function removeStoredFile(bucket: string, urlOrPath: string | null | undefined) {
+  const objectPath = resolveStoredObjectPath(bucket, urlOrPath || '');
+  if (!objectPath) return false;
+
+  const { error } = await supabase.storage.from(bucket).remove([objectPath]);
+
+  if (error) {
+    console.error('Storage delete error:', error.message);
+    return false;
+  }
+
+  return true;
 }
 
 export async function createSignedFileUrl(bucket: string, path: string, expiresIn = 3600): Promise<string | null> {

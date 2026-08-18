@@ -462,7 +462,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
 
       {task.status !== 'approved' && task.status !== 'submitted' && (
         <div className="space-y-3">
-          <h2 className="px-1 text-sm font-semibold text-slate-950">ส่งหลักฐานของคุณ</h2>
+          <h2 className="px-1 text-sm font-semibold text-slate-950">ส่งหลักฐาน</h2>
           <Card className="p-4">
             <div className="space-y-5">
               {(proofRequired === 'photo' || proofRequired === 'video' || proofRequired === 'any') && (

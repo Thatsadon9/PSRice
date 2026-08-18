@@ -44,16 +44,21 @@ export async function openCamera(
  */
 export function capturePhoto(
   videoElement: HTMLVideoElement,
-  quality: number = 0.85
+  quality: number = 0.76
 ): { blob: Blob; dataUrl: string } | null {
   const canvas = document.createElement('canvas');
-  canvas.width = videoElement.videoWidth;
-  canvas.height = videoElement.videoHeight;
+  const maxDimension = 1280;
+  const largestDimension = Math.max(videoElement.videoWidth, videoElement.videoHeight);
+  const scale = largestDimension > maxDimension ? maxDimension / largestDimension : 1;
+  canvas.width = Math.max(1, Math.round(videoElement.videoWidth * scale));
+  canvas.height = Math.max(1, Math.round(videoElement.videoHeight * scale));
   
   const ctx = canvas.getContext('2d');
   if (!ctx) return null;
   
-  ctx.drawImage(videoElement, 0, 0);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
   
   const dataUrl = canvas.toDataURL('image/jpeg', quality);
   const byteString = atob(dataUrl.split(',')[1]);

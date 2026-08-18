@@ -951,7 +951,7 @@ export default function AssignmentsPage() {
                  <h2 className="text-xl font-black tracking-tight">มอบหมายงานใหม่</h2>
               </div>
               <p className="text-xs text-slate-400 font-medium leading-relaxed max-w-[280px]">
-                 ส่งคำสั่งใหม่ให้พนักงานรายบุคคลหรือรายสาขา ระบบจะแจ้งเตือนพนักงานทันที
+                 มอบหมายรายบุคคลหรือรายสาขา พร้อมการแจ้งเตือน
               </p>
            </div>
         </div>
@@ -1091,7 +1091,7 @@ export default function AssignmentsPage() {
                 <div className="flex items-center gap-3 p-4 bg-slate-50 border border-slate-100 rounded-2xl">
                   <div className="flex-1">
                     <p className="text-sm font-black text-slate-900">รอตรวจสอบจากหัวหน้างาน</p>
-                    <p className="text-[10px] font-bold text-slate-400 mt-0.5">พนักงานส่งงานแล้วต้องให้แอดมินอนุมัติก่อนถึงจะเสร็จสิ้น</p>
+                    <p className="text-[10px] font-bold text-slate-400 mt-0.5">สถานะเสร็จสิ้นหลังผู้ดูแลอนุมัติ</p>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer">
                     <input 
