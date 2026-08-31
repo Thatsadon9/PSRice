@@ -15,7 +15,17 @@ export type PosvisRawProductRow = {
   stock_status: string;
 };
 
-export type PosvisValidationWarning = { code: string; message: string; rowNumbers: number[] };
+export type PosvisIssueSeverity = 'error' | 'warning';
+export type PosvisValidationIssue = {
+  code: string;
+  severity: PosvisIssueSeverity;
+  title: string;
+  message: string;
+  action: string;
+  rowNumbers: number[];
+};
+
+export type PosvisStockSummary = { unitName: string; quantity: number; rowCount: number };
 
 export type PosvisNormalizedUnitRow = {
   rowNumber: number;
@@ -27,6 +37,7 @@ export type PosvisNormalizedUnitRow = {
   sku: string;
   unitCode: string;
   unitName: string;
+  baseUnitCode: string;
   conversionToBase: number;
   stock: number;
   costPrice: number;
@@ -43,6 +54,7 @@ export type PosvisGroupedProductPreview = {
   sku: string;
   name: string;
   categoryName: string;
+  baseUnitCode: string;
   unitInventoryMode: 'separate_unit';
   units: PosvisNormalizedUnitRow[];
 };
@@ -50,9 +62,9 @@ export type PosvisGroupedProductPreview = {
 export type PosvisProductPreview = {
   products: PosvisGroupedProductPreview[];
   unitCount: number;
-  stockTotal: number;
-  warningCount: number;
-  warnings: PosvisValidationWarning[];
+  stockByUnit: PosvisStockSummary[];
+  issueCount: number;
+  issues: PosvisValidationIssue[];
 };
 
 export type MigrationValidationRow = {
@@ -137,17 +149,67 @@ function cleanCategory(value: string) {
   return cleanText(value).replace(/^\s*\d+\s*[.)\-:]\s*/, '').trim();
 }
 
+const POSVIS_ISSUE_CATALOG: Record<string, Omit<PosvisValidationIssue, 'code' | 'rowNumbers'>> = {
+  missing_product_barcode: { severity: 'error', title: 'ไม่มีบาร์โค้ด', message: 'รายการนี้ไม่มีบาร์โค้ด จึงไม่สามารถระบุหน่วยสินค้าได้', action: 'กรอกบาร์โค้ดที่ไม่ซ้ำก่อนนำเข้า' },
+  duplicate_product_barcode: { severity: 'error', title: 'บาร์โค้ดซ้ำในไฟล์', message: 'บาร์โค้ดนี้ปรากฏมากกว่าหนึ่งครั้งในไฟล์เดียวกัน', action: 'แก้ไขให้แต่ละหน่วยมีบาร์โค้ดไม่ซ้ำกัน' },
+  existing_barcode_conflict: { severity: 'error', title: 'บาร์โค้ดชนกับสินค้าเดิม', message: 'บาร์โค้ดนี้ถูกใช้อยู่กับสินค้าอื่นในระบบ', action: 'ตรวจสอบและแก้ไขบาร์โค้ด หรือเอารายการที่ซ้ำออก' },
+  missing_product_name: { severity: 'error', title: 'ไม่มีชื่อสินค้า', message: 'ระบบไม่สามารถสร้างสินค้าแม่ได้เพราะไม่พบชื่อสินค้า', action: 'กรอกชื่อสินค้าให้ครบ' },
+  missing_unit: { severity: 'error', title: 'ไม่มีหน่วยสินค้า', message: 'รายการนี้ไม่มีหน่วยขายจาก POSVis', action: 'ระบุหน่วย เช่น ถุง กระสอบ หรือ ขวด' },
+  invalid_conversion: { severity: 'error', title: 'อัตราแปลงหน่วยไม่ถูกต้อง', message: 'อัตราแปลงต้องเป็นตัวเลขมากกว่า 0', action: 'แก้ไขอัตราแปลงหน่วยให้ถูกต้อง' },
+  invalid_stock: { severity: 'error', title: 'สต๊อกติดลบหรือไม่ใช่ตัวเลข', message: 'ยอดเปิดสต๊อกต้องเป็น 0 หรือมากกว่า', action: 'แก้ไขยอดสต๊อกเป็นจำนวนจริงก่อนนำเข้า' },
+  invalid_cost_price: { severity: 'error', title: 'ต้นทุนไม่ถูกต้อง', message: 'ต้นทุนต้องเป็นตัวเลข 0 หรือมากกว่า', action: 'แก้ไขต้นทุนก่อนนำเข้า' },
+  invalid_sale_price: { severity: 'error', title: 'ราคาขายไม่ถูกต้อง', message: 'ราคาขายต้องเป็นตัวเลข 0 หรือมากกว่า', action: 'แก้ไขราคาขายก่อนนำเข้า' },
+  invalid_reorder_point: { severity: 'error', title: 'จุดสั่งซื้อไม่ถูกต้อง', message: 'จุดสั่งซื้อต้องเป็นตัวเลข 0 หรือมากกว่า', action: 'แก้ไขจุดสั่งซื้อก่อนนำเข้า' },
+  duplicate_product_unit: { severity: 'error', title: 'หน่วยสินค้าซ้ำ', message: 'สินค้าแม่มีหน่วยที่ซ้ำกันจากข้อมูลที่ตรวจพบ', action: 'แก้ไขบาร์โค้ดหรือหน่วยให้เป็นรายการเดียวกัน' },
+  missing_category: { severity: 'warning', title: 'ไม่พบหมวดสินค้า', message: 'ระบบจะจัดรายการนี้ไว้ในหมวด “ไม่ระบุหมวดหมู่”', action: 'ตรวจสอบหมวดสินค้าได้ก่อนนำเข้า' },
+};
+
+export function describePosvisIssue(code: string): Omit<PosvisValidationIssue, 'code' | 'rowNumbers'> {
+  return POSVIS_ISSUE_CATALOG[code] || {
+    severity: 'warning',
+    title: 'มีข้อมูลที่ควรตรวจสอบ',
+    message: 'ระบบพบข้อมูลที่ไม่สมบูรณ์ในรายการนี้',
+    action: 'เปิดรายการเพื่อตรวจสอบข้อมูลก่อนนำเข้า',
+  };
+}
+
+export function formatPosvisIssueMessage(codes: string[]) {
+  return [...new Set(codes)].map((code) => {
+    const issue = describePosvisIssue(code);
+    return `${issue.title}: ${issue.action}`;
+  }).join(' · ') || null;
+}
+
 function parseProductName(value: string, unitDescription: string) {
   const source = cleanText(value).replace(/^[.\-\s]+/, '').trim();
   const trailingPackage = /\s*-\s*([^\-]+)\s*-\s*$/u;
   const match = source.match(trailingPackage);
   const suffix = match?.[1] || '';
   const name = cleanText(match ? source.slice(0, match.index).trim() : source).replace(/[\-–—]+$/, '').trim() || source;
-  const weightMatch = `${suffix} ${source}`.match(/(\d+(?:\.\d+)?)\s*(?:[.\s]*)(?:ก\s*[.\s]*ก|กก|กิโลกรัม|kg)\s*\.?/iu);
-  const conversion = weightMatch ? Number(weightMatch[1]) : null;
+  const weightMatch = `${suffix} ${source}`.match(/(\d+(?:[.,]\d+)?)\s*(?:[.\s-]*)(?:ก\s*[.\s]*ก|กก|กิโลกรัม|kg)\s*\.?/iu);
+  const conversion = weightMatch ? Number(weightMatch[1].replace(',', '.')) : null;
   const unit = cleanText(unitDescription) || cleanText(suffix.replace(/\d+(?:\.\d+)?\s*(?:ก\.?\s*ก\.?|กก\.?|กิโลกรัม|kg)/iu, '').replace(/[.\-]+/g, ' ')) || 'หน่วย';
-  const unitName = conversion && !new RegExp(String(conversion)).test(unit) ? `${unit} ${conversion} กก.` : unit;
-  return { name, conversion, unitName };
+  const unitName = conversion
+    ? /^(?:ก\s*\.??\s*ก|กก|กิโลกรัม|kg)$/iu.test(unit) ? `${conversion} กก.` : `${unit} ${conversion} กก.`
+    : unit;
+  return { name, conversion, unitName, baseUnitCode: conversion ? 'กก.' : unit };
+}
+
+function hasKilogramUnit(value: string) {
+  return /(?:ก\s*\.?\s*ก|กก|กิโลกรัม|kg)/iu.test(value);
+}
+
+function normalizeExistingUnitName(value: string, conversion: number | null) {
+  const unitName = cleanText(value);
+  if (!conversion || !hasKilogramUnit(unitName)) return unitName;
+  // Older dry-runs saved labels such as “กิโลกรัม 1 กก.”.  Retain package
+  // labels (for example “ถุง 5 กก.”) but simplify the measurement-only form.
+  if (/^(?:ก\s*\.?\s*ก|กก|กิโลกรัม|kg)\s*\d/iu.test(unitName)) return `${conversion} กก.`;
+  return unitName;
+}
+
+function inferBaseUnitCode(unitName: string) {
+  return hasKilogramUnit(unitName) ? 'กก.' : unitName || 'หน่วย';
 }
 
 function makeGroupKey(name: string, categoryName: string) {
@@ -224,8 +286,6 @@ function validatePosvisProductRows(rows: Record<string, unknown>[]): MigrationVa
     if (costPrice == null || costPrice < 0) errors.push('invalid_cost_price');
     if (salePrice == null || salePrice < 0) errors.push('invalid_sale_price');
     if (reorderPoint == null || reorderPoint < 0) errors.push('invalid_reorder_point');
-    if (!nameInfo.conversion) warnings.push('conversion_defaulted_to_one');
-
     const normalizedData: Record<string, unknown> = {
       external_ref: barcode || `row-${rowNumber}`,
       barcode,
@@ -235,6 +295,7 @@ function validatePosvisProductRows(rows: Record<string, unknown>[]): MigrationVa
       sku: `PV-${stableHash(groupKey)}`,
       unit_code: makeUnitCode(nameInfo.unitName, conversion, barcode),
       unit_name: nameInfo.unitName,
+      base_unit_code: nameInfo.baseUnitCode,
       conversion_to_base: conversion,
       stock: stock ?? 0,
       cost_price: costPrice ?? 0,
@@ -254,14 +315,14 @@ function validatePosvisProductRows(rows: Record<string, unknown>[]): MigrationVa
       normalizedData,
       status: errors.length ? 'error' : warnings.length ? 'warning' : 'valid',
       errorCodes: allCodes,
-      errorMessage: allCodes.length ? allCodes.join(', ') : null,
+      errorMessage: formatPosvisIssueMessage(allCodes),
     } satisfies MigrationValidationRow;
   });
 }
 
 export function buildPosvisProductPreview(rows: MigrationValidationRow[]): PosvisProductPreview {
   const groups = new Map<string, PosvisGroupedProductPreview>();
-  const warningMap = new Map<string, PosvisValidationWarning>();
+  const issueMap = new Map<string, PosvisValidationIssue>();
   rows.forEach((row) => {
     const data = row.normalizedData;
     const groupKey = asText(data.group_key);
@@ -275,7 +336,8 @@ export function buildPosvisProductPreview(rows: MigrationValidationRow[]): Posvi
       groupKey,
       sku: asText(data.sku),
       unitCode: asText(data.unit_code),
-      unitName: asText(data.unit_name),
+      unitName: normalizeExistingUnitName(asText(data.unit_name), asNumber(data.conversion_to_base)),
+      baseUnitCode: asText(data.base_unit_code) || inferBaseUnitCode(asText(data.unit_name)),
       conversionToBase: Number(data.conversion_to_base || 1),
       stock: Number(data.stock || 0),
       costPrice: Number(data.cost_price || 0),
@@ -286,29 +348,34 @@ export function buildPosvisProductPreview(rows: MigrationValidationRow[]): Posvi
       statusLabel: asText(data.status_label),
       warningCodes: Array.isArray(data.warning_codes) ? data.warning_codes.map(String) : [],
     };
-    const group = groups.get(groupKey) || { groupKey, sku: unit.sku, name: unit.productName, categoryName: unit.categoryName, unitInventoryMode: 'separate_unit' as const, units: [] };
+    const group = groups.get(groupKey) || { groupKey, sku: unit.sku, name: unit.productName, categoryName: unit.categoryName, baseUnitCode: unit.baseUnitCode, unitInventoryMode: 'separate_unit' as const, units: [] };
     group.units.push(unit);
     groups.set(groupKey, group);
-    unit.warningCodes.forEach((code) => {
-      const message = code === 'conversion_defaulted_to_one'
-        ? 'อ่านน้ำหนักจากชื่อไม่สำเร็จ จึงใช้ 1 เป็นอัตราแปลง'
-        : code === 'missing_category'
-          ? 'ไม่พบหมวดสินค้า จะใช้หมวดไม่ระบุ'
-          : code === 'duplicate_product_unit'
-            ? 'หน่วยนี้ซ้ำกับรายการเดียวกัน (ตรวจ barcode/อัตราแปลงแล้ว)'
-            : code;
-      const warning = warningMap.get(code) || { code, message, rowNumbers: [] };
-      warning.rowNumbers.push(row.rowNumber);
-      warningMap.set(code, warning);
+    [...row.errorCodes, ...unit.warningCodes].forEach((code) => {
+      const detail = describePosvisIssue(code);
+      const issue = issueMap.get(code) || { code, ...detail, rowNumbers: [] };
+      if (!issue.rowNumbers.includes(row.rowNumber)) issue.rowNumbers.push(row.rowNumber);
+      issueMap.set(code, issue);
     });
   });
-  const products = [...groups.values()].sort((left, right) => left.name.localeCompare(right.name, 'th'));
+  const products = [...groups.values()].map((product) => {
+    product.units.sort((left, right) => left.conversionToBase - right.conversionToBase || left.unitName.localeCompare(right.unitName, 'th') || (left.barcode || '').localeCompare(right.barcode || '') || left.rowNumber - right.rowNumber);
+    product.baseUnitCode = product.units[0]?.baseUnitCode || product.baseUnitCode;
+    return product;
+  }).sort((left, right) => left.name.localeCompare(right.name, 'th'));
+  const stockByUnitMap = new Map<string, PosvisStockSummary>();
+  products.forEach((product) => product.units.forEach((unit) => {
+    const summary = stockByUnitMap.get(unit.unitName) || { unitName: unit.unitName, quantity: 0, rowCount: 0 };
+    summary.quantity += unit.stock;
+    summary.rowCount += 1;
+    stockByUnitMap.set(unit.unitName, summary);
+  }));
   return {
     products,
     unitCount: products.reduce((sum, product) => sum + product.units.length, 0),
-    stockTotal: products.reduce((sum, product) => sum + product.units.reduce((unitSum, unit) => unitSum + unit.stock, 0), 0),
-    warningCount: [...warningMap.values()].reduce((sum, warning) => sum + warning.rowNumbers.length, 0),
-    warnings: [...warningMap.values()],
+    stockByUnit: [...stockByUnitMap.values()].sort((left, right) => left.unitName.localeCompare(right.unitName, 'th')),
+    issueCount: [...issueMap.values()].reduce((sum, issue) => sum + issue.rowNumbers.length, 0),
+    issues: [...issueMap.values()].sort((left, right) => left.severity === right.severity ? left.title.localeCompare(right.title, 'th') : left.severity === 'error' ? -1 : 1),
   };
 }
 
@@ -317,9 +384,9 @@ function normalizeEditedPosvisRow(row: MigrationValidationRow) {
   const rawCategory = cleanText(asText(data.category_name));
   const categoryName = cleanCategory(rawCategory) || 'ไม่ระบุหมวดหมู่';
   const productName = cleanText(asText(data.product_name));
-  const unitName = cleanText(asText(data.unit_name));
-  const barcode = asText(data.barcode) || null;
   const conversion = asNumber(data.conversion_to_base);
+  const unitName = normalizeExistingUnitName(asText(data.unit_name), conversion);
+  const barcode = asText(data.barcode) || null;
   const groupKey = makeGroupKey(productName, categoryName);
   const canSell = Boolean(data.can_sell) && !/ยกเลิกจำหน่าย/iu.test(categoryName);
   const statusLabel = /ยกเลิกจำหน่าย/iu.test(categoryName)
@@ -338,6 +405,7 @@ function normalizeEditedPosvisRow(row: MigrationValidationRow) {
     sku: `PV-${stableHash(groupKey)}`,
     unit_code: makeUnitCode(unitName, conversion || 1, barcode),
     unit_name: unitName,
+    base_unit_code: asText(data.base_unit_code) || inferBaseUnitCode(unitName),
     conversion_to_base: conversion ?? 0,
     stock: asNumber(data.stock) ?? -1,
     cost_price: asNumber(data.cost_price) ?? -1,
@@ -387,7 +455,6 @@ export function revalidatePosvisRows(rows: MigrationValidationRow[]) {
     if (costPrice == null || costPrice < 0) errors.push('invalid_cost_price');
     if (salePrice == null || salePrice < 0) errors.push('invalid_sale_price');
     if (reorderPoint == null || reorderPoint < 0) errors.push('invalid_reorder_point');
-    if (previousWarningCodes.includes('conversion_defaulted_to_one') && conversion === 1) warnings.push('conversion_defaulted_to_one');
 
     // A unit label is not unique in POSVis. For example, several legacy
     // products can all export as "กิโลกรัม 1 กก." but still represent
@@ -406,7 +473,7 @@ export function revalidatePosvisRows(rows: MigrationValidationRow[]) {
       normalizedData: { ...normalizedData, warning_codes: warnings },
       status: errors.length ? 'error' : warnings.length ? 'warning' : 'valid',
       errorCodes: allCodes,
-      errorMessage: allCodes.length ? allCodes.join(', ') : null,
+      errorMessage: formatPosvisIssueMessage(allCodes),
     } satisfies MigrationValidationRow;
   });
 

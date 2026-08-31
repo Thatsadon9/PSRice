@@ -3,7 +3,7 @@ import { unzipSync } from 'fflate';
 import { NextResponse } from 'next/server';
 import sharp from 'sharp';
 import { type CommerceProfile, getCommerceRequestContext, hasCommercePermission, requireSupabaseAdmin } from '@/lib/commerceServer';
-import { buildPosvisProductPreview, detectPosvisProductProfile, POSVIS_DATA_TYPES, parsePosvisWorkbook, revalidatePosvisRows, type MigrationValidationRow, type PosvisDataType, validatePosvisRows } from '@/lib/posvisMigration';
+import { buildPosvisProductPreview, detectPosvisProductProfile, formatPosvisIssueMessage, POSVIS_DATA_TYPES, parsePosvisWorkbook, revalidatePosvisRows, type MigrationValidationRow, type PosvisDataType, validatePosvisRows } from '@/lib/posvisMigration';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -51,11 +51,11 @@ async function applyPosvisBarcodeConflicts(rows: MigrationValidationRow[]) {
     const expectedExternalRef = row.normalizedData.group_key ? `posvis-group:${String(row.normalizedData.group_key)}` : null;
     if (existing && existing.externalRef !== expectedExternalRef) {
       conflictCount += 1;
-      row.status = row.status === 'error' ? 'error' : 'warning';
+      row.status = 'error';
       row.errorCodes = [...new Set([...row.errorCodes, 'existing_barcode_conflict'])];
       const warningCodes = Array.isArray(row.normalizedData.warning_codes) ? row.normalizedData.warning_codes.map(String) : [];
-      row.normalizedData = { ...row.normalizedData, warning_codes: [...new Set([...warningCodes, 'existing_barcode_conflict'])] };
-      row.errorMessage = row.errorCodes.join(', ');
+      row.normalizedData = { ...row.normalizedData, warning_codes: warningCodes.filter((code) => code !== 'existing_barcode_conflict') };
+      row.errorMessage = formatPosvisIssueMessage(row.errorCodes);
     }
   });
   return conflictCount;
@@ -142,7 +142,9 @@ export async function GET(request: Request) {
     if (branchId) batchesQuery = batchesQuery.or(`branch_id.is.null,branch_id.eq.${branchId}`);
     const { data: batches, error } = await batchesQuery;
     if (error) throw error;
-    const batchId = new URL(request.url).searchParams.get('batch_id');
+    const requestUrl = new URL(request.url);
+    const batchId = requestUrl.searchParams.get('batch_id');
+    const focusedRowNumber = Number(requestUrl.searchParams.get('row_number'));
     let batchList = batches || [];
     let rows: unknown[] = [];
     if (batchId) {
@@ -153,9 +155,13 @@ export async function GET(request: Request) {
       if (selectedBatch?.data_type === 'posvis_products' && ['ready', 'uploaded'].includes(selectedBatch.status)) {
         const refreshed = await refreshPosvisBatchValidation(batchId);
         batchList = batchList.map((batch) => batch.id === refreshed.batch.id ? refreshed.batch : batch);
-        rows = refreshed.rows.slice(0, 500);
+        rows = Number.isInteger(focusedRowNumber) && focusedRowNumber > 0
+          ? refreshed.rows.filter((row) => row.row_number === focusedRowNumber)
+          : refreshed.rows.slice(0, 500);
       } else {
-        const result = await admin.from('migration_rows').select('id, row_number, external_ref, normalized_data, status, error_codes, error_message, imported_entity_type, imported_entity_id').eq('migration_batch_id', batchId).order('row_number').limit(500);
+        let rowsQuery = admin.from('migration_rows').select('id, row_number, external_ref, normalized_data, status, error_codes, error_message, imported_entity_type, imported_entity_id').eq('migration_batch_id', batchId).order('row_number');
+        rowsQuery = Number.isInteger(focusedRowNumber) && focusedRowNumber > 0 ? rowsQuery.eq('row_number', focusedRowNumber) : rowsQuery.limit(500);
+        const result = await rowsQuery;
         if (result.error) throw result.error;
         rows = result.data || [];
       }
@@ -218,8 +224,6 @@ export async function POST(request: Request) {
     const admin = requireSupabaseAdmin();
     const branchId = await getSelectedBranchId(context.profile);
     if (requestedDataType === 'product_images') {
-      const { data: existing } = await admin.from('migration_batches').select('*').eq('source_system', 'posvis').eq('checksum', checksum).eq('data_type', 'product_images').maybeSingle();
-      if (existing) return NextResponse.json({ batch: existing, duplicate: true });
       const { data: batch, error: batchError } = await admin.from('migration_batches').insert({ source_system: 'posvis', file_name: file.name, data_type: 'product_images', checksum, status: 'validating', dry_run: false, branch_id: branchId, created_by_user_id: context.profile.id }).select('*').single();
       if (batchError || !batch) throw batchError || new Error('สร้าง migration batch ไม่สำเร็จ');
       if (!file.name.toLocaleLowerCase().endsWith('.zip')) return NextResponse.json({ error: 'รูปสินค้าต้องเป็นไฟล์ ZIP' }, { status: 400 });
@@ -232,8 +236,6 @@ export async function POST(request: Request) {
     if (rows.length > 50_000) return NextResponse.json({ error: 'หนึ่ง batch รองรับไม่เกิน 50,000 แถว' }, { status: 413 });
     const dataType = requestedDataType === 'auto' || (requestedDataType === 'products' && detectPosvisProductProfile(rows)) ? 'posvis_products' : requestedDataType;
     if (!POSVIS_DATA_TYPES.includes(dataType as PosvisDataType)) return NextResponse.json({ error: 'ระบบตรวจไม่พบโปรไฟล์ของไฟล์นี้' }, { status: 400 });
-    const { data: existing } = await admin.from('migration_batches').select('*').eq('source_system', 'posvis').eq('checksum', checksum).eq('data_type', dataType).maybeSingle();
-    if (existing) return NextResponse.json({ batch: existing, duplicate: true });
     const { data: batch, error: batchError } = await admin.from('migration_batches').insert({ source_system: 'posvis', file_name: file.name, data_type: dataType, checksum, status: 'validating', dry_run: true, branch_id: branchId, created_by_user_id: context.profile.id }).select('*').single();
     if (batchError || !batch) throw batchError || new Error('สร้าง migration batch ไม่สำเร็จ');
 
@@ -351,6 +353,7 @@ async function commitPosvisProductBatch(batch: { id: string; branch_id?: string 
     sku: product.sku,
     name: product.name,
     category_name: product.categoryName,
+    base_unit_code: product.baseUnitCode,
     units: product.units.map((unit) => ({
       external_ref: unit.externalRef,
       barcode: unit.barcode,
