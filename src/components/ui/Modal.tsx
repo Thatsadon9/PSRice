@@ -1,6 +1,7 @@
 'use client';
 
 import { type ReactNode, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 interface ModalProps {
@@ -62,10 +63,10 @@ export default function Modal({
     };
   }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
+  if (!isOpen || typeof document === 'undefined') return null;
 
   if (bottomSheet) {
-    return (
+    return createPortal(
       <div className="fixed inset-0 z-[100] flex items-end sm:items-center sm:justify-center">
         <div
           className="fixed inset-0 bg-black/40 backdrop-blur-[2px]"
@@ -96,11 +97,12 @@ export default function Modal({
           )}
           <div className="relative z-0 px-5 py-4">{children}</div>
         </div>
-      </div>
+      </div>,
+      document.body,
     );
   }
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div
         className="fixed inset-0 bg-black/40 backdrop-blur-[2px]"
@@ -128,6 +130,7 @@ export default function Modal({
         )}
         <div className="relative z-0 px-5 py-4">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
