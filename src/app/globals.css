@@ -227,9 +227,12 @@ tbody > tr {
   transition: background-color 140ms var(--ease-standard);
 }
 
-/* Consistent entrance motion for custom dialogs used across Commerce. */
-.fixed.inset-0[class*="bg-slate-950"],
-.fixed.inset-0[class*="bg-black"] {
+/*
+ * Keep this scoped to Commerce dialogs. The manager sidebar's backdrop is
+ * permanently mounted and Framer Motion owns its opacity; animating every
+ * `bg-black` fixed layer here would leave that backdrop fully opaque.
+ */
+.fixed.inset-0[class*="bg-slate-950"] {
   animation: overlayIn 150ms ease-out both;
 }
 
